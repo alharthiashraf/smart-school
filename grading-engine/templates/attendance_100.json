@@ -1,0 +1,10 @@
+[
+  {
+    "component_key": "attendance",
+    "component_name": "المواظبة",
+    "max_score": 100,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]

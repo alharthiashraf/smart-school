@@ -1,0 +1,26 @@
+[
+  {
+    "component_key": "memorization",
+    "component_name": "الحفظ",
+    "max_score": 40,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "reading_accuracy",
+    "component_name": "صحة القراءة",
+    "max_score": 20,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "assessment_tools",
+    "component_name": "أدوات تقويم متنوعة",
+    "max_score": 40,
+    "display_order": 3,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]

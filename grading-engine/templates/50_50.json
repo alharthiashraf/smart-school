@@ -1,0 +1,18 @@
+[
+  {
+    "component_key": "performance_tasks",
+    "component_name": "المهام الأدائية",
+    "max_score": 50,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "participation",
+    "component_name": "المشاركة والتفاعل",
+    "max_score": 50,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]

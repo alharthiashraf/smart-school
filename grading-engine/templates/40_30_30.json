@@ -1,0 +1,26 @@
+[
+  {
+    "component_key": "performance",
+    "component_name": "المهام الأدائية والمشاركة والتفاعل",
+    "max_score": 40,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "oral_assessment",
+    "component_name": "تقويمات شفهية",
+    "max_score": 30,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "written_exam",
+    "component_name": "اختبار تحريري",
+    "max_score": 30,
+    "display_order": 3,
+    "component_type": "درجة",
+    "is_final_exam": true
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "component_key": "project",
+    "component_name": "المشروع",
+    "max_score": 70,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "discussion",
+    "component_name": "المناقشة",
+    "max_score": 30,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]

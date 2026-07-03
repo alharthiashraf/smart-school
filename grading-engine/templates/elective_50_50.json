@@ -1,0 +1,18 @@
+[
+  {
+    "component_key": "knowledge_side",
+    "component_name": "الجانب المعرفي",
+    "max_score": 50,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "skill_side",
+    "component_name": "الجانب المهاري",
+    "max_score": 50,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]

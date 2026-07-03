@@ -1,0 +1,18 @@
+[
+  {
+    "component_key": "positive_behavior",
+    "component_name": "سلوك إيجابي",
+    "max_score": 80,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "excellent_behavior",
+    "component_name": "سلوك متميز",
+    "max_score": 20,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]

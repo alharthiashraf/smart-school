@@ -1,0 +1,18 @@
+[
+  {
+    "component_key": "performance",
+    "component_name": "المهام الأدائية والمشاركة والتفاعل",
+    "max_score": 40,
+    "display_order": 1,
+    "component_type": "درجة",
+    "is_final_exam": false
+  },
+  {
+    "component_key": "varied_assessment",
+    "component_name": "تقويمات / تطبيقات / اختبارات متنوعة",
+    "max_score": 60,
+    "display_order": 2,
+    "component_type": "درجة",
+    "is_final_exam": false
+  }
+]
