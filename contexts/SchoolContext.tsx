@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 import {
   can,
   canAll,
@@ -69,6 +71,8 @@ function isSemester(value: string | null): value is Semester {
 }
 
 export function SchoolProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+
   const [schools, setSchools] = useState<UserSchool[]>([]);
   const [currentSchool, setCurrentSchool] = useState<UserSchool | null>(null);
   const [academicYear, setAcademicYear] = useState(getDefaultAcademicYear);
@@ -76,6 +80,13 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refreshSchools = useCallback(async () => {
+    if (!isAuthenticated || !user?.id) {
+      setSchools([]);
+      setCurrentSchool(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -101,7 +112,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   const switchSchool = useCallback(
     (schoolId: string) => {
@@ -142,10 +153,17 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      void refreshSchools();
-    });
-  }, [refreshSchools]);
+    if (authLoading) return;
+
+    if (!isAuthenticated || !user?.id) {
+      setSchools([]);
+      setCurrentSchool(null);
+      setLoading(false);
+      return;
+    }
+
+    void refreshSchools();
+  }, [authLoading, isAuthenticated, user?.id, refreshSchools]);
 
   const currentRole = currentSchool?.role ?? null;
 
@@ -163,7 +181,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       academicYear,
       semester,
       semesterSystem: currentSchool?.semester_system ?? null,
-      loading,
+      loading: authLoading || loading,
       refreshSchools,
       switchSchool,
       switchSemester,
@@ -178,6 +196,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       permissions,
       academicYear,
       semester,
+      authLoading,
       loading,
       refreshSchools,
       switchSchool,
