@@ -32,15 +32,17 @@ const PAGE_TITLES: Record<string, string> = {
   "/classrooms": "الفصول",
   "/subjects": "المواد",
   "/teacher-subjects": "إسناد المعلمين",
-  "/schedules": "الجداول",
-  "/attendance": "الحضور",
+  "/schedules": "الجداول الدراسية",
+  "/attendance": "الحضور والغياب",
   "/grades": "الدرجات",
   "/grades/analyzer": "تحليل الدرجات",
+  "/behavior": "السلوك والمواظبة",
   "/reports": "التقارير",
   "/analytics": "التحليلات",
   "/activities": "الأنشطة",
   "/health": "الصحة المدرسية",
   "/counselor": "الإرشاد الطلابي",
+  "/quality/evidence-auditor": "مدقق الشواهد",
   "/teacher-portal": "بوابة المعلم",
   "/student-portal": "بوابة الطالب",
   "/parent-portal": "بوابة ولي الأمر",
@@ -149,20 +151,20 @@ export default function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 px-3 py-3 backdrop-blur-xl sm:px-4 lg:px-6">
+    <header className="sticky top-0 z-40 border-b border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-card)_88%,transparent)] px-3 py-3 shadow-sm backdrop-blur-xl transition-colors duration-300 sm:px-4 lg:px-6">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0f1f3d] text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-primary)] text-white shadow-lg shadow-emerald-900/10">
               <School size={21} />
             </div>
 
             <div className="min-w-0">
-              <h1 className="truncate text-base font-black text-[#0f1f3d]">
+              <h1 className="truncate text-base font-black text-[var(--app-text)]">
                 {pageTitle}
               </h1>
 
-              <p className="truncate text-xs font-bold text-slate-500">
+              <p className="truncate text-xs font-bold text-[var(--app-text-muted)]">
                 {currentSchool?.school_name || "منصة المدرسة الذكية"} ·{" "}
                 {academicYear || "العام الدراسي"} ·{" "}
                 {semester || "الفصل الدراسي"}
@@ -173,20 +175,20 @@ export default function AppHeader() {
 
         <form
           onSubmit={submitSearch}
-          className="hidden min-w-[260px] max-w-xl flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 transition focus-within:border-[#d4af37] lg:flex"
+          className="hidden min-w-[260px] max-w-xl flex-1 items-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 transition focus-within:border-[var(--app-accent)] lg:flex"
         >
-          <Search size={18} className="text-slate-400" />
+          <Search size={18} className="text-[var(--app-text-muted)]" />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="بحث سريع داخل المنصة..."
-            className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
+            className="w-full bg-transparent text-sm font-bold text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-muted)]"
           />
         </form>
 
         <Link
           href="/alerts"
-          className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+          className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm transition hover:bg-[var(--app-card-soft)]"
           aria-label="التنبيهات"
         >
           <Bell size={19} />
@@ -201,7 +203,7 @@ export default function AppHeader() {
           <button
             type="button"
             onClick={() => setMenuOpen((value) => !value)}
-            className="flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition hover:bg-slate-50"
+            className="flex h-11 items-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 text-[var(--app-text)] shadow-sm transition hover:bg-[var(--app-card-soft)]"
           >
             <UserRound size={18} />
             <span className="hidden max-w-[140px] truncate text-sm font-black md:block">
@@ -211,15 +213,15 @@ export default function AppHeader() {
           </button>
 
           {menuOpen && (
-            <div className="absolute left-0 mt-2 w-72 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
-              <div className="border-b border-slate-100 p-4">
-                <p className="truncate text-sm font-black text-[#0f1f3d]">
+            <div className="absolute left-0 mt-2 w-72 overflow-hidden rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] shadow-2xl">
+              <div className="border-b border-[var(--app-border)] p-4">
+                <p className="truncate text-sm font-black text-[var(--app-text)]">
                   {user.full_name}
                 </p>
-                <p className="mt-1 truncate text-xs text-slate-500">
+                <p className="mt-1 truncate text-xs text-[var(--app-text-muted)]">
                   {user.email || "بدون بريد"}
                 </p>
-                <p className="mt-2 inline-flex rounded-full bg-[#d4af37]/15 px-3 py-1 text-xs font-black text-[#0f1f3d]">
+                <p className="mt-2 inline-flex rounded-full bg-[var(--app-accent-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
                   {roleName}
                 </p>
               </div>
@@ -228,7 +230,7 @@ export default function AppHeader() {
                 <Link
                   href="/settings"
                   onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-bold text-[var(--app-text)] transition hover:bg-[var(--app-card-soft)]"
                 >
                   <Settings size={17} />
                   الإعدادات

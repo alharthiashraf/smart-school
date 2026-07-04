@@ -26,6 +26,8 @@ import {
   LogOut,
   Menu,
   MessageSquareWarning,
+  Moon,
+  Palette,
   Pin,
   PinOff,
   School,
@@ -34,6 +36,7 @@ import {
   Shield,
   Sparkles,
   Star,
+  Sun,
   UserCog,
   UsersRound,
   X,
@@ -42,27 +45,34 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 import type { SchoolRole } from "@/lib/permissions";
+import type { PermissionKey } from "@/lib/permissions/permissions";
+
+type AppTheme = "smart-light" | "smart-dark" | "ministry";
 
 type SidebarItem = {
-  title: string;
+  label: string;
   href: string;
   icon: ElementType;
-  roles: SchoolRole[];
+  roles?: SchoolRole[];
+  permission?: PermissionKey;
   keywords?: string[];
+  badge?: string;
 };
 
 type SidebarSection = {
   id: string;
-  title: string;
+  label: string;
   icon: ElementType;
-  roles: SchoolRole[];
-  items: SidebarItem[];
+  roles?: SchoolRole[];
+  permission?: PermissionKey;
+  children: SidebarItem[];
 };
 
-const COLLAPSED_KEY = "smart-school-v2-sidebar-collapsed";
-const OPEN_SECTIONS_KEY = "smart-school-v2-sidebar-open-sections";
-const FAVORITES_KEY = "smart-school-v2-sidebar-favorites";
-const RECENT_KEY = "smart-school-v2-sidebar-recent";
+const COLLAPSED_KEY = "smart-school-v1-sidebar-collapsed";
+const OPEN_SECTIONS_KEY = "smart-school-v1-sidebar-open-sections";
+const FAVORITES_KEY = "smart-school-v1-sidebar-favorites";
+const RECENT_KEY = "smart-school-v1-sidebar-recent";
+const THEME_KEY = "smart-school-v1-theme";
 
 const ROLE_NAME_MAP: Record<SchoolRole, string> = {
   super_admin: "مدير النظام",
@@ -125,29 +135,39 @@ const ACTIVITY_ROLES: SchoolRole[] = [
   "activity_leader",
 ];
 
+const THEMES: Array<{
+  key: AppTheme;
+  label: string;
+  icon: ElementType;
+}> = [
+  { key: "smart-light", label: "Smart Light", icon: Sun },
+  { key: "smart-dark", label: "Smart Dark", icon: Moon },
+  { key: "ministry", label: "Ministry", icon: Palette },
+];
+
 const SECTIONS: SidebarSection[] = [
   {
     id: "main",
-    title: "الرئيسية",
+    label: "الرئيسية",
     icon: LayoutDashboard,
     roles: ALL_ROLES,
-    items: [
+    children: [
       {
-        title: "لوحة التحكم",
+        label: "لوحة التحكم",
         href: "/dashboard",
         icon: LayoutDashboard,
         roles: ALL_ROLES,
         keywords: ["dashboard", "لوحة", "تحكم"],
       },
       {
-        title: "البحث السريع",
+        label: "البحث السريع",
         href: "/search",
         icon: Search,
         roles: [...STAFF_ROLES, "teacher"],
         keywords: ["بحث", "search"],
       },
       {
-        title: "التنبيهات",
+        label: "التنبيهات",
         href: "/alerts",
         icon: MessageSquareWarning,
         roles: [...STAFF_ROLES, "teacher"],
@@ -157,155 +177,168 @@ const SECTIONS: SidebarSection[] = [
   },
   {
     id: "school-management",
-    title: "إدارة المدرسة",
+    label: "إدارة المدرسة",
     icon: Shield,
     roles: [...ADMIN_ROLES, "administrative_staff"],
-    items: [
+    children: [
       {
-        title: "المدارس",
+        label: "المدارس",
         href: "/schools",
         icon: School,
         roles: ["super_admin"],
+        permission: "schools.view",
         keywords: ["مدارس", "schools"],
       },
       {
-        title: "إدارة المدرسة",
+        label: "إدارة المدرسة",
         href: "/school-admin",
         icon: Shield,
         roles: ADMIN_ROLES,
         keywords: ["مدير", "إدارة"],
       },
       {
-        title: "الإدارة",
+        label: "الإدارة",
         href: "/administration",
         icon: UserCog,
         roles: STAFF_ROLES,
         keywords: ["إدارة", "إداري"],
       },
       {
-        title: "المستخدمون",
+        label: "المستخدمون",
         href: "/users",
         icon: UsersRound,
         roles: ADMIN_ROLES,
+        permission: "users.view",
         keywords: ["مستخدمين", "users"],
       },
       {
-        title: "الإعدادات",
+        label: "الإعدادات",
         href: "/settings",
         icon: Settings,
         roles: ADMIN_ROLES,
+        permission: "settings.manage",
         keywords: ["إعدادات", "settings"],
       },
     ],
   },
   {
     id: "academic",
-    title: "البناء الأكاديمي",
+    label: "البناء الأكاديمي",
     icon: BookOpen,
     roles: ADMIN_ROLES,
-    items: [
+    children: [
       {
-        title: "المراحل",
+        label: "المراحل",
         href: "/stages",
         icon: Sparkles,
         roles: ADMIN_ROLES,
+        permission: "stages.view",
         keywords: ["مراحل", "stages"],
       },
       {
-        title: "الفصول",
+        label: "الفصول",
         href: "/classrooms",
         icon: Building2,
         roles: ADMIN_ROLES,
+        permission: "classrooms.view",
         keywords: ["فصول", "classrooms"],
       },
       {
-        title: "المواد",
+        label: "المواد الدراسية",
         href: "/subjects",
         icon: BookOpen,
         roles: ADMIN_ROLES,
+        permission: "subjects.view",
         keywords: ["مواد", "subjects"],
       },
       {
-        title: "إسناد المعلمين",
+        label: "إسناد المعلمين",
         href: "/teacher-subjects",
         icon: ClipboardCheck,
         roles: ADMIN_ROLES,
+        permission: "teacher_subjects.view",
         keywords: ["إسناد", "معلمين", "مواد"],
       },
       {
-        title: "الجداول",
+        label: "الجداول الدراسية",
         href: "/schedules",
         icon: CalendarDays,
         roles: LEADERSHIP_ROLES,
+        permission: "schedules.view",
         keywords: ["جداول", "حصص", "schedules"],
       },
     ],
   },
   {
     id: "people",
-    title: "الطلاب والمعلمون",
+    label: "الطلاب والمعلمون",
     icon: UsersRound,
     roles: [...STAFF_ROLES, "teacher"],
-    items: [
+    children: [
       {
-        title: "الطلاب",
+        label: "الطلاب",
         href: "/students",
         icon: UsersRound,
         roles: STAFF_ROLES,
+        permission: "students.view",
         keywords: ["طلاب", "students"],
       },
       {
-        title: "المعلمون",
+        label: "المعلمون",
         href: "/teachers",
         icon: GraduationCap,
         roles: ADMIN_ROLES,
+        permission: "teachers.view",
         keywords: ["معلمين", "teachers"],
       },
       {
-        title: "الحضور",
+        label: "الحضور والغياب",
         href: "/attendance",
         icon: ClipboardCheck,
         roles: [...STAFF_ROLES, "teacher"],
+        permission: "attendance.view",
         keywords: ["حضور", "غياب", "attendance"],
       },
       {
-        title: "الدرجات",
+        label: "الدرجات",
         href: "/grades",
         icon: BarChart3,
         roles: TEACHER_ROLES,
+        permission: "grades.view",
         keywords: ["درجات", "رصد", "grades"],
       },
       {
-        title: "تحليل الدرجات",
+        label: "تحليل الدرجات",
         href: "/grades/analyzer",
         icon: BarChart3,
         roles: TEACHER_ROLES,
+        permission: "grades.view",
         keywords: ["تحليل", "درجات"],
       },
     ],
   },
   {
     id: "portals",
-    title: "البوابات",
+    label: "البوابات",
     icon: LayoutDashboard,
     roles: ALL_ROLES,
-    items: [
+    children: [
       {
-        title: "بوابة المعلم",
+        label: "بوابة المعلم",
         href: "/teacher-portal",
         icon: GraduationCap,
         roles: ["teacher", "super_admin", "school_admin"],
         keywords: ["بوابة", "معلم"],
       },
       {
-        title: "بوابة الطالب",
+        label: "بوابة الطالب",
         href: "/student-portal",
         icon: BookOpen,
         roles: ["student", "super_admin", "school_admin"],
         keywords: ["بوابة", "طالب"],
       },
       {
-        title: "بوابة ولي الأمر",
+        label: "بوابة ولي الأمر",
         href: "/parent-portal",
         icon: UsersRound,
         roles: ["parent", "super_admin", "school_admin"],
@@ -315,7 +348,7 @@ const SECTIONS: SidebarSection[] = [
   },
   {
     id: "services",
-    title: "الخدمات المدرسية",
+    label: "الخدمات المدرسية",
     icon: HeartPulse,
     roles: [
       ...STAFF_ROLES,
@@ -324,37 +357,38 @@ const SECTIONS: SidebarSection[] = [
       "health_supervisor",
       "activity_leader",
     ],
-    items: [
+    children: [
       {
-        title: "السلوك والمواظبة",
+        label: "السلوك والمواظبة",
         href: "/behavior",
         icon: MessageSquareWarning,
         roles: [...STAFF_ROLES, "teacher", "student_counselor"],
+        permission: "behavior.view",
         keywords: ["سلوك", "مواظبة"],
       },
       {
-        title: "الإرشاد الطلابي",
+        label: "الإرشاد الطلابي",
         href: "/counselor",
         icon: HeartPulse,
         roles: COUNSELOR_ROLES,
         keywords: ["إرشاد", "موجه"],
       },
       {
-        title: "التدخلات الطلابية",
+        label: "التدخلات الطلابية",
         href: "/student-interventions",
         icon: HeartPulse,
         roles: COUNSELOR_ROLES,
         keywords: ["تدخلات", "طلاب"],
       },
       {
-        title: "الصحة المدرسية",
+        label: "الصحة المدرسية",
         href: "/health",
         icon: HeartPulse,
         roles: HEALTH_ROLES,
         keywords: ["صحة", "عيادة"],
       },
       {
-        title: "الأنشطة",
+        label: "الأنشطة",
         href: "/activities",
         icon: Activity,
         roles: ACTIVITY_ROLES,
@@ -364,26 +398,27 @@ const SECTIONS: SidebarSection[] = [
   },
   {
     id: "reports-quality",
-    title: "التقارير والجودة",
+    label: "التقارير والجودة",
     icon: FileText,
     roles: [...STAFF_ROLES, "teacher"],
-    items: [
+    children: [
       {
-        title: "التقارير",
+        label: "التقارير",
         href: "/reports",
         icon: FileText,
         roles: [...STAFF_ROLES, "teacher"],
+        permission: "reports.view",
         keywords: ["تقارير", "reports"],
       },
       {
-        title: "التحليلات",
+        label: "التحليلات",
         href: "/analytics",
         icon: BarChart3,
         roles: LEADERSHIP_ROLES,
         keywords: ["تحليل", "analytics"],
       },
       {
-        title: "مدقق الشواهد",
+        label: "مدقق الشواهد",
         href: "/quality/evidence-auditor",
         icon: FileCheck2,
         roles: ADMIN_ROLES,
@@ -393,7 +428,8 @@ const SECTIONS: SidebarSection[] = [
   },
 ];
 
-function hasRole(currentRole: SchoolRole | null, allowedRoles: SchoolRole[]) {
+function hasRole(currentRole: SchoolRole | null, allowedRoles?: SchoolRole[]) {
+  if (!allowedRoles || allowedRoles.length === 0) return true;
   if (!currentRole) return false;
   if (currentRole === "super_admin") return true;
   return allowedRoles.includes(currentRole);
@@ -432,7 +468,7 @@ function matchesSearch(item: SidebarItem, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
 
-  const text = [item.title, item.href, ...(item.keywords || [])]
+  const text = [item.label, item.href, ...(item.keywords || [])]
     .join(" ")
     .toLowerCase();
 
@@ -443,11 +479,24 @@ function limitRecent(items: string[]) {
   return Array.from(new Set(items)).slice(0, 8);
 }
 
+function isAppTheme(value: string | null): value is AppTheme {
+  return (
+    value === "smart-light" || value === "smart-dark" || value === "ministry"
+  );
+}
+
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const { currentSchool, currentRole, loading } = useSchool();
+  const {
+    currentSchool,
+    currentRole,
+    schools,
+    loading,
+    switchSchool,
+    hasPermission,
+  } = useSchool();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -455,26 +504,34 @@ export default function AppSidebar() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recentPages, setRecentPages] = useState<string[]>([]);
+  const [theme, setTheme] = useState<AppTheme>("smart-light");
+  const [themeReady, setThemeReady] = useState(false);
 
   const expanded = !collapsed || mobileOpen;
+
+  const canSeeItem = useCallback(
+    (item: SidebarItem) => {
+      if (!hasRole(currentRole, item.roles)) return false;
+      if (item.permission && !hasPermission(item.permission)) return false;
+      return matchesSearch(item, sectionSearch);
+    },
+    [currentRole, hasPermission, sectionSearch],
+  );
 
   const allowedSections = useMemo(() => {
     if (!currentRole) return [];
 
     return SECTIONS.map((section) => ({
       ...section,
-      items: section.items.filter(
-        (item) =>
-          hasRole(currentRole, item.roles) && matchesSearch(item, sectionSearch),
-      ),
+      children: section.children.filter(canSeeItem),
     })).filter(
       (section) =>
-        hasRole(currentRole, section.roles) && section.items.length > 0,
+        hasRole(currentRole, section.roles) && section.children.length > 0,
     );
-  }, [currentRole, sectionSearch]);
+  }, [currentRole, canSeeItem]);
 
   const allAllowedItems = useMemo(
-    () => allowedSections.flatMap((section) => section.items),
+    () => allowedSections.flatMap((section) => section.children),
     [allowedSections],
   );
 
@@ -519,11 +576,17 @@ export default function AppSidebar() {
 
   useEffect(() => {
     const savedCollapsed = window.localStorage.getItem(COLLAPSED_KEY);
+    const savedTheme = window.localStorage.getItem(THEME_KEY);
 
     setCollapsed(savedCollapsed === "true");
     setOpenSections(readJSON<Record<string, boolean>>(OPEN_SECTIONS_KEY, {}));
     setFavorites(readJSON<string[]>(FAVORITES_KEY, []));
     setRecentPages(readJSON<string[]>(RECENT_KEY, []));
+
+    const nextTheme = isAppTheme(savedTheme) ? savedTheme : "smart-light";
+    setTheme(nextTheme);
+    document.documentElement.setAttribute("data-theme", nextTheme);
+    setThemeReady(true);
   }, []);
 
   useEffect(() => {
@@ -543,10 +606,17 @@ export default function AppSidebar() {
   }, [recentPages]);
 
   useEffect(() => {
+    if (!themeReady) return;
+
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem(THEME_KEY, theme);
+  }, [theme, themeReady]);
+
+  useEffect(() => {
     if (!activeHref) return;
 
     const activeSection = SECTIONS.find((section) =>
-      section.items.some(
+      section.children.some(
         (item) =>
           activeHref === item.href || activeHref.startsWith(`${item.href}/`),
       ),
@@ -587,6 +657,15 @@ export default function AppSidebar() {
     });
   }, []);
 
+  const handleThemeChange = useCallback((nextTheme: AppTheme) => {
+    setTheme(nextTheme);
+  }, []);
+
+  const sidebarBackground =
+    theme === "ministry"
+      ? "bg-[linear-gradient(180deg,#064e3b_0%,#0f766e_58%,#063f33_100%)]"
+      : "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.28),transparent_30%),var(--sidebar-bg)]";
+
   function renderItem(item: SidebarItem, compact = false) {
     const Icon = item.icon;
     const active = activeHref === item.href;
@@ -595,31 +674,37 @@ export default function AppSidebar() {
     return (
       <div key={item.href} className="group/item relative flex items-center gap-1">
         {active && expanded && (
-          <span className="absolute -right-2 top-1/2 h-8 w-1 -translate-y-1/2 rounded-l-full bg-[#d4af37]" />
+          <span className="absolute -right-2 top-1/2 h-8 w-1 -translate-y-1/2 rounded-l-full bg-[var(--app-accent)]" />
         )}
 
         <Link
           href={item.href}
           onClick={() => setMobileOpen(false)}
-          title={!expanded ? item.title : undefined}
-          className={`flex min-w-0 flex-1 items-center gap-3 rounded-2xl transition ${
+          title={!expanded ? item.label : undefined}
+          className={`flex min-w-0 flex-1 items-center gap-3 rounded-2xl transition duration-200 ${
             expanded ? "px-3 py-2.5" : "justify-center px-2 py-3"
           } ${
             active
-              ? "bg-gradient-to-l from-[#f4d978] to-[#d4af37] text-slate-950 shadow-lg shadow-[#d4af37]/20"
-              : "text-slate-300 hover:bg-white/[0.09] hover:text-white"
+              ? "bg-[var(--app-primary)] text-white shadow-lg shadow-emerald-950/20"
+              : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-bg-soft)] hover:text-[var(--sidebar-text)]"
           } ${compact ? "py-2" : ""}`}
         >
           <span
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-              active ? "bg-slate-950/10" : "bg-white/[0.04]"
+              active ? "bg-white/15" : "bg-white/[0.045]"
             }`}
           >
             <Icon size={18} className="shrink-0" />
           </span>
 
           {expanded && (
-            <span className="truncate text-sm font-bold">{item.title}</span>
+            <span className="truncate text-sm font-bold">{item.label}</span>
+          )}
+
+          {expanded && item.badge && (
+            <span className="mr-auto rounded-full bg-[var(--app-accent-soft)] px-2 py-0.5 text-[10px] font-black text-[var(--app-accent)]">
+              {item.badge}
+            </span>
           )}
         </Link>
 
@@ -629,7 +714,7 @@ export default function AppSidebar() {
             onClick={() => toggleFavorite(item.href)}
             className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl transition group-hover/item:flex ${
               favorite
-                ? "bg-[#d4af37]/15 text-[#d4af37]"
+                ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
                 : "text-slate-500 hover:bg-white/10 hover:text-white"
             }`}
             title={favorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
@@ -649,10 +734,10 @@ export default function AppSidebar() {
         key={`quick-${item.href}`}
         href={item.href}
         onClick={() => setMobileOpen(false)}
-        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-2 text-xs font-black text-white transition hover:-translate-y-0.5 hover:border-[#d4af37]/40 hover:bg-[#d4af37] hover:text-slate-950"
+        className="flex items-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.07] px-3 py-2 text-xs font-black text-white transition hover:-translate-y-0.5 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950"
       >
         <Icon size={15} />
-        <span className="truncate">{item.title}</span>
+        <span className="truncate">{item.label}</span>
       </Link>
     );
   }
@@ -662,7 +747,7 @@ export default function AppSidebar() {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed right-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xl lg:hidden"
+        className="fixed right-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--sidebar-bg)] text-white shadow-xl lg:hidden"
         aria-label="فتح القائمة"
       >
         <Menu size={20} />
@@ -680,8 +765,8 @@ export default function AppSidebar() {
       <aside
         className={`
           fixed right-0 top-0 z-[60] h-screen
-          border-l border-white/10 bg-[radial-gradient(circle_at_top_right,#1e3a5f_0%,#0f172a_34%,#07111f_100%)]
-          text-white shadow-[0_24px_80px_rgba(2,6,23,0.45)] transition-all duration-300
+          border-l border-[var(--sidebar-border)] ${sidebarBackground}
+          text-[var(--sidebar-text)] shadow-[0_24px_80px_rgba(2,6,23,0.38)] transition-all duration-300
           lg:sticky lg:top-0 lg:translate-x-0
           ${expanded ? "lg:w-[300px]" : "lg:w-[76px]"}
           ${
@@ -691,25 +776,32 @@ export default function AppSidebar() {
           }
         `}
       >
-        <div className="flex h-full flex-col">
-          <div className="border-b border-white/10 bg-white/[0.025] p-3">
+        <div className="relative flex h-full flex-col overflow-hidden">
+          {theme === "ministry" && (
+            <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
+              <div className="absolute -left-20 top-20 h-64 w-64 rounded-full border border-white" />
+              <div className="absolute -right-20 bottom-24 h-72 w-72 rounded-full border border-white" />
+            </div>
+          )}
+
+          <div className="relative border-b border-[var(--sidebar-border)] bg-white/[0.025] p-3">
             <div className="flex items-center justify-between gap-3">
               <div
                 className={`flex min-w-0 items-center gap-3 ${
                   !expanded ? "lg:justify-center" : ""
                 }`}
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#f2d675] to-[#d4af37] shadow-lg shadow-[#d4af37]/20">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#f3d978] to-[var(--app-accent)] shadow-lg shadow-black/10">
                   <School className="text-slate-950" size={24} />
                 </div>
 
                 {expanded && (
                   <div className="min-w-0">
                     <h1 className="truncate text-sm font-black">
-                      منصة المدرسة الذكية 2.0
+                      منصة المدرسة الذكية
                     </h1>
-                    <p className="mt-1 truncate text-[11px] text-slate-400">
-                      قائمة ذكية حسب الصلاحيات
+                    <p className="mt-1 truncate text-[11px] text-[var(--sidebar-muted)]">
+                      الإصدار 1.0.0
                     </p>
                   </div>
                 )}
@@ -728,7 +820,7 @@ export default function AppSidebar() {
             <button
               type="button"
               onClick={() => setCollapsed((value) => !value)}
-              className="mt-3 hidden w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200 transition hover:border-[#d4af37]/40 hover:bg-white/15 lg:flex"
+              className="mt-3 hidden w-full items-center justify-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/10 px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:border-[var(--app-accent)] hover:bg-white/15 hover:text-white lg:flex"
             >
               <ChevronRight
                 size={16}
@@ -738,24 +830,24 @@ export default function AppSidebar() {
             </button>
 
             {expanded && (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.07] p-3 shadow-inner shadow-white/5">
-                <p className="truncate text-[11px] text-slate-400">
+              <div className="mt-3 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.07] p-3 shadow-inner shadow-white/5">
+                <p className="truncate text-[11px] text-[var(--sidebar-muted)]">
                   المدرسة الحالية
                 </p>
                 <p className="mt-1 truncate text-sm font-bold">
                   {currentSchool?.school_name || "لم يتم تحديد مدرسة"}
                 </p>
-                <p className="mt-1 truncate text-[11px] font-bold text-[#d4af37]">
+                <p className="mt-1 truncate text-[11px] font-bold text-[var(--app-accent)]">
                   {roleText}
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
+          <div className="app-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
             <nav className="space-y-3">
               {loading && (
-                <div className="rounded-2xl bg-white/10 p-4 text-center text-sm text-slate-300">
+                <div className="rounded-2xl bg-white/10 p-4 text-center text-sm text-[var(--sidebar-muted)]">
                   {expanded ? "جاري تحميل القائمة..." : "..."}
                 </div>
               )}
@@ -765,19 +857,19 @@ export default function AppSidebar() {
                   <div className="relative">
                     <Search
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--sidebar-muted)]"
                     />
                     <input
                       value={sectionSearch}
                       onChange={(event) => setSectionSearch(event.target.value)}
                       placeholder="بحث في القائمة..."
-                      className="w-full rounded-2xl border border-white/10 bg-white/[0.08] py-2.5 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-slate-500 transition focus:border-[#d4af37] focus:bg-white/[0.11]"
+                      className="w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] py-2.5 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-[var(--sidebar-muted)] transition focus:border-[var(--app-accent)] focus:bg-white/[0.11]"
                     />
                   </div>
 
                   {quickActions.length > 0 && (
                     <div>
-                      <p className="mb-2 px-2 text-[11px] font-black text-slate-500">
+                      <p className="mb-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
                         إجراءات سريعة
                       </p>
                       <div className="grid grid-cols-2 gap-2">
@@ -788,7 +880,7 @@ export default function AppSidebar() {
 
                   {favoriteItems.length > 0 && (
                     <div>
-                      <p className="mb-2 flex items-center gap-2 px-2 text-[11px] font-black text-slate-500">
+                      <p className="mb-2 flex items-center gap-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
                         <Star size={13} />
                         المفضلة
                       </p>
@@ -800,7 +892,7 @@ export default function AppSidebar() {
 
                   {recentItems.length > 0 && (
                     <div>
-                      <p className="mb-2 px-2 text-[11px] font-black text-slate-500">
+                      <p className="mb-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
                         آخر الصفحات
                       </p>
                       <div className="space-y-1.5">
@@ -826,11 +918,11 @@ export default function AppSidebar() {
                         <button
                           type="button"
                           onClick={() => toggleSection(section.id)}
-                          className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2 text-xs font-black text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                          className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2 text-xs font-black text-[var(--sidebar-muted)] transition hover:bg-white/[0.06] hover:text-white"
                         >
                           <span className="flex items-center gap-2">
                             <SectionIcon size={15} />
-                            {section.title}
+                            {section.label}
                           </span>
                           <ChevronDown
                             size={15}
@@ -845,7 +937,7 @@ export default function AppSidebar() {
 
                       {opened && (
                         <div className="mt-1 space-y-1">
-                          {section.items.map((item) => renderItem(item))}
+                          {section.children.map((item) => renderItem(item))}
                         </div>
                       )}
                     </div>
@@ -854,7 +946,57 @@ export default function AppSidebar() {
             </nav>
           </div>
 
-          <div className="border-t border-white/10 bg-white/[0.025] p-3">
+          <div className="relative border-t border-[var(--sidebar-border)] bg-white/[0.025] p-3">
+            {expanded && (
+              <div className="mb-3 space-y-2">
+                <p className="px-1 text-[11px] font-black text-[var(--sidebar-muted)]">
+                  مظهر المنصة
+                </p>
+
+                <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.06] p-1.5">
+                  {THEMES.map((item) => {
+                    const Icon = item.icon;
+                    const active = theme === item.key;
+
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => handleThemeChange(item.key)}
+                        className={`flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[10px] font-black transition ${
+                          active
+                            ? "bg-[var(--app-accent)] text-slate-950"
+                            : "text-[var(--sidebar-muted)] hover:bg-white/10 hover:text-white"
+                        }`}
+                        title={item.label}
+                      >
+                        <Icon size={15} />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {schools.length > 1 && (
+                  <select
+                    value={currentSchool?.id ?? ""}
+                    onChange={(event) => switchSchool(event.target.value)}
+                    className="w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
+                  >
+                    {schools.map((school) => (
+                      <option
+                        key={school.id}
+                        value={school.id}
+                        className="bg-slate-900 text-white"
+                      >
+                        {school.school_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleLogout}
