@@ -71,21 +71,7 @@ type SidebarSection = {
 const COLLAPSED_KEY = "smart-school-v1-sidebar-collapsed";
 const OPEN_SECTIONS_KEY = "smart-school-v1-sidebar-open-sections";
 const FAVORITES_KEY = "smart-school-v1-sidebar-favorites";
-const RECENT_KEY = "smart-school-v1-sidebar-recent";
 const THEME_KEY = "smart-school-v1-theme";
-
-const ROLE_NAME_MAP: Record<SchoolRole, string> = {
-  super_admin: "مدير النظام",
-  school_admin: "مدير المدرسة",
-  vice_principal: "وكيل المدرسة",
-  administrative_staff: "إداري",
-  student_counselor: "الموجه الطلابي",
-  health_supervisor: "الموجه الصحي",
-  activity_leader: "رائد النشاط",
-  teacher: "معلم",
-  student: "طالب",
-  parent: "ولي أمر",
-};
 
 const ALL_ROLES: SchoolRole[] = [
   "super_admin",
@@ -475,10 +461,6 @@ function matchesSearch(item: SidebarItem, query: string) {
   return text.includes(q);
 }
 
-function limitRecent(items: string[]) {
-  return Array.from(new Set(items)).slice(0, 8);
-}
-
 function isAppTheme(value: string | null): value is AppTheme {
   return (
     value === "smart-light" || value === "smart-dark" || value === "ministry"
@@ -503,7 +485,6 @@ export default function AppSidebar() {
   const [sectionSearch, setSectionSearch] = useState("");
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [recentPages, setRecentPages] = useState<string[]>([]);
   const [theme, setTheme] = useState<AppTheme>("smart-light");
   const [themeReady, setThemeReady] = useState(false);
 
@@ -546,33 +527,12 @@ export default function AppSidebar() {
       .filter(Boolean) as SidebarItem[];
   }, [favorites, allAllowedItems]);
 
-  const recentItems = useMemo(() => {
-    return recentPages
-      .map((href) => allAllowedItems.find((item) => item.href === href))
-      .filter(Boolean) as SidebarItem[];
-  }, [recentPages, allAllowedItems]);
+  const activeTheme = useMemo(
+    () => THEMES.find((item) => item.key === theme) ?? THEMES[0],
+    [theme],
+  );
 
-  const quickActions = useMemo(() => {
-    const preferred = [
-      "/dashboard",
-      "/grades",
-      "/attendance",
-      "/teacher-portal",
-      "/students",
-      "/teachers",
-      "/classrooms",
-      "/reports",
-      "/student-portal",
-      "/parent-portal",
-    ];
-
-    return preferred
-      .map((href) => allAllowedItems.find((item) => item.href === href))
-      .filter(Boolean)
-      .slice(0, 4) as SidebarItem[];
-  }, [allAllowedItems]);
-
-  const roleText = currentRole ? ROLE_NAME_MAP[currentRole] : "مستخدم";
+  const ActiveThemeIcon = activeTheme.icon;
 
   useEffect(() => {
     const savedCollapsed = window.localStorage.getItem(COLLAPSED_KEY);
@@ -581,7 +541,6 @@ export default function AppSidebar() {
     setCollapsed(savedCollapsed === "true");
     setOpenSections(readJSON<Record<string, boolean>>(OPEN_SECTIONS_KEY, {}));
     setFavorites(readJSON<string[]>(FAVORITES_KEY, []));
-    setRecentPages(readJSON<string[]>(RECENT_KEY, []));
 
     const nextTheme = isAppTheme(savedTheme) ? savedTheme : "smart-light";
     setTheme(nextTheme);
@@ -600,10 +559,6 @@ export default function AppSidebar() {
   useEffect(() => {
     writeJSON(FAVORITES_KEY, favorites);
   }, [favorites]);
-
-  useEffect(() => {
-    writeJSON(RECENT_KEY, recentPages);
-  }, [recentPages]);
 
   useEffect(() => {
     if (!themeReady) return;
@@ -628,8 +583,6 @@ export default function AppSidebar() {
         [activeSection.id]: true,
       }));
     }
-
-    setRecentPages((prev) => limitRecent([activeHref, ...prev]));
   }, [activeHref]);
 
   async function handleLogout() {
@@ -660,6 +613,12 @@ export default function AppSidebar() {
   const handleThemeChange = useCallback((nextTheme: AppTheme) => {
     setTheme(nextTheme);
   }, []);
+
+  const cycleTheme = useCallback(() => {
+    const currentIndex = THEMES.findIndex((item) => item.key === theme);
+    const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
+    handleThemeChange(nextTheme.key);
+  }, [theme, handleThemeChange]);
 
   const sidebarBackground =
     theme === "ministry"
@@ -723,22 +682,6 @@ export default function AppSidebar() {
           </button>
         )}
       </div>
-    );
-  }
-
-  function renderQuickAction(item: SidebarItem) {
-    const Icon = item.icon;
-
-    return (
-      <Link
-        key={`quick-${item.href}`}
-        href={item.href}
-        onClick={() => setMobileOpen(false)}
-        className="flex items-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.07] px-3 py-2 text-xs font-black text-white transition hover:-translate-y-0.5 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950"
-      >
-        <Icon size={15} />
-        <span className="truncate">{item.label}</span>
-      </Link>
     );
   }
 
@@ -828,20 +771,6 @@ export default function AppSidebar() {
               />
               {expanded && <span>طي القائمة</span>}
             </button>
-
-            {expanded && (
-              <div className="mt-3 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.07] p-3 shadow-inner shadow-white/5">
-                <p className="truncate text-[11px] text-[var(--sidebar-muted)]">
-                  المدرسة الحالية
-                </p>
-                <p className="mt-1 truncate text-sm font-bold">
-                  {currentSchool?.school_name || "لم يتم تحديد مدرسة"}
-                </p>
-                <p className="mt-1 truncate text-[11px] font-bold text-[var(--app-accent)]">
-                  {roleText}
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="app-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
@@ -867,17 +796,6 @@ export default function AppSidebar() {
                     />
                   </div>
 
-                  {quickActions.length > 0 && (
-                    <div>
-                      <p className="mb-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
-                        إجراءات سريعة
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {quickActions.map(renderQuickAction)}
-                      </div>
-                    </div>
-                  )}
-
                   {favoriteItems.length > 0 && (
                     <div>
                       <p className="mb-2 flex items-center gap-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
@@ -886,19 +804,6 @@ export default function AppSidebar() {
                       </p>
                       <div className="space-y-1.5">
                         {favoriteItems.map((item) => renderItem(item, true))}
-                      </div>
-                    </div>
-                  )}
-
-                  {recentItems.length > 0 && (
-                    <div>
-                      <p className="mb-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
-                        آخر الصفحات
-                      </p>
-                      <div className="space-y-1.5">
-                        {recentItems
-                          .slice(0, 4)
-                          .map((item) => renderItem(item, true))}
                       </div>
                     </div>
                   )}
@@ -947,55 +852,41 @@ export default function AppSidebar() {
           </div>
 
           <div className="relative border-t border-[var(--sidebar-border)] bg-white/[0.025] p-3">
-            {expanded && (
-              <div className="mb-3 space-y-2">
-                <p className="px-1 text-[11px] font-black text-[var(--sidebar-muted)]">
-                  مظهر المنصة
-                </p>
-
-                <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.06] p-1.5">
-                  {THEMES.map((item) => {
-                    const Icon = item.icon;
-                    const active = theme === item.key;
-
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => handleThemeChange(item.key)}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[10px] font-black transition ${
-                          active
-                            ? "bg-[var(--app-accent)] text-slate-950"
-                            : "text-[var(--sidebar-muted)] hover:bg-white/10 hover:text-white"
-                        }`}
-                        title={item.label}
-                      >
-                        <Icon size={15} />
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {schools.length > 1 && (
-                  <select
-                    value={currentSchool?.id ?? ""}
-                    onChange={(event) => switchSchool(event.target.value)}
-                    className="w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
-                  >
-                    {schools.map((school) => (
-                      <option
-                        key={school.id}
-                        value={school.id}
-                        className="bg-slate-900 text-white"
-                      >
-                        {school.school_name}
-                      </option>
-                    ))}
-                  </select>
+            <div className="mb-3 space-y-2">
+              <button
+                type="button"
+                onClick={cycleTheme}
+                title={`تبديل المظهر: ${activeTheme.label}`}
+                className={`flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] text-[var(--app-accent)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950 ${
+                  expanded ? "w-full px-3" : "w-full"
+                }`}
+              >
+                <ActiveThemeIcon size={20} />
+                {expanded && (
+                  <span className="truncate text-xs font-black">
+                    تبديل المظهر
+                  </span>
                 )}
-              </div>
-            )}
+              </button>
+
+              {expanded && schools.length > 1 && (
+                <select
+                  value={currentSchool?.id ?? ""}
+                  onChange={(event) => switchSchool(event.target.value)}
+                  className="w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
+                >
+                  {schools.map((school) => (
+                    <option
+                      key={school.id}
+                      value={school.id}
+                      className="bg-slate-900 text-white"
+                    >
+                      {school.school_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
 
             <button
               type="button"
