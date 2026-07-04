@@ -27,7 +27,6 @@ import {
   Menu,
   MessageSquareWarning,
   Moon,
-  Palette,
   Pin,
   PinOff,
   School,
@@ -47,7 +46,7 @@ import { useSchool } from "@/contexts/SchoolContext";
 import type { SchoolRole } from "@/lib/permissions";
 import type { PermissionKey } from "@/lib/permissions/permissions";
 
-type AppTheme = "smart-light" | "smart-dark" | "ministry";
+type AppTheme = "smart-light" | "smart-dark";
 
 type SidebarItem = {
   label: string;
@@ -126,9 +125,8 @@ const THEMES: Array<{
   label: string;
   icon: ElementType;
 }> = [
-  { key: "smart-light", label: "Smart Light", icon: Sun },
-  { key: "smart-dark", label: "Smart Dark", icon: Moon },
-  { key: "ministry", label: "Ministry", icon: Palette },
+  { key: "smart-light", label: "الوضع الفاتح", icon: Sun },
+  { key: "smart-dark", label: "الوضع الداكن", icon: Moon },
 ];
 
 const SECTIONS: SidebarSection[] = [
@@ -462,9 +460,7 @@ function matchesSearch(item: SidebarItem, query: string) {
 }
 
 function isAppTheme(value: string | null): value is AppTheme {
-  return (
-    value === "smart-light" || value === "smart-dark" || value === "ministry"
-  );
+  return value === "smart-light" || value === "smart-dark";
 }
 
 export default function AppSidebar() {
@@ -621,9 +617,7 @@ export default function AppSidebar() {
   }, [theme, handleThemeChange]);
 
   const sidebarBackground =
-    theme === "ministry"
-      ? "bg-[linear-gradient(180deg,#064e3b_0%,#0f766e_58%,#063f33_100%)]"
-      : "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.28),transparent_30%),var(--sidebar-bg)]";
+    "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.28),transparent_30%),var(--sidebar-bg)]";
 
   function renderItem(item: SidebarItem, compact = false) {
     const Icon = item.icon;
@@ -645,12 +639,14 @@ export default function AppSidebar() {
           } ${
             active
               ? "bg-[var(--app-primary)] text-white shadow-lg shadow-emerald-950/20"
-              : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-bg-soft)] hover:text-[var(--sidebar-text)]"
+              : "text-[var(--sidebar-muted)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
           } ${compact ? "py-2" : ""}`}
         >
           <span
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-              active ? "bg-white/15" : "bg-white/[0.045]"
+              active
+                ? "bg-white/15"
+                : "bg-white/[0.045] group-hover/item:bg-[var(--app-primary-soft)]"
             }`}
           >
             <Icon size={18} className="shrink-0" />
@@ -674,7 +670,7 @@ export default function AppSidebar() {
             className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl transition group-hover/item:flex ${
               favorite
                 ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
-                : "text-slate-500 hover:bg-white/10 hover:text-white"
+                : "text-[var(--sidebar-muted)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
             }`}
             title={favorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
           >
@@ -720,13 +716,6 @@ export default function AppSidebar() {
         `}
       >
         <div className="relative flex h-full flex-col overflow-hidden">
-          {theme === "ministry" && (
-            <div className="pointer-events-none absolute inset-0 opacity-[0.08]">
-              <div className="absolute -left-20 top-20 h-64 w-64 rounded-full border border-white" />
-              <div className="absolute -right-20 bottom-24 h-72 w-72 rounded-full border border-white" />
-            </div>
-          )}
-
           <div className="relative border-b border-[var(--sidebar-border)] bg-white/[0.025] p-3">
             <div className="flex items-center justify-between gap-3">
               <div
@@ -753,24 +742,35 @@ export default function AppSidebar() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="rounded-xl bg-white/10 p-2 transition hover:bg-white/20 lg:hidden"
+                className="rounded-xl bg-white/10 p-2 transition hover:bg-white/15 hover:text-[var(--app-primary)] lg:hidden"
                 aria-label="إغلاق القائمة"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCollapsed((value) => !value)}
-              className="mt-3 hidden w-full items-center justify-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/10 px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:border-[var(--app-accent)] hover:bg-white/15 hover:text-white lg:flex"
-            >
-              <ChevronRight
-                size={16}
-                className={`transition ${expanded ? "rotate-180" : ""}`}
-              />
-              {expanded && <span>طي القائمة</span>}
-            </button>
+            <div className="mt-3 hidden items-center gap-2 lg:flex">
+              <button
+                type="button"
+                onClick={() => setCollapsed((value) => !value)}
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/10 px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
+              >
+                <ChevronRight
+                  size={16}
+                  className={`transition ${expanded ? "rotate-180" : ""}`}
+                />
+                {expanded && <span>طي القائمة</span>}
+              </button>
+
+              <button
+                type="button"
+                onClick={cycleTheme}
+                title={`تبديل المظهر: ${activeTheme.label}`}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--sidebar-border)] bg-white/10 text-[var(--app-accent)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950"
+              >
+                <ActiveThemeIcon size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="app-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
@@ -823,7 +823,7 @@ export default function AppSidebar() {
                         <button
                           type="button"
                           onClick={() => toggleSection(section.id)}
-                          className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2 text-xs font-black text-[var(--sidebar-muted)] transition hover:bg-white/[0.06] hover:text-white"
+                          className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2 text-xs font-black text-[var(--sidebar-muted)] transition hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
                         >
                           <span className="flex items-center gap-2">
                             <SectionIcon size={15} />
@@ -852,41 +852,23 @@ export default function AppSidebar() {
           </div>
 
           <div className="relative border-t border-[var(--sidebar-border)] bg-white/[0.025] p-3">
-            <div className="mb-3 space-y-2">
-              <button
-                type="button"
-                onClick={cycleTheme}
-                title={`تبديل المظهر: ${activeTheme.label}`}
-                className={`flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] text-[var(--app-accent)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950 ${
-                  expanded ? "w-full px-3" : "w-full"
-                }`}
+            {expanded && schools.length > 1 && (
+              <select
+                value={currentSchool?.id ?? ""}
+                onChange={(event) => switchSchool(event.target.value)}
+                className="mb-3 w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
               >
-                <ActiveThemeIcon size={20} />
-                {expanded && (
-                  <span className="truncate text-xs font-black">
-                    تبديل المظهر
-                  </span>
-                )}
-              </button>
-
-              {expanded && schools.length > 1 && (
-                <select
-                  value={currentSchool?.id ?? ""}
-                  onChange={(event) => switchSchool(event.target.value)}
-                  className="w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
-                >
-                  {schools.map((school) => (
-                    <option
-                      key={school.id}
-                      value={school.id}
-                      className="bg-slate-900 text-white"
-                    >
-                      {school.school_name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
+                {schools.map((school) => (
+                  <option
+                    key={school.id}
+                    value={school.id}
+                    className="bg-slate-900 text-white"
+                  >
+                    {school.school_name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <button
               type="button"
