@@ -17,15 +17,15 @@ export default function HeaderSearch({
   return (
     <form
       onSubmit={onSubmit}
-      className="hidden min-w-[260px] max-w-xl flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 transition focus-within:border-emerald-600 focus-within:ring-4 focus-within:ring-emerald-100 md:flex"
+      className="hidden min-w-[260px] max-w-xl flex-1 items-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2.5 transition focus-within:border-[var(--app-teal)] focus-within:ring-4 focus-within:ring-[var(--app-teal-soft)] md:flex"
     >
-      <Search size={18} className="text-slate-400" />
+      <Search size={18} className="text-[var(--app-text-muted)]" />
 
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="ابحث في المنصة..."
-        className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
+        className="w-full bg-transparent text-sm font-bold text-[var(--app-text)] outline-none placeholder:text-[var(--app-text-muted)]"
       />
     </form>
   );

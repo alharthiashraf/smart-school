@@ -11,13 +11,14 @@ export default function HeaderNotifications({
   return (
     <Link
       href="/alerts"
-      className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+      className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm transition hover:bg-[var(--app-card-soft)]"
       aria-label="التنبيهات"
+      title="التنبيهات"
     >
       <Bell size={19} />
 
       {count > 0 && (
-        <span className="absolute -left-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+        <span className="absolute -left-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white">
           {count > 99 ? "99+" : count}
         </span>
       )}

@@ -1,22 +1,38 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 
-type HeaderSchoolInfoProps = {
-  theme: "smart-light" | "smart-dark";
-  onToggleTheme: () => void;
-};
+export default function HeaderSchoolInfo() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
-export default function HeaderSchoolInfo({
-  theme,
-  onToggleTheme,
-}: HeaderSchoolInfoProps) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDark = theme === "smart-dark";
+
+  function toggleTheme() {
+    setTheme(isDark ? "smart-light" : "smart-dark");
+  }
+
   return (
     <button
       type="button"
-      onClick={onToggleTheme}
-      className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+      onClick={toggleTheme}
+      className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm transition hover:bg-[var(--app-card-soft)]"
       aria-label="تبديل المظهر"
+      title="تبديل المظهر"
     >
-      {theme === "smart-dark" ? <Sun size={19} /> : <Moon size={19} />}
+      {!mounted ? (
+        <Moon size={19} />
+      ) : isDark ? (
+        <Sun size={19} />
+      ) : (
+        <Moon size={19} />
+      )}
     </button>
   );
 }

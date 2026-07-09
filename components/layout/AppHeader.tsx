@@ -20,8 +20,6 @@ type HeaderUser = {
   email: string;
 };
 
-type AppTheme = "smart-light" | "smart-dark";
-
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "لوحة التحكم",
   "/schools": "المدارس",
@@ -79,7 +77,6 @@ export default function AppHeader() {
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsCount, setNotificationsCount] = useState(0);
-  const [theme, setTheme] = useState<AppTheme>("smart-light");
   const [user, setUser] = useState<HeaderUser>({
     full_name: "مستخدم",
     email: "",
@@ -134,28 +131,6 @@ export default function AppHeader() {
     void loadNotificationsCount();
   }, [loadNotificationsCount]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const savedTheme = window.localStorage.getItem("smart-school-v1-theme");
-
-    if (savedTheme === "smart-dark" || savedTheme === "smart-light") {
-      setTheme(savedTheme);
-      document.documentElement.setAttribute("data-theme", savedTheme);
-    }
-  }, []);
-
-  function toggleTheme() {
-    const nextTheme = theme === "smart-dark" ? "smart-light" : "smart-dark";
-
-    setTheme(nextTheme);
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("smart-school-v1-theme", nextTheme);
-      document.documentElement.setAttribute("data-theme", nextTheme);
-    }
-  }
-
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -174,7 +149,7 @@ export default function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-[var(--app-border)] bg-[var(--app-card)]/90 text-[var(--app-text)] backdrop-blur-xl">
       <div className="flex min-h-16 items-center gap-3 px-3 sm:px-4 lg:px-6">
         <HeaderBrand
           title={pageTitle}
@@ -191,7 +166,7 @@ export default function AppHeader() {
 
         <HeaderNotifications count={notificationsCount} />
 
-        <HeaderSchoolInfo theme={theme} onToggleTheme={toggleTheme} />
+        <HeaderSchoolInfo />
 
         <HeaderUserMenu
           user={user}

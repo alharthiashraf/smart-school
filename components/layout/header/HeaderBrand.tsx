@@ -13,11 +13,11 @@ export default function HeaderBrand({
 }: HeaderBrandProps) {
   return (
     <div className="min-w-0 flex-1">
-      <h1 className="truncate text-base font-black text-slate-950">
+      <h1 className="truncate text-base font-black text-[var(--app-text)]">
         {title}
       </h1>
 
-      <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
+      <p className="mt-0.5 truncate text-xs font-bold text-[var(--app-text-muted)]">
         {schoolName || "لم يتم تحديد مدرسة"}
         {academicYear ? ` • ${academicYear}` : ""}
         {semester ? ` • ${semester}` : ""}
