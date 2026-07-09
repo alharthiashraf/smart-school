@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   Bell,
   CheckCircle2,
+  Clock3,
+  FileWarning,
   HeartPulse,
   Loader2,
   RefreshCcw,
   Search,
   ShieldAlert,
+  Stethoscope,
   Trash2,
   UserRoundSearch,
+  UsersRound,
   XCircle,
 } from "lucide-react";
 
@@ -29,25 +34,44 @@ import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { STAFF_ROLES } from "@/lib/permissions";
 
-type AlertItem = {
+type EventSource =
+  | "alerts"
+  | "notifications"
+  | "student_referrals"
+  | "student_interventions"
+  | "health_cases";
+
+type Severity = "low" | "medium" | "high" | "critical";
+type Priority = "low" | "medium" | "high" | "urgent";
+
+type UnifiedAlertEvent = {
   id: string;
+  source: EventSource;
   school_id: string;
   student_id: string | null;
-  alert_type: string;
+
   title: string;
-  message: string | null;
-  severity: "low" | "medium" | "high" | null;
+  description: string | null;
+
+  type: string;
+  status: string | null;
+  priority: Priority | null;
+  severity: Severity | null;
+
   is_read: boolean | null;
   created_at: string | null;
-  source_table: "alerts" | "notifications";
+  date_label: string | null;
+
+  source_label: string;
 };
 
 type Student = {
   id: string;
   full_name: string;
-  classroom: string | null;
-  section: string | null;
-  grade_level: string | null;
+  classroom?: string | null;
+  classroom_name?: string | null;
+  section?: string | null;
+  grade_level?: string | null;
 };
 
 type Toast = {
@@ -55,57 +79,97 @@ type Toast = {
   message: string;
 };
 
-const TYPE_OPTIONS = [
-  { value: "all", label: "كل التنبيهات" },
-  { value: "attendance", label: "الحضور" },
-  { value: "repeated_absence", label: "غياب متكرر" },
-  { value: "health", label: "تحويل صحي" },
-  { value: "academic", label: "تحصيل دراسي" },
-  { value: "intervention", label: "تدخل إرشادي" },
-  { value: "notification", label: "تنبيه عام" },
+const SOURCE_OPTIONS = [
+  { value: "all", label: "كل المصادر" },
+  { value: "alerts", label: "التنبيهات" },
+  { value: "notifications", label: "الإشعارات" },
+  { value: "student_referrals", label: "الإحالات" },
+  { value: "student_interventions", label: "التدخلات" },
+  { value: "health_cases", label: "الحالات الصحية" },
 ];
 
-const SEVERITY_OPTIONS = [
-  { value: "all", label: "كل مستويات الخطورة" },
+const STATUS_OPTIONS = [
+  { value: "all", label: "كل الحالات" },
+  { value: "open", label: "مفتوح" },
+  { value: "in_review", label: "قيد المراجعة" },
+  { value: "in_progress", label: "قيد المعالجة" },
+  { value: "planned", label: "مخطط" },
+  { value: "active", label: "نشط" },
+  { value: "completed", label: "مكتمل" },
+  { value: "resolved", label: "تم الحل" },
+  { value: "closed", label: "مغلق" },
+];
+
+const PRIORITY_OPTIONS = [
+  { value: "all", label: "كل الأولويات" },
+  { value: "urgent", label: "عاجلة" },
   { value: "high", label: "عالية" },
   { value: "medium", label: "متوسطة" },
   { value: "low", label: "منخفضة" },
 ];
 
 const READ_OPTIONS = [
-  { value: "all", label: "كل الحالات" },
+  { value: "all", label: "كل حالات القراءة" },
   { value: "unread", label: "غير مقروءة" },
   { value: "read", label: "مقروءة" },
 ];
 
-const SEVERITY_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Record<EventSource, string> = {
+  alerts: "تنبيه",
+  notifications: "إشعار",
+  student_referrals: "إحالة طالب",
+  student_interventions: "تدخل طلابي",
+  health_cases: "حالة صحية",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  open: "مفتوح",
+  in_review: "قيد المراجعة",
+  in_progress: "قيد المعالجة",
+  resolved: "تم الحل",
+  closed: "مغلق",
+  cancelled: "ملغي",
+  planned: "مخطط",
+  active: "نشط",
+  completed: "مكتمل",
+  failed: "متعثر",
+  under_observation: "تحت الملاحظة",
+  referred: "محال",
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  urgent: "عاجلة",
   high: "عالية",
   medium: "متوسطة",
   low: "منخفضة",
 };
 
-function normalizeSeverity(value?: string | null): AlertItem["severity"] {
-  const normalized = String(value || "").trim().toLowerCase();
+function normalizeText(value: unknown, fallback = "") {
+  return String(value ?? fallback).trim();
+}
 
-  if (normalized === "high" || normalized === "عالية" || normalized === "مرتفع") {
-    return "high";
-  }
+function normalizeSeverity(value?: string | null): Severity {
+  const v = normalizeText(value).toLowerCase();
 
-  if (normalized === "low" || normalized === "منخفضة" || normalized === "منخفض") {
-    return "low";
-  }
+  if (["critical", "urgent", "حرجة", "عاجلة"].includes(v)) return "critical";
+  if (["high", "عالية", "مرتفع", "مرتفعة"].includes(v)) return "high";
+  if (["low", "منخفض", "منخفضة"].includes(v)) return "low";
 
   return "medium";
 }
 
-function normalizeNotificationType(value?: string | null) {
-  const normalized = String(value || "").trim();
-  return normalized || "notification";
+function normalizePriority(value?: string | null): Priority {
+  const v = normalizeText(value).toLowerCase();
+
+  if (["urgent", "critical", "عاجلة", "عاجل", "حرجة"].includes(v)) return "urgent";
+  if (["high", "عالية", "مرتفع", "مرتفعة"].includes(v)) return "high";
+  if (["low", "منخفض", "منخفضة"].includes(v)) return "low";
+
+  return "medium";
 }
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-
   try {
     return new Intl.DateTimeFormat("ar-SA", {
       dateStyle: "medium",
@@ -116,135 +180,279 @@ function formatDate(value: string | null) {
   }
 }
 
+function sortByDateDesc(a: UnifiedAlertEvent, b: UnifiedAlertEvent) {
+  return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+}
+
 export default function AlertsPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [events, setEvents] = useState<UnifiedAlertEvent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
   const [readFilter, setReadFilter] = useState("all");
-  const [severityFilter, setSeverityFilter] = useState("all");
 
   const [errorMsg, setErrorMsg] = useState("");
+  const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   const [toast, setToast] = useState<Toast | null>(null);
 
-  useEffect(() => {
-    if (currentSchool?.id) {
-      void fetchData();
-    }
-  }, [currentSchool?.id]);
-
-  function showToast(type: Toast["type"], message: string) {
+  const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 2500);
-  }
+  }, []);
 
-  async function fetchAlertsFromMainTable(schoolId: string) {
+  const fetchAlerts = useCallback(async (schoolId: string): Promise<UnifiedAlertEvent[]> => {
     const { data, error } = await supabase
       .from("alerts")
       .select("id, school_id, student_id, alert_type, title, message, severity, is_read, created_at")
-      .eq("school_id", schoolId)
-      .order("created_at", { ascending: false });
+      .eq("school_id", schoolId);
 
     if (error) throw error;
 
-    return ((data || []) as Array<Omit<AlertItem, "source_table">>).map((item) => ({
-      ...item,
-      alert_type: normalizeNotificationType(item.alert_type),
-      severity: normalizeSeverity(item.severity),
-      source_table: "alerts" as const,
-    }));
-  }
-
-  async function fetchAlertsFromNotifications(schoolId: string) {
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("id, school_id, title, message, type, is_read, created_at")
-      .eq("school_id", schoolId)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-
-    return ((data || []) as Array<{
-      id: string;
-      school_id: string;
-      title: string | null;
-      message: string | null;
-      type: string | null;
-      is_read: boolean | null;
-      created_at: string | null;
-    }>).map((item) => ({
+    return (data || []).map((item: any) => ({
       id: item.id,
+      source: "alerts",
       school_id: item.school_id,
-      student_id: null,
-      alert_type: normalizeNotificationType(item.type),
-      title: item.title || "تنبيه عام",
-      message: item.message || null,
-      severity: "medium" as const,
+      student_id: item.student_id,
+      title: item.title || "تنبيه",
+      description: item.message || null,
+      type: item.alert_type || "alert",
+      status: item.is_read ? "closed" : "open",
+      priority: normalizePriority(item.severity),
+      severity: normalizeSeverity(item.severity),
       is_read: item.is_read,
       created_at: item.created_at,
-      source_table: "notifications" as const,
+      date_label: item.created_at,
+      source_label: SOURCE_LABELS.alerts,
     }));
-  }
+  }, []);
 
-  async function fetchData() {
+  const fetchNotifications = useCallback(async (schoolId: string): Promise<UnifiedAlertEvent[]> => {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("id, school_id, title, body, type, is_read, created_at")
+      .eq("school_id", schoolId);
+
+    if (error) throw error;
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      source: "notifications",
+      school_id: item.school_id,
+      student_id: null,
+      title: item.title || "إشعار عام",
+      description: item.body || null,
+      type: item.type || "notification",
+      status: item.is_read ? "closed" : "open",
+      priority: "medium",
+      severity: "medium",
+      is_read: item.is_read,
+      created_at: item.created_at,
+      date_label: item.created_at,
+      source_label: SOURCE_LABELS.notifications,
+    }));
+  }, []);
+
+  const fetchReferrals = useCallback(async (schoolId: string): Promise<UnifiedAlertEvent[]> => {
+    const { data, error } = await supabase
+      .from("student_referrals")
+      .select("id, school_id, student_id, referral_type, priority, status, title, description, reason, referral_date, created_at")
+      .eq("school_id", schoolId);
+
+    if (error) throw error;
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      source: "student_referrals",
+      school_id: item.school_id,
+      student_id: item.student_id,
+      title: item.title || item.reason || "إحالة طالب",
+      description: item.description || item.reason || null,
+      type: item.referral_type || "referral",
+      status: item.status || "open",
+      priority: normalizePriority(item.priority),
+      severity: normalizeSeverity(item.priority === "urgent" ? "critical" : item.priority),
+      is_read: null,
+      created_at: item.created_at || item.referral_date,
+      date_label: item.referral_date || item.created_at,
+      source_label: SOURCE_LABELS.student_referrals,
+    }));
+  }, []);
+
+  const fetchInterventions = useCallback(async (schoolId: string): Promise<UnifiedAlertEvent[]> => {
+    const { data, error } = await supabase
+      .from("student_interventions")
+      .select("id, school_id, student_id, intervention_type, status, priority, title, description, action_taken, intervention_date, created_at")
+      .eq("school_id", schoolId);
+
+    if (error) throw error;
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      source: "student_interventions",
+      school_id: item.school_id,
+      student_id: item.student_id,
+      title: item.title || "تدخل طلابي",
+      description: item.description || item.action_taken || null,
+      type: item.intervention_type || "intervention",
+      status: item.status || "planned",
+      priority: normalizePriority(item.priority),
+      severity: normalizeSeverity(item.priority),
+      is_read: null,
+      created_at: item.created_at || item.intervention_date,
+      date_label: item.intervention_date || item.created_at,
+      source_label: SOURCE_LABELS.student_interventions,
+    }));
+  }, []);
+
+  const fetchHealthCases = useCallback(async (schoolId: string): Promise<UnifiedAlertEvent[]> => {
+    const { data, error } = await supabase
+      .from("health_cases")
+      .select("id, school_id, student_id, case_type, severity, status, title, symptoms, action_taken, incident_date, created_at")
+      .eq("school_id", schoolId);
+
+    if (error) throw error;
+
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      source: "health_cases",
+      school_id: item.school_id,
+      student_id: item.student_id,
+      title: item.title || "حالة صحية",
+      description: item.symptoms || item.action_taken || null,
+      type: item.case_type || "health",
+      status: item.status || "open",
+      priority: normalizePriority(item.severity === "critical" ? "urgent" : item.severity),
+      severity: normalizeSeverity(item.severity),
+      is_read: null,
+      created_at: item.created_at || item.incident_date,
+      date_label: item.incident_date || item.created_at,
+      source_label: SOURCE_LABELS.health_cases,
+    }));
+  }, []);
+
+  const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
     setErrorMsg("");
 
     try {
-      const [alertsResult, studentsResult] = await Promise.allSettled([
-        fetchAlertsFromMainTable(currentSchool.id),
+      const results = await Promise.allSettled([
+        fetchAlerts(currentSchool.id),
+        fetchNotifications(currentSchool.id),
+        fetchReferrals(currentSchool.id),
+        fetchInterventions(currentSchool.id),
+        fetchHealthCases(currentSchool.id),
         supabase
           .from("students")
-          .select("id, full_name, classroom, section, grade_level")
+          .select("*")
           .eq("school_id", currentSchool.id),
       ]);
 
-      if (alertsResult.status === "fulfilled") {
-        setAlerts(alertsResult.value);
-      } else {
-        const message =
-          alertsResult.reason instanceof Error ? alertsResult.reason.message : "";
+      const sourceNames = [
+        "التنبيهات",
+        "الإشعارات",
+        "الإحالات الطلابية",
+        "التدخلات الطلابية",
+        "الحالات الصحية",
+      ];
 
-        if (message.includes("public.alerts") || message.includes("schema cache")) {
-          const fallbackAlerts = await fetchAlertsFromNotifications(currentSchool.id);
-          setAlerts(fallbackAlerts);
-        } else {
-          throw alertsResult.reason;
+      const eventResults = results.slice(0, 5) as PromiseSettledResult<
+        UnifiedAlertEvent[]
+      >[];
+
+      const merged: UnifiedAlertEvent[] = [];
+      const failedSources: string[] = [];
+
+      eventResults.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          merged.push(...result.value);
+          return;
         }
+
+        failedSources.push(sourceNames[index] || "مصدر غير معروف");
+
+        if (process.env.NODE_ENV !== "production") {
+          console.error(`Alerts Center source failed: ${sourceNames[index]}`, result.reason);
+        }
+      });
+
+      setSourceErrors(failedSources);
+
+      if (failedSources.length > 0) {
+        setErrorMsg(
+          `تعذر تحميل بعض المصادر: ${failedSources.join("، ")}. إذا ظهر Permission denied فشغّل أوامر GRANT في Supabase.`,
+        );
+      } else {
+        setErrorMsg("");
       }
+
+      const studentsResult = results[5];
 
       if (studentsResult.status === "fulfilled" && !studentsResult.value.error) {
         setStudents((studentsResult.value.data as Student[]) || []);
       } else {
         setStudents([]);
       }
+
+      setEvents(merged.sort(sortByDateDesc));
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "تعذر تحميل مركز التنبيهات.";
-      setErrorMsg(message);
-      setAlerts([]);
+      setSourceErrors([]);
+      setErrorMsg(error instanceof Error ? error.message : "تعذر تحميل مركز التنبيهات.");
+      setEvents([]);
       setStudents([]);
     } finally {
       setLoading(false);
     }
-  }
+  }, [
+    currentSchool?.id,
+    fetchAlerts,
+    fetchNotifications,
+    fetchReferrals,
+    fetchInterventions,
+    fetchHealthCases,
+  ]);
 
-  async function markAsRead(alert: AlertItem) {
+  useEffect(() => {
+    if (currentSchool?.id) {
+      void fetchData();
+    }
+  }, [currentSchool?.id, fetchData]);
+
+  useEffect(() => {
     if (!currentSchool?.id) return;
 
-    setWorkingId(alert.id);
+    const channel = supabase
+      .channel(`alerts-center-${currentSchool.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts", filter: `school_id=eq.${currentSchool.id}` }, () => void fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `school_id=eq.${currentSchool.id}` }, () => void fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "student_referrals", filter: `school_id=eq.${currentSchool.id}` }, () => void fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "student_interventions", filter: `school_id=eq.${currentSchool.id}` }, () => void fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "health_cases", filter: `school_id=eq.${currentSchool.id}` }, () => void fetchData())
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentSchool?.id, fetchData]);
+
+  async function markAsRead(event: UnifiedAlertEvent) {
+    if (!currentSchool?.id) return;
+    if (event.source !== "alerts" && event.source !== "notifications") return;
+
+    setWorkingId(event.id);
 
     const { error } = await supabase
-      .from(alert.source_table)
+      .from(event.source)
       .update({ is_read: true })
-      .eq("id", alert.id)
+      .eq("id", event.id)
       .eq("school_id", currentSchool.id);
 
     setWorkingId(null);
@@ -254,80 +462,81 @@ export default function AlertsPage() {
       return;
     }
 
-    setAlerts((prev) =>
+    setEvents((prev) =>
       prev.map((item) =>
-        item.id === alert.id ? { ...item, is_read: true } : item,
+        item.id === event.id && item.source === event.source
+          ? { ...item, is_read: true, status: "closed" }
+          : item,
       ),
     );
 
-    showToast("success", "تم تحديد التنبيه كمقروء.");
+    showToast("success", "تم تحديد العنصر كمقروء.");
   }
 
   async function markAllAsRead() {
     if (!currentSchool?.id) return;
 
-    const unreadAlerts = alerts.filter((item) => !item.is_read);
+    const unread = events.filter(
+      (item) =>
+        !item.is_read &&
+        (item.source === "alerts" || item.source === "notifications"),
+    );
 
-    if (unreadAlerts.length === 0) {
-      showToast("success", "لا توجد تنبيهات غير مقروءة.");
+    if (unread.length === 0) {
+      showToast("success", "لا توجد إشعارات غير مقروءة.");
       return;
     }
 
     setWorkingId("all");
 
-    const alertIds = unreadAlerts
-      .filter((item) => item.source_table === "alerts")
-      .map((item) => item.id);
+    const alertIds = unread.filter((item) => item.source === "alerts").map((item) => item.id);
+    const notificationIds = unread.filter((item) => item.source === "notifications").map((item) => item.id);
 
-    const notificationIds = unreadAlerts
-      .filter((item) => item.source_table === "notifications")
-      .map((item) => item.id);
-
-    const [alertsUpdate, notificationsUpdate] = await Promise.all([
+    const [a, n] = await Promise.all([
       alertIds.length
-        ? supabase
-            .from("alerts")
-            .update({ is_read: true })
-            .eq("school_id", currentSchool.id)
-            .in("id", alertIds)
+        ? supabase.from("alerts").update({ is_read: true }).eq("school_id", currentSchool.id).in("id", alertIds)
         : Promise.resolve({ error: null }),
       notificationIds.length
-        ? supabase
-            .from("notifications")
-            .update({ is_read: true })
-            .eq("school_id", currentSchool.id)
-            .in("id", notificationIds)
+        ? supabase.from("notifications").update({ is_read: true }).eq("school_id", currentSchool.id).in("id", notificationIds)
         : Promise.resolve({ error: null }),
     ]);
 
     setWorkingId(null);
 
-    if (alertsUpdate.error) {
-      showToast("error", alertsUpdate.error.message);
+    if (a.error || n.error) {
+      showToast("error", a.error?.message || n.error?.message || "تعذر تحديث القراءة.");
       return;
     }
 
-    if (notificationsUpdate.error) {
-      showToast("error", notificationsUpdate.error.message);
-      return;
-    }
+    setEvents((prev) =>
+      prev.map((item) =>
+        item.source === "alerts" || item.source === "notifications"
+          ? { ...item, is_read: true, status: "closed" }
+          : item,
+      ),
+    );
 
-    setAlerts((prev) => prev.map((item) => ({ ...item, is_read: true })));
-    showToast("success", "تمت قراءة جميع التنبيهات.");
+    showToast("success", "تمت قراءة جميع الإشعارات.");
   }
 
-  async function deleteAlert(alert: AlertItem) {
+  async function deleteEvent(event: UnifiedAlertEvent) {
     if (!currentSchool?.id) return;
 
-    const confirmed = window.confirm("هل تريد حذف هذا التنبيه؟");
+    const allowed = event.source === "alerts" || event.source === "notifications";
+    if (!allowed) {
+      showToast("error", "الحذف المباشر متاح فقط للتنبيهات والإشعارات.");
+      return;
+    }
+
+    const confirmed = window.confirm("هل تريد حذف هذا العنصر؟");
     if (!confirmed) return;
 
-    setWorkingId(alert.id);
+    setWorkingId(event.id);
 
     const { error } = await supabase
-      .from(alert.source_table)
+      .from(event.source)
       .delete()
-      .eq("id", alert.id)
+      .eq("id", event.id)
       .eq("school_id", currentSchool.id);
 
     setWorkingId(null);
@@ -337,52 +546,61 @@ export default function AlertsPage() {
       return;
     }
 
-    setAlerts((prev) => prev.filter((item) => item.id !== alert.id));
-    showToast("success", "تم حذف التنبيه.");
+    setEvents((prev) => prev.filter((item) => !(item.id === event.id && item.source === event.source)));
+    showToast("success", "تم حذف العنصر.");
   }
 
   const studentMap = useMemo(() => {
     return new Map(students.map((student) => [student.id, student]));
   }, [students]);
 
-  const filteredAlerts = useMemo(() => {
+  const filteredEvents = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
-    return alerts.filter((alert) => {
-      const student = alert.student_id ? studentMap.get(alert.student_id) : null;
+    return events.filter((event) => {
+      const student = event.student_id ? studentMap.get(event.student_id) : null;
 
       const text = `
-        ${alert.title || ""}
-        ${alert.message || ""}
-        ${alert.alert_type || ""}
-        ${alert.severity || ""}
+        ${event.title}
+        ${event.description || ""}
+        ${event.type}
+        ${event.status || ""}
+        ${event.priority || ""}
+        ${event.severity || ""}
+        ${event.source_label}
         ${student?.full_name || ""}
         ${student?.classroom || ""}
+        ${student?.classroom_name || ""}
         ${student?.section || ""}
         ${student?.grade_level || ""}
       `.toLowerCase();
 
       const matchesSearch = !keyword || text.includes(keyword);
-      const matchesType = typeFilter === "all" || alert.alert_type === typeFilter;
+      const matchesSource = sourceFilter === "all" || event.source === sourceFilter;
+      const matchesStatus = statusFilter === "all" || event.status === statusFilter;
+      const matchesPriority = priorityFilter === "all" || event.priority === priorityFilter;
       const matchesRead =
         readFilter === "all" ||
-        (readFilter === "read" && alert.is_read) ||
-        (readFilter === "unread" && !alert.is_read);
-      const matchesSeverity =
-        severityFilter === "all" || alert.severity === severityFilter;
+        (readFilter === "read" && event.is_read === true) ||
+        (readFilter === "unread" && event.is_read === false);
 
-      return matchesSearch && matchesType && matchesRead && matchesSeverity;
+      return matchesSearch && matchesSource && matchesStatus && matchesPriority && matchesRead;
     });
-  }, [alerts, search, typeFilter, readFilter, severityFilter, studentMap]);
+  }, [events, search, sourceFilter, statusFilter, priorityFilter, readFilter, studentMap]);
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  const total = alerts.length;
-  const unread = alerts.filter((item) => !item.is_read).length;
-  const high = alerts.filter((item) => item.severity === "high").length;
-  const todayCount = alerts.filter((item) =>
-    item.created_at ? item.created_at.slice(0, 10) === today : false,
-  ).length;
+  const stats = useMemo(() => {
+    return {
+      total: events.length,
+      alerts: events.filter((e) => e.source === "alerts").length,
+      notifications: events.filter((e) => e.source === "notifications").length,
+      referralsOpen: events.filter((e) => e.source === "student_referrals" && !["resolved", "closed", "cancelled"].includes(e.status || "")).length,
+      interventionsActive: events.filter((e) => e.source === "student_interventions" && ["planned", "active"].includes(e.status || "")).length,
+      healthOpen: events.filter((e) => e.source === "health_cases" && !["resolved", "closed"].includes(e.status || "")).length,
+      unread: events.filter((e) => e.is_read === false).length,
+      critical: events.filter((e) => e.severity === "critical" || e.priority === "urgent").length,
+      shown: filteredEvents.length,
+    };
+  }, [events, filteredEvents.length]);
 
   if (schoolLoading || loading) {
     return (
@@ -401,24 +619,23 @@ export default function AlertsPage() {
       <AppShell>
         <PageContainer className="space-y-5" size="wide">
           <Breadcrumb />
-
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
             variant="hero"
             title="مركز التنبيهات"
-            description="شاشة موحدة لمتابعة الغياب المتكرر، التحويلات الصحية، التنبيهات الأكاديمية، والتنبيهات عالية الخطورة."
-            badge="منصة المدرسة الذكية"
+            description="مركز عمليات موحد للتنبيهات، الإشعارات، الإحالات الطلابية، التدخلات، والحالات الصحية."
+            badge="Alerts Center Enterprise"
             icon={<Bell size={18} />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
-              { label: "التنبيهات" },
+              { label: "مركز التنبيهات" },
             ]}
             meta={[
               { label: "المدرسة", value: currentSchool?.school_name || "غير محدد" },
-              { label: "إجمالي التنبيهات", value: String(total) },
-              { label: "غير مقروءة", value: String(unread) },
-              { label: "عالية الخطورة", value: String(high) },
+              { label: "إجمالي الأحداث", value: String(stats.total) },
+              { label: "غير مقروءة", value: String(stats.unread) },
+              { label: "حرجة", value: String(stats.critical) },
             ]}
             actions={
               <>
@@ -434,14 +651,10 @@ export default function AlertsPage() {
                 <button
                   type="button"
                   onClick={() => void markAllAsRead()}
-                  disabled={unread === 0 || workingId === "all"}
+                  disabled={stats.unread === 0 || workingId === "all"}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
                 >
-                  {workingId === "all" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={17} />
-                  )}
+                  {workingId === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 size={17} />}
                   قراءة الكل
                 </button>
               </>
@@ -454,46 +667,39 @@ export default function AlertsPage() {
             </div>
           )}
 
+          {sourceErrors.length > 0 && events.length > 0 && (
+            <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold text-amber-800">
+              تم عرض البيانات المتاحة، وتعذر تحميل: {sourceErrors.join("، ")}.
+            </div>
+          )}
+
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              title="إجمالي التنبيهات"
-              value={total}
-              icon={<Bell size={22} />}
-              tone="blue"
-            />
-            <StatCard
-              title="غير مقروءة"
-              value={unread}
-              icon={<AlertTriangle size={22} />}
-              tone="gold"
-            />
-            <StatCard
-              title="عالية الخطورة"
-              value={high}
-              icon={<ShieldAlert size={22} />}
-              tone={high > 0 ? "red" : "green"}
-            />
-            <StatCard
-              title="تنبيهات اليوم"
-              value={todayCount}
-              icon={<CheckCircle2 size={22} />}
-              tone="green"
-            />
+            <StatCard title="إجمالي الأحداث" value={stats.total} icon={<Activity size={22} />} tone="blue" />
+            <StatCard title="الإحالات المفتوحة" value={stats.referralsOpen} icon={<FileWarning size={22} />} tone={stats.referralsOpen ? "gold" : "green"} />
+            <StatCard title="التدخلات النشطة" value={stats.interventionsActive} icon={<UsersRound size={22} />} tone="blue" />
+            <StatCard title="الحالات الصحية المفتوحة" value={stats.healthOpen} icon={<HeartPulse size={22} />} tone={stats.healthOpen ? "red" : "green"} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard title="التنبيهات" value={stats.alerts} icon={<AlertTriangle size={22} />} tone="gold" />
+            <StatCard title="الإشعارات" value={stats.notifications} icon={<Bell size={22} />} tone="blue" />
+            <StatCard title="غير مقروءة" value={stats.unread} icon={<Clock3 size={22} />} tone={stats.unread ? "gold" : "green"} />
+            <StatCard title="حرجة أو عاجلة" value={stats.critical} icon={<ShieldAlert size={22} />} tone={stats.critical ? "red" : "green"} />
           </section>
 
           <SummaryCard
-            title="ملخص التنبيهات"
-            description="يعرض هذا الملخص حالة التنبيهات الحالية حسب القراءة والخطورة وتاريخ اليوم."
-            tone={high > 0 || unread > 0 ? "gold" : "green"}
+            title="ملخص مركز التنبيهات"
+            description="يعرض هذا الملخص قراءة موحدة لجميع مصادر المخاطر والمتابعة داخل المدرسة."
+            tone={stats.critical || stats.referralsOpen || stats.healthOpen ? "gold" : "green"}
             items={[
-              { label: "الإجمالي", value: total },
-              { label: "غير مقروءة", value: unread },
-              { label: "عالية الخطورة", value: high },
-              { label: "تنبيهات اليوم", value: todayCount },
-              { label: "المعروض", value: filteredAlerts.length },
-              { label: "المصدر", value: alerts[0]?.source_table === "notifications" ? "notifications" : "alerts" },
+              { label: "الإجمالي", value: stats.total },
+              { label: "المعروض", value: stats.shown },
+              { label: "الإحالات المفتوحة", value: stats.referralsOpen },
+              { label: "التدخلات النشطة", value: stats.interventionsActive },
+              { label: "الحالات الصحية", value: stats.healthOpen },
+              { label: "غير مقروءة", value: stats.unread },
             ]}
-            footer="إذا لم يكن جدول alerts موجودًا، تعرض الصفحة تلقائيًا التنبيهات العامة من جدول notifications."
+            footer="يتم تحديث المركز تلقائيًا عبر Supabase Realtime عند إضافة أو تعديل أي حدث."
           />
 
           <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
@@ -501,34 +707,31 @@ export default function AlertsPage() {
               search={{
                 value: search,
                 onChange: setSearch,
-                placeholder: "بحث في التنبيهات...",
+                placeholder: "بحث في العنوان، الطالب، الحالة، النوع...",
               }}
               filters={
                 <>
-                  <ToolbarSelect value={typeFilter} onChange={setTypeFilter}>
-                    {TYPE_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
+                  <ToolbarSelect value={sourceFilter} onChange={setSourceFilter}>
+                    {SOURCE_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </ToolbarSelect>
 
-                  <ToolbarSelect
-                    value={severityFilter}
-                    onChange={setSeverityFilter}
-                  >
-                    {SEVERITY_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
+                  <ToolbarSelect value={statusFilter} onChange={setStatusFilter}>
+                    {STATUS_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </ToolbarSelect>
+
+                  <ToolbarSelect value={priorityFilter} onChange={setPriorityFilter}>
+                    {PRIORITY_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </ToolbarSelect>
 
                   <ToolbarSelect value={readFilter} onChange={setReadFilter}>
                     {READ_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
+                      <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </ToolbarSelect>
                 </>
@@ -538,45 +741,42 @@ export default function AlertsPage() {
           </section>
 
           <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-            <h2 className="mb-5 text-2xl font-black text-[#15445A]">
-              سجل التنبيهات
-            </h2>
+            <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-[#15445A]">Timeline مركز التنبيهات</h2>
+                <p className="text-sm font-bold text-slate-500">
+                  سجل موحد مرتب حسب أحدث حدث من جميع مصادر المتابعة.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+                <Search size={14} />
+                {filteredEvents.length} نتيجة
+              </div>
+            </div>
 
-            {filteredAlerts.length === 0 ? (
-              <EmptyBox text="لا توجد تنبيهات مطابقة." />
+            {filteredEvents.length === 0 ? (
+              <EmptyBox text="لا توجد أحداث مطابقة للفلاتر الحالية." />
             ) : (
               <div className="space-y-3">
-                {filteredAlerts.map((alert) => {
-                  const student = alert.student_id
-                    ? studentMap.get(alert.student_id)
-                    : null;
+                {filteredEvents.map((event) => {
+                  const student = event.student_id ? studentMap.get(event.student_id) : null;
 
                   return (
                     <div
-                      key={`${alert.source_table}-${alert.id}`}
-                      className={`rounded-[28px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${
-                        alert.is_read
-                          ? "border-slate-100 bg-white"
-                          : "border-[#C1B489]/40 bg-[#C1B489]/10"
-                      }`}
+                      key={`${event.source}-${event.id}`}
+                      className={`rounded-[28px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${cardTone(event)}`}
                     >
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex gap-3">
-                          <AlertIcon
-                            type={alert.alert_type}
-                            severity={alert.severity}
-                          />
+                          <EventIcon event={event} />
 
                           <div>
                             <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-black text-[#15445A]">
-                                {alert.title}
-                              </h3>
-
-                              <TypeBadge type={alert.alert_type} />
-                              <SeverityBadge severity={alert.severity} />
-
-                              {!alert.is_read && (
+                              <h3 className="text-lg font-black text-[#15445A]">{event.title}</h3>
+                              <SourceBadge source={event.source} />
+                              <StatusBadge status={event.status} />
+                              <PriorityBadge priority={event.priority} />
+                              {event.is_read === false && (
                                 <span className="rounded-full bg-[#C1B489] px-3 py-1 text-xs font-black text-[#15445A]">
                                   جديد
                                 </span>
@@ -584,26 +784,25 @@ export default function AlertsPage() {
                             </div>
 
                             <p className="text-sm leading-7 text-slate-600">
-                              {alert.message || "لا توجد تفاصيل."}
+                              {event.description || "لا توجد تفاصيل إضافية."}
                             </p>
 
                             <p className="mt-2 text-xs font-bold text-slate-400">
-                              الطالب:{" "}
-                              {student?.full_name || "غير مرتبط بطالب"} —{" "}
-                              {student?.classroom || "—"}
+                              الطالب: {student?.full_name || "غير مرتبط بطالب"} —{" "}
+                              {student?.classroom_name || student?.classroom || "—"}
                               {student?.section ? ` - ${student.section}` : ""}
                             </p>
 
                             <p className="mt-1 text-xs text-slate-400">
-                              {formatDate(alert.created_at)}
+                              {formatDate(event.created_at)}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                          {alert.student_id && (
+                          {event.student_id && (
                             <Link
-                              href={`/counselor/student/${alert.student_id}`}
+                              href={`/counselor/student/${event.student_id}`}
                               className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-200"
                             >
                               <UserRoundSearch size={16} />
@@ -611,31 +810,29 @@ export default function AlertsPage() {
                             </Link>
                           )}
 
-                          {!alert.is_read && (
+                          {event.is_read === false && (
                             <button
                               type="button"
-                              onClick={() => void markAsRead(alert)}
-                              disabled={workingId === alert.id}
+                              onClick={() => void markAsRead(event)}
+                              disabled={workingId === event.id}
                               className="inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
                             >
-                              {workingId === alert.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <CheckCircle2 size={16} />
-                              )}
+                              {workingId === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 size={16} />}
                               مقروء
                             </button>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => void deleteAlert(alert)}
-                            disabled={workingId === alert.id}
-                            className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                          >
-                            <Trash2 size={16} />
-                            حذف
-                          </button>
+                          {(event.source === "alerts" || event.source === "notifications") && (
+                            <button
+                              type="button"
+                              onClick={() => void deleteEvent(event)}
+                              disabled={workingId === event.id}
+                              className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              <Trash2 size={16} />
+                              حذف
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -650,60 +847,73 @@ export default function AlertsPage() {
   );
 }
 
-function AlertIcon({
-  type,
-  severity,
-}: {
-  type: string;
-  severity: AlertItem["severity"];
-}) {
-  if (type === "health") {
-    return (
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-        <HeartPulse size={22} />
-      </div>
-    );
+function cardTone(event: UnifiedAlertEvent) {
+  if (event.severity === "critical" || event.priority === "urgent") {
+    return "border-red-100 bg-red-50/40";
   }
 
-  if (severity === "high") {
-    return (
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-700">
-        <ShieldAlert size={22} />
-      </div>
-    );
+  if (event.is_read === false) {
+    return "border-[#C1B489]/40 bg-[#C1B489]/10";
   }
 
-  return (
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-      <AlertTriangle size={22} />
-    </div>
-  );
+  return "border-slate-100 bg-white";
 }
 
-function TypeBadge({ type }: { type: string }) {
-  const label =
-    TYPE_OPTIONS.find((item) => item.value === type)?.label || "تنبيه عام";
+function EventIcon({ event }: { event: UnifiedAlertEvent }) {
+  const base = "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl";
 
+  if (event.source === "health_cases") {
+    return <div className={`${base} bg-emerald-50 text-emerald-700`}><Stethoscope size={22} /></div>;
+  }
+
+  if (event.source === "student_referrals") {
+    return <div className={`${base} bg-red-50 text-red-700`}><FileWarning size={22} /></div>;
+  }
+
+  if (event.source === "student_interventions") {
+    return <div className={`${base} bg-blue-50 text-blue-700`}><UsersRound size={22} /></div>;
+  }
+
+  if (event.source === "notifications") {
+    return <div className={`${base} bg-violet-50 text-violet-700`}><Bell size={22} /></div>;
+  }
+
+  return <div className={`${base} bg-amber-50 text-amber-700`}><AlertTriangle size={22} /></div>;
+}
+
+function SourceBadge({ source }: { source: EventSource }) {
   return (
     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-      {label}
+      {SOURCE_LABELS[source]}
     </span>
   );
 }
 
-function SeverityBadge({ severity }: { severity: AlertItem["severity"] }) {
-  const key = severity || "medium";
+function StatusBadge({ status }: { status: string | null }) {
+  if (!status) return null;
+
+  return (
+    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+      {STATUS_LABELS[status] || status}
+    </span>
+  );
+}
+
+function PriorityBadge({ priority }: { priority: Priority | null }) {
+  if (!priority) return null;
 
   const style =
-    key === "high"
+    priority === "urgent"
       ? "bg-red-50 text-red-700"
-      : key === "low"
-        ? "bg-emerald-50 text-emerald-700"
-        : "bg-amber-50 text-amber-700";
+      : priority === "high"
+        ? "bg-orange-50 text-orange-700"
+        : priority === "low"
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-amber-50 text-amber-700";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>
-      {SEVERITY_LABELS[key] || "متوسطة"}
+      {PRIORITY_LABELS[priority]}
     </span>
   );
 }
@@ -723,11 +933,7 @@ function ToastBox({ toast }: { toast: Toast }) {
         toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
       }`}
     >
-      {toast.type === "success" ? (
-        <CheckCircle2 size={18} />
-      ) : (
-        <XCircle size={18} />
-      )}
+      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
       {toast.message}
     </div>
   );
