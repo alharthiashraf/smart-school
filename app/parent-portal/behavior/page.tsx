@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
@@ -720,7 +722,9 @@ export default function ParentBehaviorPage() {
   return (
     <RoleGuard allowedRoles={PARENT_ROLES}>
       <AppShell>
-        <div dir="rtl" className="space-y-5">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
+
           <PageHeader
             variant="hero"
             title="متابعة سلوك الأبناء"
@@ -1097,7 +1101,7 @@ export default function ParentBehaviorPage() {
               </div>
             </section>
           )}
-        </div>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

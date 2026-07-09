@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
@@ -391,7 +393,8 @@ export default function SchoolsPage() {
   return (
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
-        <main dir="rtl" className="space-y-5">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
           <PageHeader
             variant="hero"
             title="المدارس"
@@ -741,7 +744,7 @@ export default function SchoolsPage() {
               </div>
             </section>
           )}
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

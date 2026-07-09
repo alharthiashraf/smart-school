@@ -3,41 +3,47 @@
 import Link from "next/link";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
+
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
 
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
   ChevronLeft,
   ClipboardList,
   MessageCircle,
   Route,
-  UserRoundSearch,
   ShieldCheck,
+  UserRoundSearch,
   Users,
-  Activity,
 } from "lucide-react";
 
 const cards = [
   {
     title: "الحالات الإرشادية",
-    description: "متابعة الحالات الطلابية وخطط الدعم الإرشادي والملاحظات المرتبطة بكل طالب.",
+    description:
+      "متابعة الحالات الطلابية وخطط الدعم الإرشادي والملاحظات المرتبطة بكل طالب.",
     href: "/counselor/cases",
     icon: UserRoundSearch,
     tone: "blue",
   },
   {
     title: "السلوك والانضباط",
-    description: "متابعة السلوك والمخالفات والإجراءات التصحيحية وربطها بملف الطالب.",
+    description:
+      "متابعة السلوك والمخالفات والإجراءات التصحيحية وربطها بملف الطالب.",
     href: "/behavior",
     icon: AlertTriangle,
     tone: "gold",
   },
   {
     title: "التدخلات الإرشادية",
-    description: "تسجيل التدخلات والمتابعة الدورية للطلاب وخطط العلاج والتحسين.",
+    description:
+      "تسجيل التدخلات والمتابعة الدورية للطلاب وخطط العلاج والتحسين.",
     href: "/counselor/interventions",
     icon: ClipboardList,
     tone: "green",
@@ -51,7 +57,8 @@ const cards = [
   },
   {
     title: "سجل الطالب الزمني",
-    description: "عرض التسلسل الزمني لحالة الطالب ومتابعته أكاديميًا وسلوكيًا وصحيًا.",
+    description:
+      "عرض التسلسل الزمني لحالة الطالب ومتابعته أكاديميًا وسلوكيًا وصحيًا.",
     href: "/student-timeline",
     icon: Route,
     tone: "primary",
@@ -66,17 +73,24 @@ const cards = [
 ] as const;
 
 const toneClasses = {
-  primary: "bg-[#15445A]/10 text-[#15445A] group-hover:bg-[#15445A] group-hover:text-white",
-  teal: "bg-[#0DA9A6]/10 text-[#0DA9A6] group-hover:bg-[#0DA9A6] group-hover:text-white",
-  green: "bg-[#07A869]/10 text-[#07A869] group-hover:bg-[#07A869] group-hover:text-white",
-  blue: "bg-[#3D7EB9]/10 text-[#3D7EB9] group-hover:bg-[#3D7EB9] group-hover:text-white",
-  gold: "bg-[#C1B489]/20 text-[#15445A] group-hover:bg-[#C1B489] group-hover:text-[#15445A]",
+  primary:
+    "bg-[#15445A]/10 text-[#15445A] group-hover:bg-[#15445A] group-hover:text-white",
+  teal:
+    "bg-[#0DA9A6]/10 text-[#0DA9A6] group-hover:bg-[#0DA9A6] group-hover:text-white",
+  green:
+    "bg-[#07A869]/10 text-[#07A869] group-hover:bg-[#07A869] group-hover:text-white",
+  blue:
+    "bg-[#3D7EB9]/10 text-[#3D7EB9] group-hover:bg-[#3D7EB9] group-hover:text-white",
+  gold:
+    "bg-[#C1B489]/20 text-[#15445A] group-hover:bg-[#C1B489] group-hover:text-[#15445A]",
 };
 
 export default function CounselorPage() {
   return (
     <AppShell>
-      <main className="space-y-6" dir="rtl">
+      <PageContainer size="wide" className="space-y-6">
+        <Breadcrumb />
+
         <PageHeader
           variant="hero"
           title="مركز الرعاية والتوجيه الطلابي"
@@ -88,10 +102,30 @@ export default function CounselorPage() {
             { label: "الإرشاد الطلابي" },
           ]}
           stats={[
-            { label: "الحالات", value: "متابعة", icon: <UserRoundSearch size={20} />, tone: "blue" },
-            { label: "السلوك", value: "نشط", icon: <AlertTriangle size={20} />, tone: "gold" },
-            { label: "التدخلات", value: "مستمرة", icon: <Activity size={20} />, tone: "green" },
-            { label: "التواصل", value: "موثق", icon: <Users size={20} />, tone: "teal" },
+            {
+              label: "الحالات",
+              value: "متابعة",
+              icon: <UserRoundSearch size={20} />,
+              tone: "blue",
+            },
+            {
+              label: "السلوك",
+              value: "نشط",
+              icon: <AlertTriangle size={20} />,
+              tone: "gold",
+            },
+            {
+              label: "التدخلات",
+              value: "مستمرة",
+              icon: <Activity size={20} />,
+              tone: "green",
+            },
+            {
+              label: "التواصل",
+              value: "موثق",
+              icon: <Users size={20} />,
+              tone: "teal",
+            },
           ]}
         />
 
@@ -186,7 +220,7 @@ export default function CounselorPage() {
             );
           })}
         </section>
-      </main>
+      </PageContainer>
     </AppShell>
   );
 }

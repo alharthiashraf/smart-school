@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageActions from "@/components/layout/PageActions";
+import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import SummaryCard from "@/components/ui/cards/SummaryCard";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -16,12 +18,12 @@ import {
   CheckCircle2,
   Clock,
   Eye,
-  Loader2,
   Plus,
   RefreshCcw,
   Search,
   ShieldAlert,
   Trash2,
+  Loader2,
   X,
 } from "lucide-react";
 
@@ -64,38 +66,123 @@ type Toast = {
 };
 
 const VIOLATION_OPTIONS = [
-  { title: "ط§ظ„طھط£ط®ط± ط§ظ„طµط¨ط§ط­ظٹ", degree: 1, points: 1 },
-  { title: "ط¹ط¯ظ… ط§ظ„طھظ‚ظٹط¯ ط¨ط§ظ„ط²ظٹ ط§ظ„ظ…ط¯ط±ط³ظٹ", degree: 1, points: 1 },
-  { title: "ط§ظ„طھط£ط®ط± ط¹ظ† ط¯ط®ظˆظ„ ط§ظ„ط­طµط©", degree: 1, points: 1 },
-  { title: "طھظ†ط§ظˆظ„ ط§ظ„ط£ط·ط¹ظ…ط© ط£ظˆ ط§ظ„ظ…ط´ط±ظˆط¨ط§طھ ط£ط«ظ†ط§ط، ط§ظ„ط¯ط±ط³ ط¨ط¯ظˆظ† ط§ط³طھط¦ط°ط§ظ†", degree: 1, points: 1 },
-  { title: "ط§ظ„ظ†ظˆظ… ط¯ط§ط®ظ„ ط§ظ„ظپطµظ„", degree: 1, points: 1 },
+  { title: "التأخر الصباحي", degree: 1, points: 1 },
+  {
+    title: "عدم التقيد بالزي المدرسي",
+    degree: 1,
+    points: 1,
+  },
+  { title: "التأخر عن دخول الحصة", degree: 1, points: 1 },
+  {
+    title:
+      "تناول الأطعمة أو المشروبات أثناء الدرس بدون استئذان",
+    degree: 1,
+    points: 1,
+  },
+  { title: "النوم داخل الفصل", degree: 1, points: 1 },
 
-  { title: "ط¹ط¯ظ… ط­ط¶ظˆط± ط§ظ„ط­طµط© ط£ظˆ ط§ظ„ظ‡ط±ظˆط¨ ظ…ظ†ظ‡ط§", degree: 2, points: 2 },
-  { title: "ط§ظ„ط¯ط®ظˆظ„ ط£ظˆ ط§ظ„ط®ط±ظˆط¬ ظ…ظ† ط§ظ„ظپطµظ„ ط¯ظˆظ† ط§ط³طھط¦ط°ط§ظ†", degree: 2, points: 2 },
-  { title: "ط¯ط®ظˆظ„ ظپطµظ„ ط¢ط®ط± ط¯ظˆظ† ط§ط³طھط¦ط°ط§ظ†", degree: 2, points: 2 },
-  { title: "ط¥ط«ط§ط±ط© ط§ظ„ظپظˆط¶ظ‰ ط¯ط§ط®ظ„ ط§ظ„ظپطµظ„ ط£ظˆ ط§ظ„ظ…ط¯ط±ط³ط©", degree: 2, points: 2 },
-  { title: "ط§ظ„ط´ط¬ط§ط± ط£ظˆ ط§ظ„ط§ط´طھط±ط§ظƒ ظپظٹ ظ…ط¶ط§ط±ط¨ط©", degree: 2, points: 2 },
-  { title: "ط§ظ„طھظ„ظپط¸ ط¨ظƒظ„ظ…ط§طھ ط؛ظٹط± ظ„ط§ط¦ظ‚ط©", degree: 2, points: 2 },
-  { title: "ط¥ظ„ط­ط§ظ‚ ط§ظ„ط¶ط±ط± ط¨ظ…ظ…طھظ„ظƒط§طھ ط§ظ„ط·ظ„ط¨ط©", degree: 2, points: 2 },
-  { title: "ط§ظ„ط¹ط¨ط« ط¨طھط¬ظ‡ظٹط²ط§طھ ط§ظ„ظ…ط¯ط±ط³ط© ط£ظˆ ظ…ط¨ط§ظ†ظٹظ‡ط§", degree: 2, points: 2 },
+  {
+    title: "عدم حضور الحصة أو الهروب منها",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title:
+      "الدخول أو الخروج من الفصل دون استئذان",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title: "دخول فصل آخر دون استئذان",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title: "إثارة الفوضى داخل الفصل أو المدرسة",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title: "الشجار أو الاشتراك في مضاربة",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title: "التلفظ بكلمات غير لائقة",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title: "إلحاق الضرر بممتلكات الطلبة",
+    degree: 2,
+    points: 2,
+  },
+  {
+    title: "العبث بتجهيزات المدرسة أو مبانيها",
+    degree: 2,
+    points: 2,
+  },
 
-  { title: "ط¥ظ„ط­ط§ظ‚ ط§ظ„ط¶ط±ط± ط§ظ„ظ…طھط¹ظ…ط¯ ط¨طھط¬ظ‡ظٹط²ط§طھ ط§ظ„ظ…ط¯ط±ط³ط©", degree: 3, points: 3 },
-  { title: "ط³ط±ظ‚ط© ط´ظٹط، ظ…ظ† ظ…ظ…طھظ„ظƒط§طھ ط§ظ„ط·ظ„ط¨ط© ط£ظˆ ط§ظ„ظ…ط¯ط±ط³ط©", degree: 3, points: 3 },
-  { title: "ط§ظ„طھط¹ط±ط¶ ظ„ط£ط­ط¯ ط§ظ„ط·ظ„ط¨ط© ط¨ط§ظ„ط¶ط±ط¨", degree: 3, points: 3 },
-  { title: "ط§ظ„طھطµظˆظٹط± ط£ظˆ ط§ظ„طھط³ط¬ظٹظ„ ط§ظ„طµظˆطھظٹ ظ„ظ„ط·ظ„ط¨ط©", degree: 3, points: 3 },
-  { title: "ط§ظ„ظ‡ط±ظˆط¨ ظ…ظ† ط§ظ„ظ…ط¯ط±ط³ط©", degree: 3, points: 3 },
-  { title: "ط§ظ„طھظˆظ‚ظٹط¹ ط¹ظ† ظˆظ„ظٹ ط§ظ„ط£ظ…ط± ط¯ظˆظ† ط¹ظ„ظ…ظ‡", degree: 3, points: 3 },
-  { title: "ط¥ط­ط¶ط§ط± ط£ظˆ ط§ط³طھط®ط¯ط§ظ… ظ…ظˆط§ط¯ ط£ظˆ ط£ظ„ط¹ط§ط¨ ط®ط·ط±ط©", degree: 3, points: 3 },
+  {
+    title:
+      "إلحاق الضرر المتعمد بتجهيزات المدرسة",
+    degree: 3,
+    points: 3,
+  },
+  {
+    title:
+      "سرقة شيء من ممتلكات الطلبة أو المدرسة",
+    degree: 3,
+    points: 3,
+  },
+  {
+    title: "التعرض لأحد الطلبة بالضرب",
+    degree: 3,
+    points: 3,
+  },
+  {
+    title: "التصوير أو التسجيل الصوتي للطلبة",
+    degree: 3,
+    points: 3,
+  },
+  { title: "الهروب من المدرسة", degree: 3, points: 3 },
+  {
+    title: "التوقيع عن ولي الأمر دون علمه",
+    degree: 3,
+    points: 3,
+  },
+  {
+    title: "إحضار أو استخدام مواد أو ألعاب خطرة",
+    degree: 3,
+    points: 3,
+  },
 
-  { title: "ط§ظ„ط¥ط³ط§ط،ط© ط£ظˆ ط§ظ„ط§ط³طھظ‡ط²ط§ط، ط¨ط´ظٹط، ظ…ظ† ط´ط¹ط§ط¦ط± ط§ظ„ط¥ط³ظ„ط§ظ…", degree: 4, points: 10 },
-  { title: "ط§ظ„ط¥ط³ط§ط،ط© ظ„ظ„ط¯ظˆظ„ط© ط£ظˆ ط±ظ…ظˆط²ظ‡ط§", degree: 4, points: 10 },
-  { title: "ط§ظ„طھط­ط±ط´ ط§ظ„ط¬ط³ط¯ظٹ", degree: 4, points: 10 },
-  { title: "ط¥ط´ط¹ط§ظ„ ط§ظ„ظ†ط§ط± ط¯ط§ط®ظ„ ط§ظ„ظ…ط¯ط±ط³ط©", degree: 4, points: 10 },
-  { title: "ط­ظٹط§ط²ط© ط§ظ„ط³ط¬ط§ط¦ط± ط¨ط£ظ†ظˆط§ط¹ظ‡ط§", degree: 4, points: 10 },
-  { title: "ط§ظ„طھط¯ط®ظٹظ† ط¯ط§ط®ظ„ ط§ظ„ظ…ط¯ط±ط³ط©", degree: 4, points: 10 },
-  { title: "ط­ظٹط§ط²ط© ط¢ظ„ط© ط­ط§ط¯ط©", degree: 4, points: 10 },
-  { title: "ط§ظ„ط¬ط±ط§ط¦ظ… ط§ظ„ظ…ط¹ظ„ظˆظ…ط§طھظٹط©", degree: 4, points: 10 },
-  { title: "ط§ظ„طھظ†ظ…ط± ط¨ط¬ظ…ظٹط¹ ط£ظ†ظˆط§ط¹ظ‡", degree: 4, points: 10 },
+  {
+    title:
+      "الإساءة أو الاستهزاء بشيء من شعائر الإسلام",
+    degree: 4,
+    points: 10,
+  },
+  {
+    title: "الإساءة للدولة أو رموزها",
+    degree: 4,
+    points: 10,
+  },
+  { title: "التحرش الجسدي", degree: 4, points: 10 },
+  {
+    title: "إشعال النار داخل المدرسة",
+    degree: 4,
+    points: 10,
+  },
+  {
+    title: "حيازة السجائر بأنواعها",
+    degree: 4,
+    points: 10,
+  },
+  { title: "التدخين داخل المدرسة", degree: 4, points: 10 },
+  { title: "حيازة آلة حادة", degree: 4, points: 10 },
+  { title: "الجرائم المعلوماتية", degree: 4, points: 10 },
+  { title: "التنمر بجميع أنواعه", degree: 4, points: 10 },
 ];
 
 export default function BehaviorPage() {
@@ -141,7 +228,9 @@ export default function BehaviorPage() {
     try {
       let studentsQuery = supabase
         .from("students")
-        .select("id, school_id, full_name, grade_level, classroom, section, student_number")
+        .select(
+          "id, school_id, full_name, grade_level, classroom, section, student_number",
+        )
         .order("full_name", { ascending: true });
 
       if (currentSchool?.id) {
@@ -164,7 +253,7 @@ export default function BehaviorPage() {
             section,
             student_number
           )
-        `
+        `,
         )
         .order("created_at", { ascending: false });
 
@@ -181,7 +270,9 @@ export default function BehaviorPage() {
       setViolations((violationsData as Violation[]) || []);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط³ظ„ظˆظƒ";
+        error instanceof Error
+          ? error.message
+          : "تعذر تحميل بيانات السلوك";
       showToast("error", message);
     } finally {
       setLoading(false);
@@ -193,12 +284,14 @@ export default function BehaviorPage() {
 
     if (degreeFilter !== "all") {
       list = list.filter(
-        (item) => item.violation_degree === Number(degreeFilter)
+        (item) => item.violation_degree === Number(degreeFilter),
       );
     }
 
     if (statusFilter !== "all") {
-      list = list.filter((item) => (item.status || "ظ…ظپطھظˆط­ط©") === statusFilter);
+      list = list.filter(
+        (item) => (item.status || "مفتوحة") === statusFilter,
+      );
     }
 
     const q = search.trim();
@@ -223,29 +316,29 @@ export default function BehaviorPage() {
   const totalViolations = violations.length;
 
   const openViolations = violations.filter(
-    (item) => (item.status || "ظ…ظپطھظˆط­ط©") === "ظ…ظپطھظˆط­ط©"
+    (item) => (item.status || "مفتوحة") === "مفتوحة",
   ).length;
 
   const followViolations = violations.filter(
-    (item) => item.status === "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©"
+    (item) => item.status === "تحت المتابعة",
   ).length;
 
   const closedViolations = violations.filter(
-    (item) => item.status === "ظ…ط؛ظ„ظ‚ط©"
+    (item) => item.status === "مغلقة",
   ).length;
 
   const totalDeducted = violations.reduce(
     (sum, item) => sum + Number(item.points_deducted || 0),
-    0
+    0,
   );
 
   const highViolations = violations.filter(
-    (item) => Number(item.violation_degree || 0) >= 3
+    (item) => Number(item.violation_degree || 0) >= 3,
   ).length;
 
   async function addViolation() {
     if (!studentId || !selectedOption) {
-      showToast("error", "ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨ ظˆظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©");
+      showToast("error", "اختر الطالب ونوع المخالفة");
       return;
     }
 
@@ -261,9 +354,9 @@ export default function BehaviorPage() {
         violation_date: new Date().toISOString().slice(0, 10),
         action_taken: actionTaken || null,
         notes: notes || null,
-        status: "ظ…ظپطھظˆط­ط©",
-        reported_by_name: "ظ…ط³طھط®ط¯ظ… ط§ظ„ظ†ط¸ط§ظ…",
-        reported_by_role: "ط¥ط¯ط§ط±ط© ط§ظ„ظ…ط¯ط±ط³ط©",
+        status: "مفتوحة",
+        reported_by_name: "مستخدم النظام",
+        reported_by_role: "إدارة المدرسة",
       });
 
       if (error) throw error;
@@ -274,11 +367,13 @@ export default function BehaviorPage() {
       setNotes("");
       setShowForm(false);
 
-      showToast("success", "طھظ… طھط³ط¬ظٹظ„ ط§ظ„ظ…ط®ط§ظ„ظپط© ط¨ظ†ط¬ط§ط­");
+      showToast("success", "تم تسجيل المخالفة بنجاح");
       await fetchData();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "طھط¹ط°ط± ط­ظپط¸ ط§ظ„ظ…ط®ط§ظ„ظپط©";
+        error instanceof Error
+          ? error.message
+          : "تعذر حفظ المخالفة";
       showToast("error", message);
     } finally {
       setSaving(false);
@@ -294,17 +389,19 @@ export default function BehaviorPage() {
 
       if (error) throw error;
 
-      showToast("success", "طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„ظ…ط®ط§ظ„ظپط©");
+      showToast("success", "تم تحديث حالة المخالفة");
       await fetchData();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "طھط¹ط°ط± طھط­ط¯ظٹط« ط§ظ„ط­ط§ظ„ط©";
+        error instanceof Error
+          ? error.message
+          : "تعذر تحديث الحالة";
       showToast("error", message);
     }
   }
 
   async function deleteViolation(id: string) {
-    const ok = confirm("ظ‡ظ„ طھط±ظٹط¯ ط­ط°ظپ ظ‡ط°ظ‡ ط§ظ„ظ…ط®ط§ظ„ظپط©طں");
+    const ok = confirm("هل تريد حذف هذه المخالفة؟");
     if (!ok) return;
 
     try {
@@ -315,11 +412,13 @@ export default function BehaviorPage() {
 
       if (error) throw error;
 
-      showToast("success", "طھظ… ط­ط°ظپ ط§ظ„ظ…ط®ط§ظ„ظپط©");
+      showToast("success", "تم حذف المخالفة");
       await fetchData();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "طھط¹ط°ط± ط­ط°ظپ ط§ظ„ظ…ط®ط§ظ„ظپط©";
+        error instanceof Error
+          ? error.message
+          : "تعذر حذف المخالفة";
       showToast("error", message);
     }
   }
@@ -336,76 +435,63 @@ export default function BehaviorPage() {
   return (
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
-        <div dir="rtl" className="space-y-6">
+        <PageContainer size="wide" className="space-y-6">
+          <Breadcrumb />
+
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
-          variant="hero"
-          title="السلوك والانضباط"
-          description="إدارة المخالفات السلوكية، متابعة الإجراءات، وربطها بملف الطالب والتقارير."
-          badge="السلوك والمواظبة"
+            variant="hero"
+            title="السلوك والانضباط"
+            description="إدارة المخالفات السلوكية، متابعة الإجراءات، وربطها بملف الطالب والتقارير."
+            badge="السلوك والمواظبة"
+            icon={<ShieldAlert className="h-4 w-4" />}
           />
 
-          <section className="hidden">
-            <div className="absolute left-0 top-0 h-48 w-48 rounded-full bg-[#C1B489]/10 blur-3xl" />
+          <PageActions>
+            <button
+              type="button"
+              onClick={fetchData}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#15445A] shadow-sm transition hover:bg-slate-50"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              تحديث
+            </button>
 
-            <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="mb-2 font-bold text-[#C1B489]">
-                  ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©
-                </p>
-
-                <h1 className="text-4xl font-black">ط§ظ„ط³ظ„ظˆظƒ ظˆط§ظ„ط§ظ†ط¶ط¨ط§ط·</h1>
-
-                <p className="mt-2 text-slate-300">
-                  طھط³ط¬ظٹظ„ ط§ظ„ظ…ط®ط§ظ„ظپط§طھ ط§ظ„ط³ظ„ظˆظƒظٹط© ظˆط±ط¨ط·ظ‡ط§ ط¨ظ…ظ„ظپ ط§ظ„ط·ط§ظ„ط¨ ظˆظ…طھط§ط¨ط¹ط© ط­ط§ظ„طھظ‡ط§.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={fetchData}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-3 font-bold text-white hover:bg-white/15"
-                >
-                  <RefreshCcw size={18} />
-                  طھط­ط¯ظٹط«
-                </button>
-
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="flex items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-5 py-3 font-bold text-[#15445A]"
-                >
-                  <Plus size={18} />
-                  ط¥ط¶ط§ظپط© ظ…ط®ط§ظ„ظپط©
-                </button>
-              </div>
-            </div>
-          </section>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4" />
+              إضافة مخالفة
+            </button>
+          </PageActions>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
             <ExecutiveCard
-              title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط®ط§ظ„ظپط§طھ"
+              title="إجمالي المخالفات"
               value={totalViolations}
               icon={<ShieldAlert size={22} />}
               tone="blue"
             />
 
             <ExecutiveCard
-              title="ظ…ظپطھظˆط­ط©"
+              title="مفتوحة"
               value={openViolations}
               icon={<Clock size={22} />}
               tone="gold"
             />
 
             <ExecutiveCard
-              title="طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©"
+              title="تحت المتابعة"
               value={followViolations}
               icon={<Eye size={22} />}
               tone="green"
             />
 
             <ExecutiveCard
-              title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط­ط³ظ…"
+              title="إجمالي الحسم"
               value={totalDeducted}
               icon={<AlertTriangle size={22} />}
               tone="red"
@@ -420,7 +506,7 @@ export default function BehaviorPage() {
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="ط§ط¨ط­ط« ط¨ط§ط³ظ… ط§ظ„ط·ط§ظ„ط¨ ط£ظˆ ط±ظ‚ظ… ط§ظ„ط·ط§ظ„ط¨ ط£ظˆ ط§ظ„ظ…ط®ط§ظ„ظپط©..."
+                    placeholder="ابحث باسم الطالب أو رقم الطالب أو المخالفة..."
                     className="w-full bg-transparent text-sm outline-none"
                   />
                 </div>
@@ -431,12 +517,12 @@ export default function BehaviorPage() {
                 onChange={(e) => setDegreeFilter(e.target.value)}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
               >
-                <option value="all">ظƒظ„ ط§ظ„ط¯ط±ط¬ط§طھ</option>
-                <option value="1">ط§ظ„ط¯ط±ط¬ط© ط§ظ„ط£ظˆظ„ظ‰</option>
-                <option value="2">ط§ظ„ط¯ط±ط¬ط© ط§ظ„ط«ط§ظ†ظٹط©</option>
-                <option value="3">ط§ظ„ط¯ط±ط¬ط© ط§ظ„ط«ط§ظ„ط«ط©</option>
-                <option value="4">ط§ظ„ط¯ط±ط¬ط© ط§ظ„ط±ط§ط¨ط¹ط©</option>
-                <option value="5">ط§ظ„ط¯ط±ط¬ط© ط§ظ„ط®ط§ظ…ط³ط©</option>
+                <option value="all">كل الدرجات</option>
+                <option value="1">الدرجة الأولى</option>
+                <option value="2">الدرجة الثانية</option>
+                <option value="3">الدرجة الثالثة</option>
+                <option value="4">الدرجة الرابعة</option>
+                <option value="5">الدرجة الخامسة</option>
               </select>
 
               <select
@@ -444,10 +530,12 @@ export default function BehaviorPage() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
               >
-                <option value="all">ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ</option>
-                <option value="ظ…ظپطھظˆط­ط©">ظ…ظپطھظˆط­ط©</option>
-                <option value="طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©">طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©</option>
-                <option value="ظ…ط؛ظ„ظ‚ط©">ظ…ط؛ظ„ظ‚ط©</option>
+                <option value="all">كل الحالات</option>
+                <option value="مفتوحة">مفتوحة</option>
+                <option value="تحت المتابعة">
+                  تحت المتابعة
+                </option>
+                <option value="مغلقة">مغلقة</option>
               </select>
             </div>
 
@@ -455,7 +543,7 @@ export default function BehaviorPage() {
               <div className="rounded-3xl bg-slate-50 p-10 text-center">
                 <AlertTriangle className="mx-auto h-8 w-8 text-slate-400" />
                 <p className="mt-3 text-sm font-bold text-slate-500">
-                  ظ„ط§ طھظˆط¬ط¯ ظ…ط®ط§ظ„ظپط§طھ ظ…ط·ط§ط¨ظ‚ط©.
+                  لا توجد مخالفات مطابقة.
                 </p>
               </div>
             ) : (
@@ -463,16 +551,16 @@ export default function BehaviorPage() {
                 <table className="w-full min-w-[1100px] text-right text-sm">
                   <thead>
                     <tr className="border-b bg-slate-50 text-slate-600">
-                      <th className="p-3">ط§ظ„ط·ط§ظ„ط¨</th>
-                      <th className="p-3">ط§ظ„طµظپ / ط§ظ„ظپطµظ„</th>
-                      <th className="p-3">ط§ظ„ظ…ط®ط§ظ„ظپط©</th>
-                      <th className="p-3">ط§ظ„ط¯ط±ط¬ط©</th>
-                      <th className="p-3">ط§ظ„ط­ط³ظ…</th>
-                      <th className="p-3">ط§ظ„طھط§ط±ظٹط®</th>
-                      <th className="p-3">ط§ظ„ط¥ط¬ط±ط§ط،</th>
-                      <th className="p-3">ط§ظ„ط­ط§ظ„ط©</th>
-                      <th className="p-3">طھط؛ظٹظٹط± ط§ظ„ط­ط§ظ„ط©</th>
-                      <th className="p-3">ط­ط°ظپ</th>
+                      <th className="p-3">الطالب</th>
+                      <th className="p-3">الصف / الفصل</th>
+                      <th className="p-3">المخالفة</th>
+                      <th className="p-3">الدرجة</th>
+                      <th className="p-3">الحسم</th>
+                      <th className="p-3">التاريخ</th>
+                      <th className="p-3">الإجراء</th>
+                      <th className="p-3">الحالة</th>
+                      <th className="p-3">تغيير الحالة</th>
+                      <th className="p-3">حذف</th>
                     </tr>
                   </thead>
 
@@ -484,7 +572,7 @@ export default function BehaviorPage() {
                       >
                         <td className="p-3">
                           <div className="font-black text-[#15445A]">
-                            {item.students?.full_name || "ط؛ظٹط± ظ…ط­ط¯ط¯"}
+                            {item.students?.full_name || "غير محدد"}
                           </div>
 
                           <div className="mt-1 text-xs text-slate-500">
@@ -519,24 +607,26 @@ export default function BehaviorPage() {
                         </td>
 
                         <td className="p-3 text-slate-600">
-                          {item.action_taken || "ظ„ظ… ظٹط­ط¯ط¯"}
+                          {item.action_taken || "لم يحدد"}
                         </td>
 
                         <td className="p-3">
-                          <StatusBadge status={item.status || "ظ…ظپطھظˆط­ط©"} />
+                          <StatusBadge status={item.status || "مفتوحة"} />
                         </td>
 
                         <td className="p-3">
                           <select
-                            value={item.status || "ظ…ظپطھظˆط­ط©"}
+                            value={item.status || "مفتوحة"}
                             onChange={(e) =>
                               updateViolationStatus(item.id, e.target.value)
                             }
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none"
                           >
-                            <option value="ظ…ظپطھظˆط­ط©">ظ…ظپطھظˆط­ط©</option>
-                            <option value="طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©">طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©</option>
-                            <option value="ظ…ط؛ظ„ظ‚ط©">ظ…ط؛ظ„ظ‚ط©</option>
+                            <option value="مفتوحة">مفتوحة</option>
+                            <option value="تحت المتابعة">
+                              تحت المتابعة
+                            </option>
+                            <option value="مغلقة">مغلقة</option>
                           </select>
                         </td>
 
@@ -560,8 +650,9 @@ export default function BehaviorPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-5 w-5" />
               <p>
-                ظٹطھظ… طھط³ط¬ظٹظ„ ط§ظ„ظ…ط®ط§ظ„ظپط© ظ‡ظ†ط§طŒ ط«ظ… طھط¸ظ‡ط± ط¯ط§ط®ظ„ ظ…ظ„ظپ ط§ظ„ط·ط§ظ„ط¨ ظپظٹ طµظپط­ط© طھظپط§طµظٹظ„
-                ط§ظ„ط·ط§ظ„ط¨ ط¨ط¹ط¯ ط±ط¨ط· ط¬ط¯ظˆظ„ student_violations.
+                يتم تسجيل المخالفة هنا، ثم تظهر
+                داخل ملف الطالب في صفحة تفاصيل
+                الطالب بعد ربط جدول student_violations.
               </p>
             </div>
           </section>
@@ -572,10 +663,11 @@ export default function BehaviorPage() {
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-black text-[#15445A]">
-                      طھط³ط¬ظٹظ„ ظ…ط®ط§ظ„ظپط© ط¬ط¯ظٹط¯ط©
+                      تسجيل مخالفة جديدة
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨ ظˆظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط© ظˆط§ظ„ط¥ط¬ط±ط§ط، ط§ظ„ظ…طھط®ط°.
+                      اختر الطالب ونوع المخالفة
+                      والإجراء المتخذ.
                     </p>
                   </div>
 
@@ -590,7 +682,7 @@ export default function BehaviorPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-700">
-                      ط§ظ„ط·ط§ظ„ط¨
+                      الطالب
                     </label>
 
                     <select
@@ -598,7 +690,7 @@ export default function BehaviorPage() {
                       onChange={(e) => setStudentId(e.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400"
                     >
-                      <option value="">ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨</option>
+                      <option value="">اختر الطالب</option>
                       {students.map((student) => (
                         <option key={student.id} value={student.id}>
                           {student.full_name}
@@ -614,7 +706,7 @@ export default function BehaviorPage() {
 
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-700">
-                      ظ†ظˆط¹ ط§ظ„ظ…ط®ط§ظ„ظپط©
+                      نوع المخالفة
                     </label>
 
                     <select
@@ -622,10 +714,10 @@ export default function BehaviorPage() {
                       onChange={(e) => setSelectedViolation(e.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400"
                     >
-                      <option value="">ط§ط®طھط± ط§ظ„ظ…ط®ط§ظ„ظپط©</option>
+                      <option value="">اختر المخالفة</option>
                       {VIOLATION_OPTIONS.map((item) => (
                         <option key={item.title} value={item.title}>
-                          {item.title} - ط§ظ„ط¯ط±ط¬ط© {item.degree}
+                          {item.title} - الدرجة {item.degree}
                         </option>
                       ))}
                     </select>
@@ -633,26 +725,26 @@ export default function BehaviorPage() {
 
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-700">
-                      ط§ظ„ط¥ط¬ط±ط§ط، ط§ظ„ظ…طھط®ط°
+                      الإجراء المتخذ
                     </label>
 
                     <input
                       value={actionTaken}
                       onChange={(e) => setActionTaken(e.target.value)}
-                      placeholder="ظ…ط«ط§ظ„: طھظ†ط¨ظٹظ‡ ط´ظپظ‡ظٹ / ط¥ط´ط¹ط§ط± ظˆظ„ظٹ ط§ظ„ط£ظ…ط± / ط¥ط­ط§ظ„ط© ظ„ظ„ظ…ط±ط´ط¯"
+                      placeholder="مثال: تنبيه شفهي / إشعار ولي الأمر / إحالة للمرشد"
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-400"
                     />
                   </div>
 
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-700">
-                      ظ…ظ„ط§ط­ط¸ط§طھ
+                      ملاحظات
                     </label>
 
                     <input
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="ظ…ظ„ط§ط­ط¸ط§طھ ط¥ط¶ط§ظپظٹط©"
+                      placeholder="ملاحظات إضافية"
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-400"
                     />
                   </div>
@@ -660,8 +752,8 @@ export default function BehaviorPage() {
 
                 {selectedOption && (
                   <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
-                    ط¯ط±ط¬ط© ط§ظ„ظ…ط®ط§ظ„ظپط©: {selectedOption.degree} â€” ظ…ظ‚ط¯ط§ط± ط§ظ„ط­ط³ظ…:{" "}
-                    {selectedOption.points} ط¯ط±ط¬ط©
+                    درجة المخالفة: {selectedOption.degree} —
+                    مقدار الحسم: {selectedOption.points} درجة
                   </div>
                 )}
 
@@ -676,57 +768,22 @@ export default function BehaviorPage() {
                     ) : (
                       <CheckCircle2 className="h-4 w-4" />
                     )}
-                    ط­ظپط¸ ط§ظ„ظ…ط®ط§ظ„ظپط©
+                    حفظ المخالفة
                   </button>
 
                   <button
                     onClick={() => setShowForm(false)}
                     className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-200"
                   >
-                    ط¥ظ„ط؛ط§ط،
+                    إلغاء
                   </button>
                 </div>
               </div>
             </div>
           )}
-        </div>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: "blue" | "emerald" | "amber" | "red";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-500">{title}</p>
-
-        <div
-          className={`flex h-11 w-11 items-center justify-center rounded-2xl ${colors[color]}`}
-        >
-          {icon}
-        </div>
-      </div>
-
-      <h2 className="text-3xl font-black text-[#15445A]">{value}</h2>
-    </div>
   );
 }
 
@@ -740,16 +797,16 @@ function DegreeBadge({ degree }: { degree: number }) {
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-bold ${style}`}>
-      ط§ظ„ط¯ط±ط¬ط© {degree}
+      الدرجة {degree}
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
   const style =
-    status === "ظ…ط؛ظ„ظ‚ط©"
+    status === "مغلقة"
       ? "bg-emerald-50 text-emerald-700"
-      : status === "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©"
+      : status === "تحت المتابعة"
         ? "bg-amber-50 text-amber-700"
         : "bg-blue-50 text-blue-700";
 
@@ -764,7 +821,7 @@ function LoadingBox() {
   return (
     <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
       <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ طµظپط­ط© ط§ظ„ط³ظ„ظˆظƒ ظˆط§ظ„ط§ظ†ط¶ط¨ط§ط·...
+      جاري تحميل صفحة السلوك والانضباط...
     </div>
   );
 }

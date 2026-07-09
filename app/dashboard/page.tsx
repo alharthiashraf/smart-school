@@ -33,11 +33,19 @@ import {
 import AuthGuard from "@/components/auth/AuthGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import KpiCard from "@/components/ui/cards/KpiCard";
 import StatCard from "@/components/ui/cards/StatCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  ActionCard,
+  AttendanceTrend,
+  CommandCenter,
+  ExternalSystemCard,
+  PortalLink,
+} from "@/components/dashboard";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import type { SchoolRole } from "@/lib/permissions";
@@ -661,7 +669,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => void loadDashboard()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <RefreshCcw size={17} />
                 تحديث
@@ -669,7 +677,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/search"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0DA9A6] hover:shadow-md"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--app-primary)] hover:shadow-md"
               >
                 <Search size={17} />
                 البحث الشامل
@@ -686,6 +694,20 @@ export default function DashboardPage() {
             icon={<AlertTriangle size={22} />}
           />
         )}
+
+        <CommandCenter
+          schoolName={currentSchool?.school_name || "لم يتم تحديد مدرسة"}
+          roleName={roleName}
+          academicYear={academicYear || "غير محدد"}
+          semester={semester || "غير محدد"}
+          today={todayLabel()}
+          stats={stats}
+          attendanceRate={attendanceRate}
+          dataQuality={dataQuality}
+          systemHealth={systemHealth}
+          loading={schoolLoading || loading}
+          quickActions={visibleActions.slice(0, 5)}
+        />
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ExecutiveCard
@@ -769,7 +791,7 @@ export default function DashboardPage() {
             className="xl:col-span-2"
             badge="مباشر"
             actions={
-              <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-black text-slate-500">
+              <span className="rounded-full bg-[var(--app-surface)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
                 آخر مزامنة: {formatDateTime(lastSync)}
               </span>
             }
@@ -783,22 +805,22 @@ export default function DashboardPage() {
               <StatCard title="حصص مجدولة" value={stats.scheduleLessons} icon={<CalendarDays size={18} />} tone="primary" loading={loading} />
             </div>
 
-            <div className="mt-5 rounded-[28px] bg-slate-50 p-4">
+            <div className="mt-5 rounded-[28px] bg-[var(--app-surface)] p-4">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-black text-[#15445A]">
+                  <h3 className="text-base font-black text-[var(--app-text)]">
                     اتجاه الحضور آخر 7 أيام
                   </h3>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
+                  <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
                     قراءة مبسطة تساعد الإدارة على متابعة الانضباط.
                   </p>
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500">
+                <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
                   حضور / غياب / تأخر
                 </span>
               </div>
 
-              <SimpleAttendanceChart data={attendanceTrend} />
+              <AttendanceTrend data={attendanceTrend} />
             </div>
           </Section>
 
@@ -807,33 +829,33 @@ export default function DashboardPage() {
             description="تنبيهات النظام غير المقروءة وآخر الرسائل المهمة."
             icon={<Bell size={20} />}
             actions={
-              <Link href="/alerts" className="text-xs font-black text-[#15445A] hover:underline">
+              <Link href="/alerts" className="text-xs font-black text-[var(--app-text)] hover:underline">
                 عرض الكل
               </Link>
             }
           >
             {notifications.length === 0 ? (
-              <EmptyState text="لا توجد تنبيهات حاليًا. النظام مستقر ولا توجد رسائل تحتاج إجراء." />
+              <EmptyState title="لا توجد تنبيهات" description="النظام مستقر ولا توجد رسائل تحتاج إجراء." />
             ) : (
               <div className="space-y-2">
                 {notifications.map((notification) => (
                   <Link
                     key={notification.id}
                     href="/alerts"
-                    className="block rounded-2xl bg-slate-50 px-4 py-3 transition hover:bg-slate-100"
+                    className="block rounded-2xl bg-[var(--app-surface)] px-4 py-3 transition hover:bg-[var(--app-card-soft)]"
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="line-clamp-1 font-black text-[#15445A]">
+                      <p className="line-clamp-1 font-black text-[var(--app-text)]">
                         {notification.title || "تنبيه"}
                       </p>
                       {notification.is_read === false && (
                         <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
                       )}
                     </div>
-                    <p className="line-clamp-2 text-sm leading-6 text-slate-600">
+                    <p className="line-clamp-2 text-sm leading-6 text-[var(--app-text-muted)]">
                       {notification.body || "لا توجد تفاصيل."}
                     </p>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
+                    <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
                       {formatDateTime(notification.created_at)}
                     </p>
                   </Link>
@@ -885,7 +907,7 @@ export default function DashboardPage() {
             badge={`${filteredActions.length} إجراء`}
           >
             {filteredActions.length === 0 ? (
-              <EmptyState text="لا توجد إجراءات متاحة حسب البحث أو الفلتر الحالي." />
+              <EmptyState title="لا توجد إجراءات" description="لا توجد إجراءات متاحة حسب البحث أو الفلتر الحالي." />
             ) : (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {filteredActions.slice(0, 8).map((action) => (
@@ -912,7 +934,7 @@ export default function DashboardPage() {
             className="xl:col-span-2"
           >
             {visiblePortals.length === 0 ? (
-              <EmptyState text="لا توجد بوابات متاحة لهذا الحساب." />
+              <EmptyState title="لا توجد بوابات" description="لا توجد بوابات متاحة لهذا الحساب." />
             ) : (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {visiblePortals.map((portal) => (
@@ -932,144 +954,5 @@ export default function DashboardPage() {
         </section>
       </div>
     </AuthGuard>
-  );
-}
-
-function SimpleAttendanceChart({ data }: { data: AttendanceTrendItem[] }) {
-  if (data.length === 0) {
-    return <EmptyState text="لا توجد بيانات كافية للرسم." />;
-  }
-
-  const maxValue = Math.max(
-    1,
-    ...data.flatMap((item) => [item.present, item.absent, item.late]),
-  );
-
-  return (
-    <div className="space-y-3">
-      {data.map((item) => {
-        const label = new Intl.DateTimeFormat("ar-SA", {
-          weekday: "short",
-        }).format(new Date(item.date));
-
-        return (
-          <div key={item.date} className="grid grid-cols-[70px_1fr] items-center gap-3">
-            <span className="text-xs font-black text-slate-500">{label}</span>
-            <div className="space-y-1">
-              <ChartBar value={item.present} max={maxValue} label="حضور" className="bg-[#07A869]" />
-              <ChartBar value={item.absent} max={maxValue} label="غياب" className="bg-red-500" />
-              <ChartBar value={item.late} max={maxValue} label="تأخر" className="bg-[#C1B489]" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ChartBar({
-  value,
-  max,
-  label,
-  className,
-}: {
-  value: number;
-  max: number;
-  label: string;
-  className: string;
-}) {
-  const width = Math.max(4, Math.round((value / max) * 100));
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white">
-        <div className={`h-full rounded-full ${className}`} style={{ width: `${width}%` }} />
-      </div>
-      <span className="w-16 text-xs font-bold text-slate-500">
-        {label}: {value}
-      </span>
-    </div>
-  );
-}
-
-function ActionCard({ action }: { action: QuickAction }) {
-  const Icon = action.icon;
-  const tones = {
-    primary: "bg-[#15445A]/10 text-[#15445A]",
-    gold: "bg-[#C1B489]/20 text-[#15445A]",
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-    red: "bg-red-50 text-red-700",
-    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-  };
-
-  return (
-    <Link
-      href={action.href}
-      className="group block rounded-[24px] border border-slate-100 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-    >
-      <div className="flex items-start gap-3">
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tones[action.tone]}`}>
-          <Icon size={21} />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-base font-black text-[#15445A]">{action.title}</h3>
-          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
-            {action.description}
-          </p>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function PortalLink({ portal }: { portal: PortalCard }) {
-  const Icon = portal.icon;
-
-  return (
-    <Link
-      href={portal.href}
-      className="group block rounded-[24px] border border-slate-100 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#15445A]/10 text-[#15445A] transition group-hover:bg-[#0DA9A6]/10 group-hover:text-[#0DA9A6]">
-          <Icon size={21} />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-base font-black text-[#15445A]">{portal.title}</h3>
-          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">
-            {portal.description}
-          </p>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function ExternalSystemCard({ system }: { system: ExternalSystem }) {
-  return (
-    <a
-      href={system.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group block rounded-[24px] border border-slate-100 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
-    >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="rounded-2xl bg-[#15445A]/10 px-3 py-2 text-xs font-black text-[#15445A] transition group-hover:bg-[#C1B489]/20">
-          {system.tag}
-        </div>
-        <ExternalLink className="h-4 w-4 text-slate-400" />
-      </div>
-      <h3 className="font-black text-[#15445A]">{system.title}</h3>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{system.description}</p>
-    </a>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
   );
 }

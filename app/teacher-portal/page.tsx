@@ -16,6 +16,10 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import { PageLoader } from "@/components/ui/loading";
+import { EmptyState } from "@/components/ui/empty-state";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -40,7 +44,6 @@ import {
   FileText,
   GraduationCap,
   LayoutDashboard,
-  Loader2,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
@@ -1455,32 +1458,27 @@ function ActionLink({
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
+    <EmptyState
+      title="لا توجد بيانات"
+      description={text}
+    />
   );
 }
 
 function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-        {text}
-      </div>
-    </div>
-  );
+  return <PageLoader text={text} />;
 }
 
 function ToastBox({ toast }: { toast: Toast }) {
+  if (toast.type === "success") {
+    return <SuccessBanner description={toast.message} className="print:hidden" />;
+  }
+
   return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      <span>{toast.message}</span>
-    </div>
+    <ErrorState
+      title="حدث خطأ"
+      description={toast.message}
+      className="print:hidden"
+    />
   );
 }

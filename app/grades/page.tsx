@@ -32,9 +32,13 @@ import * as XLSX from "xlsx";
 import AuthGuard from "@/components/auth/AuthGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import EmptyState from "@/components/ui/empty-state/EmptyState";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import PageLoader from "@/components/ui/loading/PageLoader";
 import { useSchool } from "@/contexts/SchoolContext";
 import {
   GradesService,
@@ -744,7 +748,7 @@ export default function GradesPage() {
   if (!canView) {
     return (
       <AuthGuard>
-        <EmptyBox text="لا تملك صلاحية الوصول إلى الدرجات." icon={<BookOpen size={28} />} />
+        <EmptyState icon={<BookOpen size={28} />} title="لا تملك صلاحية الوصول" description="لا تملك صلاحية الوصول إلى الدرجات." />
       </AuthGuard>
     );
   }
@@ -752,7 +756,7 @@ export default function GradesPage() {
   if (schoolLoading || loading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل صفحة الدرجات..." />
+        <PageLoader text="جاري تحميل صفحة الدرجات..." />
       </AuthGuard>
     );
   }
@@ -760,7 +764,7 @@ export default function GradesPage() {
   if (!currentSchool) {
     return (
       <AuthGuard>
-        <EmptyBox text="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
+        <EmptyState title="لا توجد مدرسة مرتبطة" description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
       </AuthGuard>
     );
   }
@@ -768,7 +772,15 @@ export default function GradesPage() {
   return (
     <AuthGuard>
       <div className="space-y-5 pb-16" dir="rtl">
-        {toast && <ToastBox toast={toast} />}
+        {toast && (
+          <div className="fixed left-5 top-5 z-50 w-[min(28rem,calc(100%-2rem))] print:hidden">
+            {toast.type === "success" ? (
+              <SuccessBanner description={toast.message} />
+            ) : (
+              <ErrorState description={toast.message} />
+            )}
+          </div>
+        )}
 
         <PageHeader
           variant="hero"
@@ -993,7 +1005,7 @@ export default function GradesPage() {
         />
 
         {!selectedTeacherSubject ? (
-          <EmptyBox text="اختر إسناد المعلم بالمادة لعرض الطلاب والرصد." />
+          <EmptyState title="اختر إسناد المعلم" description="اختر إسناد المعلم بالمادة لعرض الطلاب والرصد." />
         ) : activeTab === "subjects" ? (
           <>
             <GradesTable entries={pagedEntries} components={components} editEnabled={editEnabled} updateScore={updateScore} />
@@ -1031,7 +1043,7 @@ function GradesTable({
   editEnabled: boolean;
   updateScore: (studentId: string, component: GradeComponent, rawValue: string) => void;
 }) {
-  if (entries.length === 0) return <EmptyBox text="لا توجد بيانات طلاب مطابقة للتصفية الحالية." />;
+  if (entries.length === 0) return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات طلاب مطابقة للتصفية الحالية." />;
 
   return (
     <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -1100,7 +1112,14 @@ function ConductTable({
   canEdit: boolean;
   onAction: (student: StudentForGrades, action: ConductAction) => void;
 }) {
-  if (rows.length === 0) return <EmptyBox text={`لا توجد بيانات ${title}.`} />;
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        title="لا توجد بيانات"
+        description={`لا توجد بيانات ${title}.`}
+      />
+    );
+  }
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1266,7 +1285,7 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
 }
 
 function HistorySection({ events, students }: { events: ConductEvent[]; students: StudentForGrades[] }) {
-  if (events.length === 0) return <EmptyBox text="لا توجد عمليات مسجلة حتى الآن." />;
+  if (events.length === 0) return <EmptyState title="لا توجد عمليات" description="لا توجد عمليات مسجلة حتى الآن." />;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1318,27 +1337,8 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"}`}>
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      <span>{toast.message}</span>
-    </div>
-  );
-}
 
-function LoadingBox({ text }: { text: string }) {
-  return <div className="rounded-3xl bg-white p-8 text-center font-bold text-slate-500 shadow-sm">{text}</div>;
-}
 
-function EmptyBox({ text, icon }: { text: string; icon?: ReactNode }) {
-  return (
-    <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center font-bold text-slate-500 shadow-sm">
-      {icon && <div className="mb-3 flex justify-center text-slate-400">{icon}</div>}
-      {text}
-    </div>
-  );
-}
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">{label}: {value}</div>;

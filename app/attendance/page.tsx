@@ -9,7 +9,6 @@ import {
 } from "react";
 import {
   AlertTriangle,
-  BadgeCheck,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -20,7 +19,6 @@ import {
   RefreshCcw,
   RotateCcw,
   Save,
-  Search,
   Stethoscope,
   UserRound,
   Users,
@@ -30,10 +28,12 @@ import {
 import AuthGuard from "@/components/auth/AuthGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import KpiCard from "@/components/ui/cards/KpiCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { ExportEngine } from "@/core";
@@ -855,7 +855,7 @@ export default function AttendancePage() {
   if (schoolLoading || loading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل صفحة الحضور..." />
+        <PageLoader text="جاري تحميل صفحة الحضور..." />
       </AuthGuard>
     );
   }
@@ -902,45 +902,42 @@ export default function AttendancePage() {
           ]}
           actions={
             <>
-              <button
+              <SecondaryButton
                 type="button"
                 onClick={() => void loadTeacherLessons()}
                 disabled={!teacherId || loadingLessons}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                icon={<RefreshCcw size={17} className={loadingLessons ? "animate-spin" : ""} />}
               >
-                <RefreshCcw size={17} className={loadingLessons ? "animate-spin" : ""} />
                 تحديث
-              </button>
+              </SecondaryButton>
 
-              <button
+              <PrimaryButton
                 type="button"
                 onClick={exportExcel}
                 disabled={!selectedLesson || students.length === 0}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0DA9A6] hover:shadow-md disabled:opacity-60"
+                icon={<Download size={17} />}
               >
-                <Download size={17} />
                 Excel
-              </button>
+              </PrimaryButton>
 
-              <button
+              <SecondaryButton
                 type="button"
                 onClick={exportPDF}
                 disabled={!selectedLesson || students.length === 0}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                tone="dark"
+                icon={<FileText size={17} />}
               >
-                <FileText size={17} />
                 PDF
-              </button>
+              </SecondaryButton>
 
-              <button
+              <SecondaryButton
                 type="button"
                 onClick={printPage}
                 disabled={!selectedLesson || students.length === 0}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                icon={<Printer size={17} />}
               >
-                <Printer size={17} />
                 طباعة
-              </button>
+              </SecondaryButton>
             </>
           }
         />
@@ -1132,25 +1129,23 @@ export default function AttendancePage() {
               emptyDescription="لا يوجد طلاب مطابقون لهذا الفصل والشعبة."
               actions={
                 <div className="flex flex-wrap gap-2 print:hidden">
-                  <button
+                  <SecondaryButton
                     type="button"
                     onClick={() => void resetCurrentAttendance()}
                     disabled={!sessionId || resetting}
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-100 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-200 disabled:opacity-60"
+                    icon={<RotateCcw size={17} />}
                   >
-                    <RotateCcw size={17} />
                     {resetting ? "جاري..." : "إعادة تعيين"}
-                  </button>
+                  </SecondaryButton>
 
-                  <button
+                  <PrimaryButton
                     type="button"
                     onClick={() => void saveAttendance()}
                     disabled={saving || students.length === 0}
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-bold text-white transition hover:bg-[#0DA9A6] disabled:opacity-60"
+                    icon={<Save size={18} />}
                   >
-                    <Save size={18} />
                     {saving ? "جاري الحفظ..." : "حفظ الحضور"}
-                  </button>
+                  </PrimaryButton>
                 </div>
               }
             >
@@ -1325,22 +1320,6 @@ function BulkButton({
       {icon}
       {label}
     </button>
-  );
-}
-
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-        <RefreshCcw className="h-6 w-6 animate-spin" />
-      </div>
-      <p className="font-bold">{text}</p>
-      <div className="mx-auto mt-5 grid max-w-md gap-2">
-        <div className="h-3 rounded-full bg-slate-100" />
-        <div className="h-3 rounded-full bg-slate-100" />
-        <div className="h-3 w-2/3 rounded-full bg-slate-100" />
-      </div>
-    </div>
   );
 }
 

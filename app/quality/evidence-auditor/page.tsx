@@ -28,6 +28,9 @@ import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
 
 import { analyzeEvidence, scoreEvidence } from "@/lib/ai/evidenceAI";
 import { ExportEngine } from "@/core";
@@ -393,50 +396,25 @@ export default function EvidenceAuditorPage() {
           ]}
           actions={
             <>
-              <button
-                type="button"
-                onClick={runAiAuditor}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Wand2 size={17} />
+              <PrimaryButton icon={<Wand2 size={17} />} onClick={runAiAuditor}>
                 تشغيل التحليل الذكي
-              </button>
+              </PrimaryButton>
 
-              <button
-                type="button"
-                onClick={addEvidence}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#07A869] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Plus size={17} />
+              <PrimaryButton icon={<Plus size={17} />} onClick={addEvidence}>
                 شاهد جديد
-              </button>
+              </PrimaryButton>
 
-              <button
-                type="button"
-                onClick={exportPDF}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Printer size={17} />
+              <SecondaryButton icon={<Printer size={17} />} onClick={exportPDF}>
                 PDF
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
-                onClick={exportExcel}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Download size={17} />
+              <PrimaryButton icon={<Download size={17} />} onClick={exportExcel}>
                 Excel
-              </button>
+              </PrimaryButton>
 
-              <button
-                type="button"
-                onClick={resetAll}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <RefreshCcw size={17} />
+              <SecondaryButton icon={<RefreshCcw size={17} />} onClick={resetAll}>
                 تصفير
-              </button>
+              </SecondaryButton>
             </>
           }
         />
@@ -495,9 +473,8 @@ export default function EvidenceAuditorPage() {
         />
 
         {aiUsed && (
-          <div className="no-print rounded-[28px] border border-[#07A869]/20 bg-[#07A869]/10 p-4 text-sm font-bold leading-7 text-[#15445A]">
-            تم تشغيل التحليل الذكي وفق سياسة مدقق الشواهد: لا مجاملة، تقييم موضوعي،
-            فصل بين الشاهد القوي والشكلي، وربط كل شاهد بالأثر المتوقع.
+          <div className="no-print">
+            <SuccessBanner description="تم تشغيل التحليل الذكي وفق سياسة مدقق الشواهد: لا مجاملة، تقييم موضوعي، فصل بين الشاهد القوي والشكلي، وربط كل شاهد بالأثر المتوقع." />
           </div>
         )}
 
@@ -574,7 +551,7 @@ export default function EvidenceAuditorPage() {
                         onChange={(event) =>
                           updateItem(item.id, { type: event.target.value as EvidenceType })
                         }
-                        className="input"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
                       >
                         {evidenceTypes.map((type) => (
                           <option key={type}>{type}</option>
@@ -823,7 +800,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="غير متوفر"
-        className="input"
+        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
       />
     </label>
   );
@@ -848,7 +825,7 @@ function SelectField({
         {icon}
         {label}
       </span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="input">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10">
         {options.map((option) => (
           <option key={option}>{option}</option>
         ))}
@@ -875,7 +852,7 @@ function InputBox({
   return (
     <div className={className}>
       <InputLabel label={label} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} className="input" />
+      <input value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10" />
     </div>
   );
 }

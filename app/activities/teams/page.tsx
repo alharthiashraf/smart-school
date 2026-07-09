@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import Section from "@/components/ui/page/PageSection";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -24,17 +31,10 @@ import {
 } from "lucide-react";
 
 import {
-  ActivityEmpty,
-  ActivityError,
-  ActivityHero,
   ActivityInfo,
   ActivityInput,
-  ActivityLoading,
-  ActivityPanel,
   ActivitySelect,
-  ActivitySummaryCard,
   ActivityTextarea,
-  ActivityToastBox,
   DangerButton,
   DarkButton,
   LightButton,
@@ -298,7 +298,7 @@ export default function ActivityTeamsPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <ActivityLoading text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·..." />
+          <PageLoader text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·..." />
         </AppShell>
       </RoleGuard>
     );
@@ -308,12 +308,34 @@ export default function ActivityTeamsPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6" dir="rtl">
-          {toast && <ActivityToastBox toast={toast} />}
+          {toast?.type === "success" ? (
+            <SuccessBanner description={toast.message} />
+          ) : toast ? (
+            <ErrorState description={toast.message} />
+          ) : null}
 
-          <ActivityHero
+          <PageHeader
+            variant="hero"
             title="ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·"
-            subtitle="ط¥ط¯ط§ط±ط© ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط· ط§ظ„ظ…ط¯ط±ط³ظٹ ظˆط±ط¨ط·ظ‡ط§ ط¨ط§ظ„ظ…ط´ط±ظپظٹظ† ظˆط§ظ„ظ…ط´ط§ط±ظƒظٹظ† ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            icon={<Users size={32} />}
+            description="ط¥ط¯ط§ط±ط© ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط· ط§ظ„ظ…ط¯ط±ط³ظٹ ظˆط±ط¨ط·ظ‡ط§ ط¨ط§ظ„ظ…ط´ط±ظپظٹظ† ظˆط§ظ„ظ…ط´ط§ط±ظƒظٹظ† ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
+            badge="ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·"
+            icon={<Users size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الأنشطة", href: "/activities" },
+              { label: "فرق النشاط" },
+            ]}
+            meta={[
+              { label: "المدرسة", value: currentSchool?.school_name || "غير متوفر" },
+              { label: "إجمالي الفرق", value: stats.total },
+              { label: "الفرق النشطة", value: stats.active },
+            ]}
+            stats={[
+              { label: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظپط±ظ‚", value: stats.total, icon: <Users size={20} />, tone: "blue" },
+              { label: "ظپط±ظ‚ ظ†ط´ط·ط©", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
+              { label: "ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†", value: stats.forming, icon: <Loader2 size={20} />, tone: "gold" },
+              { label: "ظ…ظ†ط¬ط²ط©", value: stats.completed, icon: <Users size={20} />, tone: "slate" },
+            ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
@@ -329,40 +351,48 @@ export default function ActivityTeamsPage() {
             }
           />
 
-          {errorMsg && <ActivityError text={errorMsg} />}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظپط±ظ‚"
               value={stats.total}
+              subtitle="إجمالي فرق النشاط"
               icon={<Users size={22} />}
-              color="blue"
+              tone="blue"
+              progress={stats.total > 0 ? 100 : 0}
             />
 
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ظپط±ظ‚ ظ†ط´ط·ط©"
               value={stats.active}
+              subtitle="فرق مفعلة"
               icon={<CheckCircle2 size={22} />}
-              color="green"
+              tone="green"
+              progress={stats.total ? Math.round((stats.active / stats.total) * 100) : 0}
             />
 
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†"
               value={stats.forming}
+              subtitle="فرق تحت التكوين"
               icon={<Loader2 size={22} />}
-              color="amber"
+              tone="gold"
+              progress={stats.total ? Math.round((stats.forming / stats.total) * 100) : 0}
             />
 
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ظ…ظ†ط¬ط²ط©"
               value={stats.completed}
+              subtitle="فرق منجزة"
               icon={<Users size={22} />}
-              color="slate"
+              tone="slate"
+              progress={stats.total ? Math.round((stats.completed / stats.total) * 100) : 0}
             />
           </section>
 
           {showForm && (
-            <ActivityPanel
+            <Section
               title={form.id ? "طھط¹ط¯ظٹظ„ ظپط±ظٹظ‚" : "ط¥ط¶ط§ظپط© ظپط±ظٹظ‚"}
               icon={<Edit size={22} />}
             >
@@ -416,10 +446,10 @@ export default function ActivityTeamsPage() {
                   ط¥ظ„ط؛ط§ط،
                 </LightButton>
               </div>
-            </ActivityPanel>
+            </Section>
           )}
 
-          <ActivityPanel title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
+          <Section title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_200px_auto_auto]">
               <div className="relative">
                 <Search
@@ -453,12 +483,12 @@ export default function ActivityTeamsPage() {
                 PDF
               </LightButton>
             </div>
-          </ActivityPanel>
+          </Section>
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <ActivityEmpty text="ظ„ط§ طھظˆط¬ط¯ ظپط±ظ‚ ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState title="لا توجد بيانات" description="ظ„ط§ طھظˆط¬ط¯ ظپط±ظ‚ ظ…ط·ط§ط¨ظ‚ط©." />
               </div>
             ) : (
               filteredItems.map((item) => (

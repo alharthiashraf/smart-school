@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
@@ -481,7 +483,8 @@ export default function StudentInterventionsPage() {
   return (
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
-        <main className="space-y-5" dir="rtl">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
@@ -607,7 +610,7 @@ export default function StudentInterventionsPage() {
               </div>
             )}
           </section>
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

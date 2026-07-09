@@ -1,26 +1,30 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import AppShell from "./AppShell";
 
-const PUBLIC_ROUTES = [
+const PUBLIC_ROUTES = new Set([
   "/",
   "/login",
   "/register",
   "/forgot-password",
-];
+]);
+
+type ShellGateProps = {
+  children: ReactNode;
+};
 
 export default function ShellGate({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: ShellGateProps) {
   const pathname = usePathname();
 
-  const isPublicRoute = PUBLIC_ROUTES.some(
-    (route) =>
-      pathname === route || pathname.startsWith(`${route}/`),
-  );
+  const isPublicRoute =
+    PUBLIC_ROUTES.has(pathname) ||
+    [...PUBLIC_ROUTES].some(
+      (route) => route !== "/" && pathname.startsWith(`${route}/`),
+    );
 
   if (isPublicRoute) {
     return <>{children}</>;

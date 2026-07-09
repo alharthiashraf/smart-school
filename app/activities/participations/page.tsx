@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import Section from "@/components/ui/page/PageSection";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -27,17 +34,10 @@ import {
 } from "lucide-react";
 
 import {
-  ActivityEmpty,
-  ActivityError,
-  ActivityHero,
   ActivityInfo,
   ActivityInput,
-  ActivityLoading,
-  ActivityPanel,
   ActivitySelect,
-  ActivitySummaryCard,
   ActivityTextarea,
-  ActivityToastBox,
   DangerButton,
   DarkButton,
   LightButton,
@@ -477,7 +477,7 @@ export default function ActivityParticipationsPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <ActivityLoading text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط´ط§ط±ظƒط§طھ..." />
+          <PageLoader text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط´ط§ط±ظƒط§طھ..." />
         </AppShell>
       </RoleGuard>
     );
@@ -487,12 +487,34 @@ export default function ActivityParticipationsPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6" dir="rtl">
-          {toast && <ActivityToastBox toast={toast} />}
+          {toast?.type === "success" ? (
+            <SuccessBanner description={toast.message} />
+          ) : toast ? (
+            <ErrorState description={toast.message} />
+          ) : null}
 
-          <ActivityHero
+          <PageHeader
+            variant="hero"
             title="ط§ظ„ظ…ط´ط§ط±ظƒط§طھ"
-            subtitle="ط¥ط¯ط§ط±ط© ط§ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط´ط§ط±ظƒظٹظ† ظپظٹ ط§ظ„ط£ظ†ط´ط·ط© ظˆط§ظ„ظپط±ظ‚ ظˆط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ظˆطھظˆط«ظٹظ‚ ط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            icon={<UserCheck size={32} />}
+            description="ط¥ط¯ط§ط±ط© ط§ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط´ط§ط±ظƒظٹظ† ظپظٹ ط§ظ„ط£ظ†ط´ط·ط© ظˆط§ظ„ظپط±ظ‚ ظˆط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ظˆطھظˆط«ظٹظ‚ ط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
+            badge="ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·"
+            icon={<UserCheck size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الأنشطة", href: "/activities" },
+              { label: "المشاركات" },
+            ]}
+            meta={[
+              { label: "المدرسة", value: currentSchool?.school_name || "غير متوفر" },
+              { label: "إجمالي المشاركات", value: stats.total },
+              { label: "الفائزون والمكرمون", value: stats.winners },
+            ]}
+            stats={[
+              { label: "إجمالي المشاركات", value: stats.total, icon: <Users size={20} />, tone: "blue" },
+              { label: "فائزون ومكرمون", value: stats.winners, icon: <Trophy size={20} />, tone: "green" },
+              { label: "مسابقات", value: stats.competitions, icon: <Award size={20} />, tone: "gold" },
+              { label: "فرق", value: stats.teams, icon: <UserCheck size={20} />, tone: "slate" },
+            ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
@@ -508,40 +530,48 @@ export default function ActivityParticipationsPage() {
             }
           />
 
-          {errorMsg && <ActivityError text={errorMsg} />}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط´ط§ط±ظƒط§طھ"
               value={stats.total}
+              subtitle="إجمالي المشاركات المسجلة"
               icon={<Users size={22} />}
-              color="blue"
+              tone="blue"
+              progress={stats.total > 0 ? 100 : 0}
             />
 
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ظپط§ط¦ط²ظˆظ† ظˆظ…ظƒط±ظ…ظˆظ†"
               value={stats.winners}
+              subtitle="إنجازات وتكريمات"
               icon={<Trophy size={22} />}
-              color="green"
+              tone="green"
+              progress={stats.total ? Math.round((stats.winners / stats.total) * 100) : 0}
             />
 
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ظ…ط´ط§ط±ظƒط§طھ ظ…ط³ط§ط¨ظ‚ط§طھ"
               value={stats.competitions}
+              subtitle="مرتبطة بالمسابقات"
               icon={<Award size={22} />}
-              color="amber"
+              tone="gold"
+              progress={stats.total ? Math.round((stats.competitions / stats.total) * 100) : 0}
             />
 
-            <ActivitySummaryCard
+            <ExecutiveCard
               title="ظ…ط´ط§ط±ظƒط§طھ ظپط±ظ‚"
               value={stats.teams}
+              subtitle="مرتبطة بالفرق"
               icon={<UserCheck size={22} />}
-              color="slate"
+              tone="slate"
+              progress={stats.total ? Math.round((stats.teams / stats.total) * 100) : 0}
             />
           </section>
 
           {showForm && (
-            <ActivityPanel
+            <Section
               title={form.id ? "طھط¹ط¯ظٹظ„ ظ…ط´ط§ط±ظƒط©" : "ط¥ط¶ط§ظپط© ظ…ط´ط§ط±ظƒط©"}
               icon={<Edit size={22} />}
             >
@@ -648,10 +678,10 @@ export default function ActivityParticipationsPage() {
                   ط¥ظ„ط؛ط§ط،
                 </LightButton>
               </div>
-            </ActivityPanel>
+            </Section>
           )}
 
-          <ActivityPanel title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
+          <Section title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px_auto_auto]">
               <div className="relative">
                 <Search
@@ -697,12 +727,12 @@ export default function ActivityParticipationsPage() {
                 PDF
               </LightButton>
             </div>
-          </ActivityPanel>
+          </Section>
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <ActivityEmpty text="ظ„ط§ طھظˆط¬ط¯ ظ…ط´ط§ط±ظƒط§طھ ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState title="لا توجد بيانات" description="ظ„ط§ طھظˆط¬ط¯ ظ…ط´ط§ط±ظƒط§طھ ظ…ط·ط§ط¨ظ‚ط©." />
               </div>
             ) : (
               filteredItems.map((item) => (

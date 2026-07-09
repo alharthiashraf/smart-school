@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { ExportEngine } from "@/core";
@@ -563,7 +565,8 @@ export default function UsersPage() {
 
   return (
     <AuthGuard>
-      <main className="space-y-6" dir="rtl">
+      <PageContainer size="wide" className="space-y-6">
+        <Breadcrumb />
         <section className="rounded-[32px] bg-gradient-to-l from-[#0f1f3d] via-[#18315f] to-[#24477f] p-6 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -980,7 +983,7 @@ export default function UsersPage() {
             </div>
           </Modal>
         )}
-      </main>
+      </PageContainer>
     </AuthGuard>
   );
 }

@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import Section from "@/components/ui/page/PageSection";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
+
 import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
@@ -17,7 +25,6 @@ import {
   Database,
   GraduationCap,
   History,
-  Loader2,
   RefreshCcw,
   Settings,
   ShieldCheck,
@@ -26,42 +33,56 @@ import {
   XCircle,
 } from "lucide-react";
 
-const cards = [
+type AdminCard = {
+  title: string;
+  description: string;
+  href: string;
+  icon: typeof GraduationCap;
+  tone: "blue" | "green" | "gold" | "teal" | "red" | "slate";
+};
+
+const cards: AdminCard[] = [
   {
-    title: "ط§ظ„ظ…ط¹ظ„ظ…ظˆظ†",
-    description: "ط¥ط¯ط§ط±ط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط¹ظ„ظ…ظٹظ† ظˆظ…ظ„ظپط§طھظ‡ظ… ظˆط¬ط¯ط§ظˆظ„ظ‡ظ….",
+    title: "المعلمون",
+    description: "إدارة بيانات المعلمين وملفاتهم وجداولهم.",
     href: "/teachers",
     icon: GraduationCap,
+    tone: "blue",
   },
   {
-    title: "ط§ظ„ط·ظ„ط§ط¨",
-    description: "ط¥ط¯ط§ط±ط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط§ط¨ ظˆط§ظ„ط­ط§ظ„ط© ط§ظ„ط¯ط±ط§ط³ظٹط© ظˆط§ظ„ظ…طھط§ط¨ط¹ط©.",
+    title: "الطلاب",
+    description: "إدارة بيانات الطلاب والحالة الدراسية والمتابعة.",
     href: "/students",
     icon: Users,
+    tone: "green",
   },
   {
-    title: "ط§ظ„طھظ‚ط§ط±ظٹط±",
-    description: "طھظ‚ط§ط±ظٹط± ط§ظ„ط­ط¶ظˆط±طŒ ط§ظ„ط¯ط±ط¬ط§طھطŒ ط§ظ„ط³ظ„ظˆظƒ ظˆط§ظ„ظ…ط¤ط´ط±ط§طھ.",
+    title: "التقارير",
+    description: "تقارير الحضور، الدرجات، السلوك والمؤشرات.",
     href: "/reports",
     icon: BarChart3,
+    tone: "teal",
   },
   {
-    title: "ط§ظ„ظ…ط³طھط®ط¯ظ…ظˆظ†",
-    description: "ط¥ط¯ط§ط±ط© ط­ط³ط§ط¨ط§طھ ط§ظ„ظ…ط³طھط®ط¯ظ…ظٹظ† ظˆط§ظ„طµظ„ط§ط­ظٹط§طھ.",
+    title: "المستخدمون",
+    description: "إدارة حسابات المستخدمين والصلاحيات.",
     href: "/users",
     icon: UsersRound,
+    tone: "gold",
   },
   {
-    title: "ط§ظ„طھط­ظ„ظٹظ„ط§طھ",
-    description: "ظ„ظˆط­ط§طھ طھط­ظ„ظٹظ„ظٹط© ظˆظ…ط¤ط´ط±ط§طھ ط£ط¯ط§ط، ط§ظ„ظ…ط¯ط±ط³ط©.",
+    title: "التحليلات",
+    description: "لوحات تحليلية ومؤشرات أداء المدرسة.",
     href: "/analytics",
     icon: ShieldCheck,
+    tone: "teal",
   },
   {
-    title: "ط§ظ„ط¥ط¹ط¯ط§ط¯ط§طھ",
-    description: "ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ…ط¯ط±ط³ط© ظˆط§ظ„ظ†ط¸ط§ظ… ظˆط§ظ„طµظ„ط§ط­ظٹط§طھ.",
+    title: "الإعدادات",
+    description: "إعدادات المدرسة والنظام والصلاحيات.",
     href: "/settings",
     icon: Settings,
+    tone: "slate",
   },
 ];
 
@@ -112,17 +133,17 @@ function formatDate(value: string) {
 
 function moduleLabel(module: string) {
   const labels: Record<string, string> = {
-    students: "ط§ظ„ط·ظ„ط§ط¨",
-    teachers: "ط§ظ„ظ…ط¹ظ„ظ…ظˆظ†",
-    attendance: "ط§ظ„ط­ط¶ظˆط±",
-    grades: "ط§ظ„ط¯ط±ط¬ط§طھ",
-    behavior: "ط§ظ„ط³ظ„ظˆظƒ",
-    referrals: "ط§ظ„ط¥ط­ط§ظ„ط§طھ",
-    settings: "ط§ظ„ط¥ط¹ط¯ط§ط¯ط§طھ",
-    users: "ط§ظ„ظ…ط³طھط®ط¯ظ…ظˆظ†",
-    health: "ط§ظ„طµط­ط©",
-    activities: "ط§ظ„ظ†ط´ط§ط·",
-    system: "ط§ظ„ظ†ط¸ط§ظ…",
+    students: "الطلاب",
+    teachers: "المعلمون",
+    attendance: "الحضور",
+    grades: "الدرجات",
+    behavior: "السلوك",
+    referrals: "الإحالات",
+    settings: "الإعدادات",
+    users: "المستخدمون",
+    health: "الصحة",
+    activities: "النشاط",
+    system: "النظام",
   };
 
   return labels[module] ?? module;
@@ -130,20 +151,33 @@ function moduleLabel(module: string) {
 
 function actionLabel(action: string) {
   const labels: Record<string, string> = {
-    create: "ط¥ط¶ط§ظپط©",
-    update: "طھط¹ط¯ظٹظ„",
-    delete: "ط­ط°ظپ",
-    login: "ط¯ط®ظˆظ„",
-    logout: "ط®ط±ظˆط¬",
-    export: "طھطµط¯ظٹط±",
-    print: "ط·ط¨ط§ط¹ط©",
-    close: "ط¥ط؛ظ„ط§ظ‚",
-    approve: "ط§ط¹طھظ…ط§ط¯",
-    reject: "ط±ظپط¶",
-    unknown: "ط¹ظ…ظ„ظٹط©",
+    create: "إضافة",
+    update: "تعديل",
+    delete: "حذف",
+    login: "دخول",
+    logout: "خروج",
+    export: "تصدير",
+    print: "طباعة",
+    close: "إغلاق",
+    approve: "اعتماد",
+    reject: "رفض",
+    unknown: "عملية",
   };
 
   return labels[action] ?? action;
+}
+
+function cardToneClass(tone: AdminCard["tone"]) {
+  const tones: Record<AdminCard["tone"], string> = {
+    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
+    green: "bg-[#07A869]/10 text-[#07A869]",
+    gold: "bg-[#C1B489]/20 text-[#15445A]",
+    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
+    red: "bg-red-50 text-red-700",
+    slate: "bg-slate-100 text-slate-700",
+  };
+
+  return tones[tone];
 }
 
 export default function AdminPage() {
@@ -154,56 +188,62 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  async function safeCount(
-    table: string,
-    options?: {
-      schoolScoped?: boolean;
-      notNullColumn?: string;
-    }
-  ) {
-    try {
-      let query = supabase
-        .from(table)
-        .select("*", { count: "exact", head: true });
+  const safeCount = useCallback(
+    async (
+      table: string,
+      options?: {
+        schoolScoped?: boolean;
+        notNullColumn?: string;
+      },
+    ) => {
+      try {
+        let query = supabase
+          .from(table)
+          .select("*", { count: "exact", head: true });
 
-      if (options?.schoolScoped && currentSchool?.id) {
-        query = query.eq("school_id", currentSchool.id);
-      }
+        if (options?.schoolScoped && currentSchool?.id) {
+          query = query.eq("school_id", currentSchool.id);
+        }
 
-      if (options?.notNullColumn) {
-        query = query.not(options.notNullColumn, "is", null);
-      }
+        if (options?.notNullColumn) {
+          query = query.not(options.notNullColumn, "is", null);
+        }
 
-      const { count, error } = await query;
+        const { count, error } = await query;
 
-      if (error) {
-        console.warn(`Count failed for ${table}:`, error.message);
+        if (error) {
+          console.warn(`Count failed for ${table}:`, error.message);
+          return 0;
+        }
+
+        return count ?? 0;
+      } catch (error) {
+        console.warn(`Unexpected count error for ${table}:`, error);
         return 0;
       }
+    },
+    [currentSchool?.id],
+  );
 
-      return count ?? 0;
-    } catch (error) {
-      console.warn(`Unexpected count error for ${table}:`, error);
+  const countFirstAvailable = useCallback(
+    async (
+      tables: string[],
+      options?: {
+        schoolScoped?: boolean;
+        notNullColumn?: string;
+      },
+    ) => {
+      for (const table of tables) {
+        const value = await safeCount(table, options);
+        if (value > 0) return value;
+      }
+
       return 0;
-    }
-  }
+    },
+    [safeCount],
+  );
 
-  async function countFirstAvailable(
-    tables: string[],
-    options?: {
-      schoolScoped?: boolean;
-      notNullColumn?: string;
-    }
-  ) {
-    for (const table of tables) {
-      const value = await safeCount(table, options);
-      if (value > 0) return value;
-    }
-
-    return 0;
-  }
-
-  async function loadAdminData() {
+  const loadAdminData = useCallback(async () => {
     try {
       setRefreshing(true);
 
@@ -250,7 +290,7 @@ export default function AdminPage() {
       let logsQuery = supabase
         .from("audit_logs")
         .select(
-          "id, school_id, user_name, user_role, action, module, description, created_at"
+          "id, school_id, user_name, user_role, action, module, description, created_at",
         )
         .order("created_at", { ascending: false })
         .limit(10);
@@ -271,68 +311,67 @@ export default function AdminPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [countFirstAvailable, currentSchool?.id, safeCount]);
 
   useEffect(() => {
-    loadAdminData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSchool?.id]);
+    void loadAdminData();
+  }, [loadAdminData]);
 
   const readinessItems = useMemo(() => {
     return [
       {
         key: "students",
-        label: "ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط§ط¨",
-        description: "ظˆط¬ظˆط¯ ط·ظ„ط§ط¨ ظ…ط¶ط§ظپظٹظ† ظپظٹ ط§ظ„ظ…ط¯ط±ط³ط©.",
+        label: "بيانات الطلاب",
+        description: "وجود طلاب مضافين في المدرسة.",
         count: counts.students,
         ready: counts.students > 0,
       },
       {
         key: "teachers",
-        label: "ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط¹ظ„ظ…ظٹظ†",
-        description: "ظˆط¬ظˆط¯ ظ…ط¹ظ„ظ…ظٹظ† ظ…ط¶ط§ظپظٹظ† ظپظٹ ط§ظ„ظ…ط¯ط±ط³ط©.",
+        label: "بيانات المعلمين",
+        description: "وجود معلمين مضافين في المدرسة.",
         count: counts.teachers,
         ready: counts.teachers > 0,
       },
       {
         key: "users",
-        label: "ط­ط³ط§ط¨ط§طھ ط§ظ„ظ…ط³طھط®ط¯ظ…ظٹظ†",
-        description: "ظˆط¬ظˆط¯ ظ…ط³طھط®ط¯ظ…ظٹظ† ظˆطµظ„ط§ط­ظٹط§طھ ظ„ظ„ظ…ط¯ط±ط³ط©.",
+        label: "حسابات المستخدمين",
+        description: "وجود مستخدمين وصلاحيات للمدرسة.",
         count: counts.users,
         ready: counts.users > 0,
       },
       {
         key: "attendance",
-        label: "ط³ط¬ظ„ط§طھ ط§ظ„ط­ط¶ظˆط±",
-        description: "ظˆط¬ظˆط¯ ط³ط¬ظ„ط§طھ ط­ط¶ظˆط± ظ„ط§ط®طھط¨ط§ط± طھط´ط؛ظٹظ„ ط§ظ„ط­ط¶ظˆط±.",
+        label: "سجلات الحضور",
+        description: "وجود سجلات حضور لاختبار تشغيل الحضور.",
         count: counts.attendance,
         ready: counts.attendance > 0,
       },
       {
         key: "grades",
-        label: "ط³ط¬ظ„ط§طھ ط§ظ„ط¯ط±ط¬ط§طھ",
-        description: "ظˆط¬ظˆط¯ ط¯ط±ط¬ط§طھ ط£ظˆ ظ†طھط§ط¦ط¬ ظ…ط±طھط¨ط·ط© ط¨ط§ظ„ط·ظ„ط§ط¨.",
+        label: "سجلات الدرجات",
+        description: "وجود درجات أو نتائج مرتبطة بالطلاب.",
         count: counts.grades,
         ready: counts.grades > 0,
       },
       {
         key: "parents",
-        label: "ط±ط¨ط· ط£ظˆظ„ظٹط§ط، ط§ظ„ط£ظ…ظˆط±",
-        description: "ظˆط¬ظˆط¯ ط·ظ„ط§ط¨ ظ…ط±طھط¨ط·ظٹظ† ط¨ط¨ط±ظٹط¯ ظˆظ„ظٹ ط§ظ„ط£ظ…ط±.",
+        label: "ربط أولياء الأمور",
+        description: "وجود طلاب مرتبطين ببريد ولي الأمر.",
         count: counts.parents,
         ready: counts.parents > 0,
       },
       {
         key: "referrals",
-        label: "ط§ظ„ط¥ط­ط§ظ„ط§طھ ط§ظ„ط·ظ„ط§ط¨ظٹط©",
-        description: "ظˆط¬ظˆط¯ ط¥ط­ط§ظ„ط§طھ ط£ظˆ ط³ط¬ظ„ ظ…طھط§ط¨ط¹ط© ط·ظ„ط§ط¨ظٹط©.",
+        label: "الإحالات الطلابية",
+        description: "وجود إحالات أو سجل متابعة طلابية.",
         count: counts.referrals,
         ready: counts.referrals > 0,
       },
       {
         key: "notifications",
-        label: "ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ",
-        description: "ظˆط¬ظˆط¯ طھظ†ط¨ظٹظ‡ط§طھ ط£ظˆ ط¥ط´ط¹ط§ط±ط§طھ ط¯ط§ط®ظ„ ط§ظ„ظ†ط¸ط§ظ….",
+        label: "التنبيهات",
+        description: "وجود تنبيهات أو إشعارات داخل النظام.",
         count: counts.notifications,
         ready: counts.notifications > 0,
       },
@@ -341,76 +380,163 @@ export default function AdminPage() {
 
   const readyCount = readinessItems.filter((item) => item.ready).length;
   const readinessPercent = Math.round(
-    (readyCount / readinessItems.length) * 100
+    (readyCount / readinessItems.length) * 100,
   );
 
   const readinessStatus =
     readinessPercent >= 85
-      ? "ط¬ط§ظ‡ط²ط© ظ„ظ„طھط´ط؛ظٹظ„"
+      ? "جاهزة للتشغيل"
       : readinessPercent >= 60
-      ? "طھط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط© ط¨ط³ظٹط·ط©"
-      : "طھط­طھط§ط¬ ط§ط³طھظƒظ…ط§ظ„ ط¨ظٹط§ظ†ط§طھ";
+        ? "تحتاج مراجعة بسيطة"
+        : "تحتاج استكمال بيانات";
+
+  if (loading) {
+    return (
+      <AppShell>
+        <PageLoader text="جاري تحميل مركز إدارة المدرسة..." />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
-      <main className="min-h-screen bg-slate-50" dir="rtl">
-        <section className="rounded-[2rem] bg-gradient-to-br from-[#0f1f3d] via-[#18315f] to-[#24477f] p-8 text-white shadow-xl">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="mb-3 text-sm font-bold text-[#d4af37]">
-                ط¨ظˆط§ط¨ط© ظ…ط¯ظٹط± ط§ظ„ظ…ط¯ط±ط³ط©
-              </p>
+      <main className="space-y-6" dir="rtl">
+        <PageHeader
+          variant="hero"
+          title="مركز إدارة المدرسة"
+          description="بوابة تنفيذية للوصول السريع لأهم أقسام المنصة ومتابعة جاهزية التشغيل وآخر العمليات المسجلة داخل النظام."
+          badge="بوابة مدير المدرسة"
+          icon={<ShieldCheck size={18} />}
+          breadcrumbs={[
+            { label: "لوحة التحكم", href: "/dashboard" },
+            { label: "الإدارة" },
+          ]}
+          meta={[
+            { label: "المدرسة", value: currentSchool?.school_name || "غير متوفر" },
+            { label: "حالة الجاهزية", value: readinessStatus },
+            { label: "العناصر الجاهزة", value: `${readyCount} / ${readinessItems.length}` },
+            { label: "سجل العمليات", value: `${auditLogs.length} عملية` },
+          ]}
+          stats={[
+            {
+              label: "الطلاب",
+              value: counts.students,
+              icon: <Users size={20} />,
+              tone: counts.students > 0 ? "green" : "gold",
+            },
+            {
+              label: "المعلمون",
+              value: counts.teachers,
+              icon: <GraduationCap size={20} />,
+              tone: counts.teachers > 0 ? "green" : "gold",
+            },
+            {
+              label: "جاهزية التشغيل",
+              value: `${readinessPercent}%`,
+              icon: <Database size={20} />,
+              tone: readinessPercent >= 85 ? "green" : readinessPercent >= 60 ? "gold" : "red",
+            },
+            {
+              label: "آخر النشاطات",
+              value: auditLogs.length,
+              icon: <History size={20} />,
+              tone: auditLogs.length > 0 ? "teal" : "gold",
+            },
+          ]}
+          actions={
+            <SecondaryButton onClick={loadAdminData} disabled={refreshing}>
+              <RefreshCcw
+                size={17}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              تحديث المؤشرات
+            </SecondaryButton>
+          }
+        />
 
-              <h1 className="text-4xl font-black">ظ…ط±ظƒط² ط¥ط¯ط§ط±ط© ط§ظ„ظ…ط¯ط±ط³ط©</h1>
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <ExecutiveCard
+            title="الطلاب"
+            value={counts.students}
+            subtitle="إجمالي الطلاب في المدرسة"
+            icon={<Users size={22} />}
+            tone={counts.students > 0 ? "green" : "gold"}
+            progress={counts.students > 0 ? 100 : 0}
+          />
 
-              <p className="mt-4 leading-8 text-white/80">
-                ظ…ظ† ظ‡ظ†ط§ ظٹط³طھط·ظٹط¹ ظ…ط¯ظٹط± ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ظˆطµظˆظ„ ط§ظ„ط³ط±ظٹط¹ ظ„ط£ظ‡ظ… ط£ظ‚ط³ط§ظ… ط§ظ„ظ…ظ†طµط©
-                ظˆظ…طھط§ط¨ط¹ط© ط§ظ„ط¹ظ…ظ„ ط§ظ„ظٹظˆظ…ظٹ ظ„ظ„ظ…ط¯ط±ط³ط©.
-              </p>
-            </div>
+          <ExecutiveCard
+            title="المعلمون"
+            value={counts.teachers}
+            subtitle="إجمالي المعلمين في المدرسة"
+            icon={<GraduationCap size={22} />}
+            tone={counts.teachers > 0 ? "green" : "gold"}
+            progress={counts.teachers > 0 ? 100 : 0}
+          />
 
-            <button
-              type="button"
-              onClick={loadAdminData}
-              disabled={refreshing}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {refreshing ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <RefreshCcw size={18} />
-              )}
-              طھط­ط¯ظٹط« ط§ظ„ظ…ط¤ط´ط±ط§طھ
-            </button>
-          </div>
+          <ExecutiveCard
+            title="المستخدمون"
+            value={counts.users}
+            subtitle="حسابات وصلاحيات"
+            icon={<UsersRound size={22} />}
+            tone={counts.users > 0 ? "green" : "gold"}
+            progress={counts.users > 0 ? 100 : 0}
+          />
+
+          <ExecutiveCard
+            title="جاهزية التشغيل"
+            value={`${readinessPercent}%`}
+            subtitle={readinessStatus}
+            icon={<Database size={22} />}
+            tone={readinessPercent >= 85 ? "green" : readinessPercent >= 60 ? "gold" : "red"}
+            progress={readinessPercent}
+          />
         </section>
 
-        <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <SummaryCard
+          title="الملخص التنفيذي للإدارة"
+          description="قراءة سريعة لجاهزية بيانات المدرسة الأساسية قبل التشغيل الكامل أو النشر الرسمي."
+          tone={readinessPercent >= 85 ? "green" : readinessPercent >= 60 ? "gold" : "red"}
+          items={[
+            { label: "العناصر الجاهزة", value: readyCount },
+            { label: "إجمالي العناصر", value: readinessItems.length },
+            { label: "نسبة الجاهزية", value: `${readinessPercent}%` },
+            { label: "الحضور", value: counts.attendance },
+            { label: "الدرجات", value: counts.grades },
+            { label: "التنبيهات", value: counts.notifications },
+          ]}
+          footer="كلما اكتملت بيانات الطلاب والمعلمين والمستخدمين والحضور والدرجات، أصبحت المنصة أكثر جاهزية للتشغيل الفعلي."
+        />
+
+        <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => {
             const Icon = card.icon;
 
             return (
               <Link
-                key={card.title}
+                key={card.href}
                 href={card.href}
-                className="group rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-[#d4af37] hover:shadow-xl"
+                className="group rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#0DA9A6]/30 hover:shadow-lg"
               >
-                <div className="mb-5 flex items-center justify-between">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0f1f3d] text-white transition group-hover:bg-[#d4af37] group-hover:text-slate-950">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div
+                    className={`flex h-14 w-14 items-center justify-center rounded-2xl transition ${cardToneClass(
+                      card.tone,
+                    )}`}
+                  >
                     <Icon size={26} />
                   </div>
 
                   <ChevronLeft
                     size={22}
-                    className="text-slate-400 transition group-hover:-translate-x-1 group-hover:text-[#d4af37]"
+                    className="text-slate-400 transition group-hover:-translate-x-1 group-hover:text-[#0DA9A6]"
                   />
                 </div>
 
-                <h2 className="text-xl font-black text-slate-900">
+                <h2 className="text-xl font-black text-[#15445A]">
                   {card.title}
                 </h2>
 
-                <p className="mt-3 leading-7 text-slate-600">
+                <p className="mt-3 leading-7 text-slate-500">
                   {card.description}
                 </p>
               </Link>
@@ -418,129 +544,97 @@ export default function AdminPage() {
           })}
         </section>
 
-        <section className="mt-8 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1f3d] text-white">
-                    <Database size={22} />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900">
-                      ط¬ط§ظ‡ط²ظٹط© ط§ظ„طھط´ط؛ظٹظ„
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      ظپط­طµ ط³ط±ظٹط¹ ظ„ط£ظ‡ظ… ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط¯ط±ط³ط© ظ‚ط¨ظ„ ط§ظ„ظ†ط´ط± ظˆط§ظ„طھط´ط؛ظٹظ„.
-                    </p>
-                  </div>
-                </div>
+        <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <Section
+            title="جاهزية التشغيل"
+            description="فحص سريع لأهم بيانات المدرسة قبل النشر والتشغيل."
+            icon={<Database size={22} />}
+          >
+            <div className="mb-5 rounded-3xl border border-slate-100 bg-slate-50 p-4">
+              <div className="mb-2 flex items-center justify-between text-sm font-black">
+                <span className="text-slate-500">نسبة الجاهزية</span>
+                <span className="text-[#15445A]">{readinessPercent}%</span>
               </div>
 
-              <div className="rounded-2xl bg-slate-50 px-5 py-4 text-center">
-                <p className="text-sm font-bold text-slate-500">
-                  ظ†ط³ط¨ط© ط§ظ„ط¬ط§ظ‡ط²ظٹط©
-                </p>
-                <p className="mt-1 text-3xl font-black text-[#0f1f3d]">
-                  {loading ? "..." : `${readinessPercent}%`}
-                </p>
-                <p className="mt-1 text-xs font-bold text-[#d4af37]">
-                  {readinessStatus}
-                </p>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className={`h-full rounded-full ${
+                    readinessPercent >= 85
+                      ? "bg-[#07A869]"
+                      : readinessPercent >= 60
+                        ? "bg-[#C1B489]"
+                        : "bg-red-600"
+                  }`}
+                  style={{ width: `${readinessPercent}%` }}
+                />
               </div>
+
+              <p className="mt-3 text-sm font-bold text-slate-500">
+                {readinessStatus}
+              </p>
             </div>
 
-            {loading ? (
-              <div className="flex items-center justify-center rounded-3xl border border-dashed border-slate-200 p-10 text-slate-500">
-                <Loader2 className="ml-2 animate-spin" size={22} />
-                ط¬ط§ط±ظٹ ظپط­طµ ط¬ط§ظ‡ط²ظٹط© ط§ظ„طھط´ط؛ظٹظ„...
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {readinessItems.map((item) => (
-                  <div
-                    key={item.key}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        {item.ready ? (
-                          <CheckCircle2 className="text-emerald-600" size={20} />
-                        ) : (
-                          <XCircle className="text-rose-500" size={20} />
-                        )}
-                        <h3 className="font-black text-slate-900">
-                          {item.label}
-                        </h3>
-                      </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {readinessItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {item.ready ? (
+                        <CheckCircle2 className="text-emerald-600" size={20} />
+                      ) : (
+                        <XCircle className="text-rose-500" size={20} />
+                      )}
 
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-black ${
-                          item.ready
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {item.count}
-                      </span>
+                      <h3 className="font-black text-[#15445A]">
+                        {item.label}
+                      </h3>
                     </div>
 
-                    <p className="text-sm leading-6 text-slate-600">
-                      {item.description}
-                    </p>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-black ${
+                        item.ready
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-rose-50 text-rose-700"
+                      }`}
+                    >
+                      {item.count}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
 
-            {!loading && readinessPercent < 85 && (
+                  <p className="text-sm leading-6 text-slate-600">
+                    {item.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {readinessPercent < 85 && (
               <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
                 <div className="flex gap-2">
                   <AlertTriangle className="mt-1 shrink-0" size={20} />
                   <p className="text-sm font-bold leading-7">
-                    طھظˆط¬ط¯ ط¹ظ†ط§طµط± ظ„ظ… طھظƒطھظ…ظ„ ط¨ط¹ط¯. ظ‡ط°ط§ ظ„ط§ ظٹط¹ظ†ظٹ ظˆط¬ظˆط¯ ط®ط·ط£طŒ ظ„ظƒظ†ظ‡ ظٹط³ط§ط¹ط¯ظƒ
-                    ط¹ظ„ظ‰ ظ…ط¹ط±ظپط© ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„طھظٹ طھط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط© ظ‚ط¨ظ„ ط§ظ„ظ†ط´ط± ط§ظ„ط±ط³ظ…ظٹ.
+                    توجد عناصر لم تكتمل بعد. هذا لا يعني وجود خطأ، لكنه يساعدك على معرفة البيانات التي تحتاج مراجعة قبل النشر الرسمي.
                   </p>
                 </div>
               </div>
             )}
-          </div>
+          </Section>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-6 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1f3d] text-white">
-                  <History size={22} />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900">
-                    ط¢ط®ط± ط§ظ„ظ†ط´ط§ط·ط§طھ
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    ط¢ط®ط± ط§ظ„ط¹ظ…ظ„ظٹط§طھ ط§ظ„ظ…ط³ط¬ظ„ط© ط¯ط§ط®ظ„ ط§ظ„ظ†ط¸ط§ظ….
-                  </p>
-                </div>
-              </div>
-
-              <Activity className="text-[#d4af37]" size={24} />
-            </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center rounded-3xl border border-dashed border-slate-200 p-10 text-slate-500">
-                <Loader2 className="ml-2 animate-spin" size={22} />
-                ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط³ط¬ظ„ ط§ظ„ظ†ط´ط§ط·ط§طھ...
-              </div>
-            ) : auditLogs.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                <History className="mx-auto mb-3 text-slate-400" size={34} />
-                <h3 className="text-lg font-black text-slate-800">
-                  ظ„ط§ طھظˆط¬ط¯ ظ†ط´ط§ط·ط§طھ ظ…ط³ط¬ظ„ط© ط¨ط¹ط¯
-                </h3>
-                <p className="mt-2 leading-7 text-slate-500">
-                  ط³ظٹط¨ط¯ط£ ط³ط¬ظ„ ط§ظ„ظ†ط´ط§ط·ط§طھ ط¨ط§ظ„ط¸ظ‡ظˆط± ط¨ط¹ط¯ ط±ط¨ط· ط¹ظ…ظ„ظٹط§طھ ط§ظ„ط¥ط¶ط§ظپط© ظˆط§ظ„طھط¹ط¯ظٹظ„
-                  ظˆط§ظ„ط­ط°ظپ ط¯ط§ط®ظ„ ط§ظ„طµظپط­ط§طھ ط§ظ„ظ…ظ‡ظ…ط©.
-                </p>
-              </div>
+          <Section
+            title="آخر النشاطات"
+            description="آخر العمليات المسجلة داخل النظام."
+            icon={<History size={22} />}
+            actions={<Activity className="text-[#0DA9A6]" size={24} />}
+          >
+            {auditLogs.length === 0 ? (
+              <EmptyState
+                title="لا توجد نشاطات مسجلة بعد"
+                description="سيبدأ سجل النشاطات بالظهور بعد ربط عمليات الإضافة والتعديل والحذف داخل الصفحات المهمة."
+                icon={<History size={34} />}
+              />
             ) : (
               <div className="space-y-3">
                 {auditLogs.map((log) => (
@@ -550,20 +644,20 @@ export default function AdminPage() {
                   >
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-black text-slate-900">
+                        <p className="font-black text-[#15445A]">
                           {log.description ||
-                            `${actionLabel(log.action)} ظپظٹ ${moduleLabel(
-                              log.module
+                            `${actionLabel(log.action)} في ${moduleLabel(
+                              log.module,
                             )}`}
                         </p>
 
                         <p className="mt-1 text-sm text-slate-500">
-                          {log.user_name || "ظ…ط³طھط®ط¯ظ… ط؛ظٹط± ظ…ط­ط¯ط¯"}
-                          {log.user_role ? ` آ· ${log.user_role}` : ""}
+                          {log.user_name || "مستخدم غير محدد"}
+                          {log.user_role ? ` · ${log.user_role}` : ""}
                         </p>
                       </div>
 
-                      <span className="rounded-full bg-[#d4af37]/15 px-3 py-1 text-xs font-black text-[#8a6a12]">
+                      <span className="rounded-full bg-[#0DA9A6]/10 px-3 py-1 text-xs font-black text-[#0DA9A6]">
                         {moduleLabel(log.module)}
                       </span>
                     </div>
@@ -576,7 +670,7 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
-          </div>
+          </Section>
         </section>
       </main>
     </AppShell>

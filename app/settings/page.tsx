@@ -10,6 +10,8 @@ import {
 } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
@@ -857,7 +859,9 @@ export default function SettingsPage() {
     return (
       <RoleGuard allowedRoles={ADMIN_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageContainer size="wide">
+            <LoadingBox />
+          </PageContainer>
         </AppShell>
       </RoleGuard>
     );
@@ -866,7 +870,8 @@ export default function SettingsPage() {
   return (
     <RoleGuard allowedRoles={ADMIN_ROLES}>
       <AppShell>
-        <main className="space-y-6" dir="rtl">
+        <PageContainer size="wide" className="space-y-6">
+          <Breadcrumb />
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
@@ -1374,7 +1379,7 @@ export default function SettingsPage() {
               </button>
             </div>
           </section>
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

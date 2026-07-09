@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
@@ -365,7 +367,9 @@ export default function NoorImportPage() {
 
   return (
     <AppShell>
-      <main dir="rtl" className="space-y-6 pb-10">
+      <PageContainer size="wide" className="space-y-6 pb-10">
+        <Breadcrumb />
+
         {toast && <ToastBox toast={toast} />}
 
         <PageHeader
@@ -620,7 +624,7 @@ export default function NoorImportPage() {
             </section>
           </>
         )}
-      </main>
+      </PageContainer>
     </AppShell>
   );
 }

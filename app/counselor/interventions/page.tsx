@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageActions from "@/components/layout/PageActions";
+import PageContainer from "@/components/layout/PageContainer";
+import PageHeader from "@/components/ui/page/PageHeader";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +22,7 @@ import {
   Search,
   UserRoundCheck,
   XCircle,
+  Plus,
 } from "lucide-react";
 
 type Student = {
@@ -42,13 +49,14 @@ type Toast = {
   message: string;
 };
 
-const STATUS_OPTIONS = ["ظ…ظپطھظˆط­", "ظ‚ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©", "ظ…ط؛ظ„ظ‚"];
+const STATUS_OPTIONS = ["مفتوح", "قيد المتابعة", "مغلق"];
+
 const TYPE_OPTIONS = [
-  { value: "parent_call", label: "ط§ط³طھط¯ط¹ط§ط، ظˆظ„ظٹ ط£ظ…ط±" },
-  { value: "counseling_session", label: "ط¬ظ„ط³ط© ط¥ط±ط´ط§ط¯ظٹط©" },
-  { value: "academic_followup", label: "ظ…طھط§ط¨ط¹ط© ط£ظƒط§ط¯ظٹظ…ظٹط©" },
-  { value: "behavior_followup", label: "ظ…طھط§ط¨ط¹ط© ط³ظ„ظˆظƒظٹط©" },
-  { value: "health_referral", label: "طھط­ظˆظٹظ„ ظ„ظ„ط¹ظٹط§ط¯ط©" },
+  { value: "parent_call", label: "استدعاء ولي أمر" },
+  { value: "counseling_session", label: "جلسة إرشادية" },
+  { value: "academic_followup", label: "متابعة أكاديمية" },
+  { value: "behavior_followup", label: "متابعة سلوكية" },
+  { value: "health_referral", label: "تحويل للعيادة" },
 ];
 
 export default function CounselorInterventionsPage() {
@@ -61,7 +69,7 @@ export default function CounselorInterventionsPage() {
 
   const [studentId, setStudentId] = useState("");
   const [type, setType] = useState("parent_call");
-  const [title, setTitle] = useState("ط§ط³طھط¯ط¹ط§ط، ظˆظ„ظٹ ط£ظ…ط±");
+  const [title, setTitle] = useState("استدعاء ولي أمر");
   const [notes, setNotes] = useState("");
 
   const [search, setSearch] = useState("");
@@ -72,7 +80,8 @@ export default function CounselorInterventionsPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (currentSchool?.id) fetchData();
+    if (currentSchool?.id) void fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSchool?.id]);
 
   function showToast(type: Toast["type"], message: string) {
@@ -113,6 +122,7 @@ export default function CounselorInterventionsPage() {
     }
 
     const loadedStudents = (studentsResult.data as Student[]) || [];
+
     setStudents(loadedStudents);
     setInterventions((interventionsResult.data as Intervention[]) || []);
 
@@ -123,6 +133,7 @@ export default function CounselorInterventionsPage() {
 
   function handleTypeChange(value: string) {
     setType(value);
+
     const selected = TYPE_OPTIONS.find((item) => item.value === value);
     setTitle(selected?.label || "");
   }
@@ -131,12 +142,12 @@ export default function CounselorInterventionsPage() {
     if (!currentSchool?.id) return;
 
     if (!studentId) {
-      showToast("error", "ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨ ط£ظˆظ„ط§ظ‹");
+      showToast("error", "اختر الطالب أولًا.");
       return;
     }
 
     if (!title.trim()) {
-      showToast("error", "ط§ظƒطھط¨ ط¹ظ†ظˆط§ظ† ط§ظ„طھط¯ط®ظ„");
+      showToast("error", "اكتب عنوان التدخل.");
       return;
     }
 
@@ -150,7 +161,7 @@ export default function CounselorInterventionsPage() {
         intervention_type: type,
         title: title.trim(),
         notes: notes.trim() || null,
-        status: "ظ…ظپطھظˆط­",
+        status: "مفتوح",
       })
       .select()
       .single();
@@ -164,7 +175,7 @@ export default function CounselorInterventionsPage() {
 
     setInterventions((prev) => [data as Intervention, ...prev]);
     setNotes("");
-    showToast("success", "طھظ… ط­ظپط¸ ط§ظ„طھط¯ط®ظ„ ط§ظ„ط¥ط±ط´ط§ط¯ظٹ");
+    showToast("success", "تم حفظ التدخل الإرشادي بنجاح.");
   }
 
   async function updateStatus(id: string, status: string) {
@@ -182,10 +193,10 @@ export default function CounselorInterventionsPage() {
     }
 
     setInterventions((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status } : item))
+      prev.map((item) => (item.id === id ? { ...item, status } : item)),
     );
 
-    showToast("success", "طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„طھط¯ط®ظ„");
+    showToast("success", "تم تحديث حالة التدخل.");
   }
 
   const studentMap = useMemo(() => {
@@ -208,7 +219,7 @@ export default function CounselorInterventionsPage() {
         ${student?.section || ""}
       `.toLowerCase();
 
-      const matchesSearch = text.includes(keyword);
+      const matchesSearch = !keyword || text.includes(keyword);
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter;
       const matchesType =
@@ -219,22 +230,19 @@ export default function CounselorInterventionsPage() {
   }, [interventions, search, statusFilter, typeFilter, studentMap]);
 
   const total = interventions.length;
-  const open = interventions.filter((item) => item.status === "ظ…ظپطھظˆط­").length;
+  const open = interventions.filter((item) => item.status === "مفتوح").length;
   const follow = interventions.filter(
-    (item) => item.status === "ظ‚ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©"
+    (item) => item.status === "قيد المتابعة",
   ).length;
-  const closed = interventions.filter((item) => item.status === "ظ…ط؛ظ„ظ‚").length;
+  const closed = interventions.filter((item) => item.status === "مغلق").length;
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={STAFF_ROLES}>
         <AppShell>
-          <div className="flex min-h-[55vh] items-center justify-center">
-            <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
-              <Loader2 className="h-5 w-5 animate-spin text-[#0f1f3d]" />
-              ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط§ظ„طھط¯ط®ظ„ط§طھ ط§ظ„ط¥ط±ط´ط§ط¯ظٹط©...
-            </div>
-          </div>
+          <PageContainer size="wide">
+            <LoadingBox />
+          </PageContainer>
         </AppShell>
       </RoleGuard>
     );
@@ -243,30 +251,48 @@ export default function CounselorInterventionsPage() {
   return (
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
-        <div className="space-y-5">
+        <PageContainer size="wide" className="space-y-6">
+          <Breadcrumb />
+
           {toast && <ToastBox toast={toast} />}
 
-          <section className="rounded-[30px] bg-[#0f1f3d] p-6 text-white shadow-sm">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="mb-2 text-sm font-bold text-[#d4af37]">
-                  ظ…ظ†طµط© ط§ظ„ظ…ط¯ط§ط±ط³ ط§ظ„ط°ظƒظٹط©
-                </p>
-                <h1 className="text-4xl font-black">ط§ظ„طھط¯ط®ظ„ط§طھ ط§ظ„ط¥ط±ط´ط§ط¯ظٹط©</h1>
-                <p className="mt-3 text-sm leading-7 text-slate-300">
-                  طھط³ط¬ظٹظ„ ظˆظ…طھط§ط¨ط¹ط© ط¬ظ„ط³ط§طھ ط§ظ„ط¥ط±ط´ط§ط¯طŒ ط§ط³طھط¯ط¹ط§ط، ط£ظˆظ„ظٹط§ط، ط§ظ„ط£ظ…ظˆط±طŒ ظˆط§ظ„ظ…طھط§ط¨ط¹ط§طھ ط§ظ„ط£ظƒط§ط¯ظٹظ…ظٹط© ظˆط§ظ„ط³ظ„ظˆظƒظٹط©.
-                </p>
-              </div>
+          <PageHeader
+            variant="hero"
+            title="التدخلات الإرشادية"
+            description="تسجيل ومتابعة جلسات الإرشاد، استدعاء أولياء الأمور، والمتابعات الأكاديمية والسلوكية والصحية."
+            badge="الإرشاد الطلابي"
+            icon={<ClipboardList size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الإرشاد الطلابي", href: "/counselor" },
+              { label: "التدخلات الإرشادية" },
+            ]}
+          />
 
-              <button
-                onClick={fetchData}
-                className="flex items-center gap-2 rounded-2xl bg-[#d4af37] px-5 py-3 text-sm font-bold text-[#0f1f3d]"
-              >
-                <RefreshCcw size={17} />
-                طھط­ط¯ظٹط«
-              </button>
-            </div>
-          </section>
+          <PageActions>
+            <button
+              type="button"
+              onClick={() => void fetchData()}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#15445A] shadow-sm transition hover:bg-slate-50"
+            >
+              <RefreshCcw size={16} />
+              تحديث
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void createIntervention()}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0f3344] disabled:opacity-60"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus size={16} />
+              )}
+              {saving ? "جاري الحفظ..." : "حفظ التدخل"}
+            </button>
+          </PageActions>
 
           {errorMsg && (
             <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
@@ -275,15 +301,46 @@ export default function CounselorInterventionsPage() {
           )}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„طھط¯ط®ظ„ط§طھ" value={total} icon={<ClipboardList size={22} />} color="blue" />
-            <StatCard title="ظ…ظپطھظˆط­ط©" value={open} icon={<PhoneCall size={22} />} color="amber" />
-            <StatCard title="ظ‚ظٹط¯ ط§ظ„ظ…طھط§ط¨ط¹ط©" value={follow} icon={<UserRoundCheck size={22} />} color="red" />
-            <StatCard title="ظ…ط؛ظ„ظ‚ط©" value={closed} icon={<CheckCircle2 size={22} />} color="emerald" />
+            <ExecutiveCard
+              title="إجمالي التدخلات"
+              value={total}
+              subtitle="كل التدخلات المسجلة"
+              icon={<ClipboardList size={22} />}
+              tone="blue"
+              progress={total > 0 ? 100 : 0}
+            />
+
+            <ExecutiveCard
+              title="مفتوحة"
+              value={open}
+              subtitle="تحتاج متابعة"
+              icon={<PhoneCall size={22} />}
+              tone="gold"
+              progress={total ? Math.round((open / total) * 100) : 0}
+            />
+
+            <ExecutiveCard
+              title="قيد المتابعة"
+              value={follow}
+              subtitle="متابعة جارية"
+              icon={<UserRoundCheck size={22} />}
+              tone="red"
+              progress={total ? Math.round((follow / total) * 100) : 0}
+            />
+
+            <ExecutiveCard
+              title="مغلقة"
+              value={closed}
+              subtitle="تمت معالجتها"
+              icon={<CheckCircle2 size={22} />}
+              tone="green"
+              progress={total ? Math.round((closed / total) * 100) : 0}
+            />
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-5 text-2xl font-black text-[#0f1f3d]">
-              ط¥ط¶ط§ظپط© طھط¯ط®ظ„ ط¬ط¯ظٹط¯
+              إضافة تدخل جديد
             </h2>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -292,11 +349,15 @@ export default function CounselorInterventionsPage() {
                 onChange={(event) => setStudentId(event.target.value)}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
               >
-                {students.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.full_name}
-                  </option>
-                ))}
+                {students.length === 0 ? (
+                  <option value="">لا يوجد طلاب</option>
+                ) : (
+                  students.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.full_name}
+                    </option>
+                  ))
+                )}
               </select>
 
               <select
@@ -314,23 +375,24 @@ export default function CounselorInterventionsPage() {
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="ط¹ظ†ظˆط§ظ† ط§ظ„طھط¯ط®ظ„"
+                placeholder="عنوان التدخل"
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
               />
 
               <button
-                onClick={createIntervention}
+                type="button"
+                onClick={() => void createIntervention()}
                 disabled={saving}
-                className="rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+                className="rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#15445A] disabled:opacity-50"
               >
-                {saving ? "ط¬ط§ط±ظٹ ط§ظ„ط­ظپط¸..." : "ط­ظپط¸ ط§ظ„طھط¯ط®ظ„"}
+                {saving ? "جاري الحفظ..." : "حفظ التدخل"}
               </button>
             </div>
 
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„طھط¯ط®ظ„..."
+              placeholder="ملاحظات التدخل..."
               className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
             />
           </section>
@@ -342,10 +404,11 @@ export default function CounselorInterventionsPage() {
                   size={18}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
+
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ط¨ط­ط« ظپظٹ ط§ظ„طھط¯ط®ظ„ط§طھ..."
+                  placeholder="بحث في التدخلات..."
                   className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm outline-none focus:border-[#d4af37]"
                 />
               </div>
@@ -355,7 +418,7 @@ export default function CounselorInterventionsPage() {
                 onChange={(event) => setTypeFilter(event.target.value)}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
               >
-                <option value="all">ظƒظ„ ط£ظ†ظˆط§ط¹ ط§ظ„طھط¯ط®ظ„</option>
+                <option value="all">كل أنواع التدخل</option>
                 {TYPE_OPTIONS.map((item) => (
                   <option key={item.value} value={item.value}>
                     {item.label}
@@ -368,7 +431,7 @@ export default function CounselorInterventionsPage() {
                 onChange={(event) => setStatusFilter(event.target.value)}
                 className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
               >
-                <option value="all">ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ</option>
+                <option value="all">كل الحالات</option>
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status} value={status}>
                     {status}
@@ -378,7 +441,7 @@ export default function CounselorInterventionsPage() {
             </div>
 
             {filteredInterventions.length === 0 ? (
-              <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ طھط¯ط®ظ„ط§طھ ظ…ط·ط§ط¨ظ‚ط©." />
+              <EmptyBox text="لا توجد تدخلات مطابقة." />
             ) : (
               <div className="space-y-3">
                 {filteredInterventions.map((item) => {
@@ -392,11 +455,11 @@ export default function CounselorInterventionsPage() {
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                           <h3 className="text-lg font-black text-[#0f1f3d]">
-                            {item.title || "طھط¯ط®ظ„ ط¥ط±ط´ط§ط¯ظٹ"}
+                            {item.title || "تدخل إرشادي"}
                           </h3>
 
                           <p className="mt-1 text-sm text-slate-600">
-                            ط§ظ„ط·ط§ظ„ط¨: {student?.full_name || "ط؛ظٹط± ظ…ط¹ط±ظˆظپ"} â€”{" "}
+                            الطالب: {student?.full_name || "غير معروف"} —{" "}
                             {student?.classroom || "-"}
                             {student?.section ? ` - ${student.section}` : ""}
                           </p>
@@ -413,9 +476,9 @@ export default function CounselorInterventionsPage() {
                         </div>
 
                         <select
-                          value={item.status || "ظ…ظپطھظˆط­"}
+                          value={item.status || "مفتوح"}
                           onChange={(event) =>
-                            updateStatus(item.id, event.target.value)
+                            void updateStatus(item.id, event.target.value)
                           }
                           className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
                         >
@@ -432,44 +495,15 @@ export default function CounselorInterventionsPage() {
               </div>
             )}
           </section>
-        </div>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );
 }
 
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  color: "blue" | "amber" | "red" | "emerald";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}>
-        {icon}
-      </div>
-      <p className="text-sm text-slate-500">{title}</p>
-      <h2 className="mt-2 text-4xl font-black text-[#0f1f3d]">{value}</h2>
-    </div>
-  );
-}
-
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-500">
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
       {text}
     </div>
   );
@@ -482,8 +516,23 @@ function ToastBox({ toast }: { toast: Toast }) {
         toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
       }`}
     >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+      {toast.type === "success" ? (
+        <CheckCircle2 size={18} />
+      ) : (
+        <XCircle size={18} />
+      )}
       {toast.message}
+    </div>
+  );
+}
+
+function LoadingBox() {
+  return (
+    <div className="flex min-h-[55vh] items-center justify-center">
+      <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
+        <Loader2 className="h-5 w-5 animate-spin text-[#0f1f3d]" />
+        جاري تحميل التدخلات الإرشادية...
+      </div>
     </div>
   );
 }

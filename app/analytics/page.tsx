@@ -7,6 +7,10 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import { PageLoader } from "@/components/ui/loading";
+import { EmptyState } from "@/components/ui/empty-state";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -15,7 +19,6 @@ import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
-  AlertCircle,
   Award,
   BarChart3,
   Brain,
@@ -25,11 +28,9 @@ import {
   FileText,
   GraduationCap,
   HeartPulse,
-  Loader2,
   PieChart,
   Printer,
   RefreshCcw,
-  Search,
   ShieldAlert,
   TrendingUp,
   Users,
@@ -809,14 +810,7 @@ export default function AnalyticsPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <div className="flex min-h-[55vh] items-center justify-center">
-            <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-              <p className="font-bold">جاري تحميل مركز التحليلات...</p>
-            </div>
-          </div>
+          <PageLoader text="جاري تحميل مركز التحليلات..." />
         </AppShell>
       </RoleGuard>
     );
@@ -826,7 +820,11 @@ export default function AnalyticsPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast?.type === "success" ? (
+            <SuccessBanner description={toast.message} />
+          ) : toast ? (
+            <ErrorState description={toast.message} />
+          ) : null}
 
           <PageHeader
             variant="hero"
@@ -994,7 +992,10 @@ export default function AnalyticsPage() {
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <Panel title="المؤشر الأسبوعي للحضور" icon={<TrendingUp size={22} />}>
               {weeklyAttendanceData.length === 0 ? (
-                <EmptyBox text="لا توجد بيانات حضور كافية لعرض المؤشر." />
+                <EmptyState
+                  title="لا توجد بيانات"
+                  description="لا توجد بيانات حضور كافية لعرض المؤشر."
+                />
               ) : (
                 <div className="space-y-3">
                   {weeklyAttendanceData.map((item) => (
@@ -1094,7 +1095,10 @@ export default function AnalyticsPage() {
             </div>
 
             {classPerformance.length === 0 ? (
-              <EmptyBox text="لا توجد بيانات كافية لعرض أداء الفصول." />
+              <EmptyState
+                title="لا توجد بيانات"
+                description="لا توجد بيانات كافية لعرض أداء الفصول."
+              />
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {classPerformance.slice(0, 8).map((item) => (
@@ -1144,7 +1148,10 @@ export default function AnalyticsPage() {
             </div>
 
             {studentRiskList.length === 0 ? (
-              <EmptyBox text="لا توجد بيانات كافية لعرض الطلاب المتعثرين." />
+              <EmptyState
+                title="لا توجد بيانات"
+                description="لا توجد بيانات كافية لعرض الطلاب المتعثرين."
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[950px] text-sm">
@@ -1294,30 +1301,3 @@ function ProgressRow({
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold shadow-lg print:hidden ${
-        toast.type === "success"
-          ? "bg-[#07A869] text-white"
-          : "bg-red-600 text-white"
-      }`}
-    >
-      {toast.type === "success" ? (
-        <CheckCircle2 size={18} />
-      ) : (
-        <AlertCircle size={18} />
-      )}
-
-      {toast.message}
-    </div>
-  );
-}

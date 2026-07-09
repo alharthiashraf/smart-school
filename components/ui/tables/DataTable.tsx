@@ -11,6 +11,7 @@ export type DataTableColumn<T> = {
   render?: (row: T, index: number) => ReactNode;
   sortable?: boolean;
   className?: string;
+  headerClassName?: string;
 };
 
 type DataTableProps<T> = {
@@ -20,6 +21,7 @@ type DataTableProps<T> = {
   emptyTitle?: string;
   emptyDescription?: string;
   getRowKey?: (row: T, index: number) => string;
+  className?: string;
 };
 
 export default function DataTable<T extends Record<string, unknown>>({
@@ -29,6 +31,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   emptyTitle = "لا توجد بيانات",
   emptyDescription = "لم يتم العثور على سجلات مطابقة.",
   getRowKey,
+  className = "",
 }: DataTableProps<T>) {
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -41,11 +44,9 @@ export default function DataTable<T extends Record<string, unknown>>({
       const aValue = String(a[sortKey] ?? "");
       const bValue = String(b[sortKey] ?? "");
 
-      if (sortDirection === "asc") {
-        return aValue.localeCompare(bValue, "ar");
-      }
-
-      return bValue.localeCompare(aValue, "ar");
+      return sortDirection === "asc"
+        ? aValue.localeCompare(bValue, "ar")
+        : bValue.localeCompare(aValue, "ar");
     });
   }, [data, sortKey, sortDirection]);
 
@@ -66,30 +67,32 @@ export default function DataTable<T extends Record<string, unknown>>({
   }
 
   if (data.length === 0) {
-    return (
-      <EmptyState title={emptyTitle} description={emptyDescription} />
-    );
+    return <EmptyState title={emptyTitle} description={emptyDescription} />;
   }
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <div
+      className={`overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm ${className}`}
+    >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead>
-            <tr className="bg-[#15445a] text-white">
+            <tr className="border-b border-slate-200 bg-slate-50">
               {columns.map((column) => (
                 <th
                   key={String(column.key)}
-                  className={`border border-white/10 px-4 py-4 text-right text-xs font-black ${column.className ?? ""}`}
+                  className={`px-4 py-4 text-right text-xs font-black text-slate-500 ${
+                    column.headerClassName ?? ""
+                  }`}
                 >
                   {column.sortable ? (
                     <button
                       type="button"
                       onClick={() => toggleSort(String(column.key))}
-                      className="inline-flex items-center gap-2"
+                      className="inline-flex items-center gap-2 transition hover:text-emerald-700"
                     >
                       {column.header}
-                      <ArrowDownUp className="h-3.5 w-3.5 opacity-80" />
+                      <ArrowDownUp className="h-3.5 w-3.5 opacity-70" />
                     </button>
                   ) : (
                     column.header
@@ -103,12 +106,14 @@ export default function DataTable<T extends Record<string, unknown>>({
             {paginatedData.map((row, index) => (
               <tr
                 key={getRowKey ? getRowKey(row, index) : String(index)}
-                className="border-b border-slate-200 transition hover:bg-slate-50"
+                className="border-b border-slate-100 transition hover:bg-emerald-50/40"
               >
                 {columns.map((column) => (
                   <td
                     key={String(column.key)}
-                    className={`border border-slate-200 px-4 py-4 align-top text-sm leading-7 text-slate-700 ${column.className ?? ""}`}
+                    className={`px-4 py-4 align-top text-sm leading-7 text-slate-700 ${
+                      column.className ?? ""
+                    }`}
                   >
                     {column.render
                       ? column.render(row, index)

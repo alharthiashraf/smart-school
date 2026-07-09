@@ -21,12 +21,14 @@ export default function Pagination({
   const end = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-4 text-sm font-bold text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        عرض {start} - {end} من {total}
+    <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-4 py-4 text-sm font-bold text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-xs text-slate-500">
+        عرض <span className="font-black text-slate-800">{start}</span> إلى{" "}
+        <span className="font-black text-slate-800">{end}</span> من{" "}
+        <span className="font-black text-slate-800">{total}</span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <SecondaryButton
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page <= 1}
@@ -35,7 +37,7 @@ export default function Pagination({
           السابق
         </SecondaryButton>
 
-        <span className="rounded-2xl bg-slate-50 px-4 py-2">
+        <span className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 shadow-sm">
           صفحة {page} من {totalPages}
         </span>
 

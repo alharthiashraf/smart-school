@@ -11,8 +11,12 @@ import {
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
+
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
+
 import PageHeader from "@/components/ui/page/PageHeader";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
 import StatCard from "@/components/ui/cards/StatCard";
 
 const adminCards = [
@@ -57,7 +61,9 @@ const adminCards = [
 export default function AdministrationPage() {
   return (
     <AuthGuard>
-      <div className="space-y-5" dir="rtl">
+      <PageContainer className="space-y-5" size="wide">
+        <Breadcrumb />
+
         <PageHeader
           title="لوحة الإدارة المدرسية"
           description="مركز التحكم في البنية الأكاديمية للمدرسة: المدارس، المراحل، الفصول، المواد، المعلمون والطلاب."
@@ -125,7 +131,7 @@ export default function AdministrationPage() {
             ))}
           </div>
         </Section>
-      </div>
+      </PageContainer>
     </AuthGuard>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   useCallback,
@@ -15,20 +14,15 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
-  ChevronDown,
-  ChevronRight,
   ClipboardCheck,
   FileCheck2,
   FileText,
   GraduationCap,
   HeartPulse,
   LayoutDashboard,
-  LogOut,
   Menu,
   MessageSquareWarning,
   Moon,
-  Pin,
-  PinOff,
   School,
   Search,
   Settings,
@@ -38,7 +32,6 @@ import {
   Sun,
   UserCog,
   UsersRound,
-  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -46,9 +39,18 @@ import { useSchool } from "@/contexts/SchoolContext";
 import type { SchoolRole } from "@/lib/permissions";
 import type { PermissionKey } from "@/lib/permissions/permissions";
 
+import { Skeleton } from "@/components/ui/loading";
+import {
+  SidebarHeader,
+  SidebarSearch,
+  SidebarSection,
+  SidebarItem,
+  SidebarFooter,
+} from "./sidebar";
+
 type AppTheme = "smart-light" | "smart-dark";
 
-type SidebarItem = {
+type SidebarItemType = {
   label: string;
   href: string;
   icon: ElementType;
@@ -58,13 +60,13 @@ type SidebarItem = {
   badge?: string;
 };
 
-type SidebarSection = {
+type SidebarSectionType = {
   id: string;
   label: string;
   icon: ElementType;
   roles?: SchoolRole[];
   permission?: PermissionKey;
-  children: SidebarItem[];
+  children: SidebarItemType[];
 };
 
 const COLLAPSED_KEY = "smart-school-v1-sidebar-collapsed";
@@ -120,6 +122,19 @@ const ACTIVITY_ROLES: SchoolRole[] = [
   "activity_leader",
 ];
 
+const ROLE_NAME_MAP: Record<SchoolRole, string> = {
+  super_admin: "مدير النظام",
+  school_admin: "مدير المدرسة",
+  vice_principal: "وكيل المدرسة",
+  administrative_staff: "إداري",
+  student_counselor: "الموجه الطلابي",
+  health_supervisor: "الموجه الصحي",
+  activity_leader: "رائد النشاط",
+  teacher: "معلم",
+  student: "طالب",
+  parent: "ولي أمر",
+};
+
 const THEMES: Array<{
   key: AppTheme;
   label: string;
@@ -129,7 +144,7 @@ const THEMES: Array<{
   { key: "smart-dark", label: "الوضع الداكن", icon: Moon },
 ];
 
-const SECTIONS: SidebarSection[] = [
+const SECTIONS: SidebarSectionType[] = [
   {
     id: "main",
     label: "الرئيسية",
@@ -156,6 +171,7 @@ const SECTIONS: SidebarSection[] = [
         icon: MessageSquareWarning,
         roles: [...STAFF_ROLES, "teacher"],
         keywords: ["تنبيه", "إشعار", "alerts"],
+        badge: "جديد",
       },
     ],
   },
@@ -438,7 +454,7 @@ function writeJSON<T>(key: string, value: T) {
   } catch {}
 }
 
-function getActiveHref(pathname: string, items: SidebarItem[]) {
+function getActiveHref(pathname: string, items: SidebarItemType[]) {
   const matched = items
     .filter(
       (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
@@ -448,7 +464,7 @@ function getActiveHref(pathname: string, items: SidebarItem[]) {
   return matched[0]?.href ?? "";
 }
 
-function matchesSearch(item: SidebarItem, query: string) {
+function matchesSearch(item: SidebarItemType, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
 
@@ -462,7 +478,6 @@ function matchesSearch(item: SidebarItem, query: string) {
 function isAppTheme(value: string | null): value is AppTheme {
   return value === "smart-light" || value === "smart-dark";
 }
-
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -485,9 +500,10 @@ export default function AppSidebar() {
   const [themeReady, setThemeReady] = useState(false);
 
   const expanded = !collapsed || mobileOpen;
+  const roleName = currentRole ? ROLE_NAME_MAP[currentRole] : "مستخدم";
 
   const canSeeItem = useCallback(
-    (item: SidebarItem) => {
+    (item: SidebarItemType) => {
       if (!hasRole(currentRole, item.roles)) return false;
       if (item.permission && !hasPermission(item.permission)) return false;
       return matchesSearch(item, sectionSearch);
@@ -520,7 +536,7 @@ export default function AppSidebar() {
   const favoriteItems = useMemo(() => {
     return favorites
       .map((href) => allAllowedItems.find((item) => item.href === href))
-      .filter(Boolean) as SidebarItem[];
+      .filter(Boolean) as SidebarItemType[];
   }, [favorites, allAllowedItems]);
 
   const activeTheme = useMemo(
@@ -529,6 +545,7 @@ export default function AppSidebar() {
   );
 
   const ActiveThemeIcon = activeTheme.icon;
+  const hasSearchResults = allowedSections.length > 0;
 
   useEffect(() => {
     const savedCollapsed = window.localStorage.getItem(COLLAPSED_KEY);
@@ -617,69 +634,7 @@ export default function AppSidebar() {
   }, [theme, handleThemeChange]);
 
   const sidebarBackground =
-    "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.28),transparent_30%),var(--sidebar-bg)]";
-
-  function renderItem(item: SidebarItem, compact = false) {
-    const Icon = item.icon;
-    const active = activeHref === item.href;
-    const favorite = favorites.includes(item.href);
-
-    return (
-      <div key={item.href} className="group/item relative flex items-center gap-1">
-        {active && expanded && (
-          <span className="absolute -right-2 top-1/2 h-8 w-1 -translate-y-1/2 rounded-l-full bg-[var(--app-accent)]" />
-        )}
-
-        <Link
-          href={item.href}
-          onClick={() => setMobileOpen(false)}
-          title={!expanded ? item.label : undefined}
-          className={`flex min-w-0 flex-1 items-center gap-3 rounded-2xl transition duration-200 ${
-            expanded ? "px-3 py-2.5" : "justify-center px-2 py-3"
-          } ${
-            active
-              ? "bg-[var(--app-primary)] text-white shadow-lg shadow-emerald-950/20"
-              : "text-[var(--sidebar-muted)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
-          } ${compact ? "py-2" : ""}`}
-        >
-          <span
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-              active
-                ? "bg-white/15"
-                : "bg-white/[0.045] group-hover/item:bg-[var(--app-primary-soft)]"
-            }`}
-          >
-            <Icon size={18} className="shrink-0" />
-          </span>
-
-          {expanded && (
-            <span className="truncate text-sm font-bold">{item.label}</span>
-          )}
-
-          {expanded && item.badge && (
-            <span className="mr-auto rounded-full bg-[var(--app-accent-soft)] px-2 py-0.5 text-[10px] font-black text-[var(--app-accent)]">
-              {item.badge}
-            </span>
-          )}
-        </Link>
-
-        {expanded && (
-          <button
-            type="button"
-            onClick={() => toggleFavorite(item.href)}
-            className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl transition group-hover/item:flex ${
-              favorite
-                ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
-                : "text-[var(--sidebar-muted)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
-            }`}
-            title={favorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
-          >
-            {favorite ? <PinOff size={15} /> : <Pin size={15} />}
-          </button>
-        )}
-      </div>
-    );
-  }
+    "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.22),transparent_28%),var(--sidebar-bg)]";
 
   return (
     <>
@@ -707,185 +662,113 @@ export default function AppSidebar() {
           border-l border-[var(--sidebar-border)] ${sidebarBackground}
           text-[var(--sidebar-text)] shadow-[0_24px_80px_rgba(2,6,23,0.38)] transition-all duration-300
           lg:sticky lg:top-0 lg:translate-x-0
-          ${expanded ? "lg:w-[300px]" : "lg:w-[76px]"}
+          ${expanded ? "lg:w-[288px]" : "lg:w-[72px]"}
           ${
             mobileOpen
-              ? "w-[300px] translate-x-0"
-              : "w-[300px] translate-x-full lg:translate-x-0"
+              ? "w-[288px] translate-x-0"
+              : "w-[288px] translate-x-full lg:translate-x-0"
           }
         `}
       >
         <div className="relative flex h-full flex-col overflow-hidden">
-          <div className="relative border-b border-[var(--sidebar-border)] bg-white/[0.025] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div
-                className={`flex min-w-0 items-center gap-3 ${
-                  !expanded ? "lg:justify-center" : ""
-                }`}
-              >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#f3d978] to-[var(--app-accent)] shadow-lg shadow-black/10">
-                  <School className="text-slate-950" size={24} />
-                </div>
-
-                {expanded && (
-                  <div className="min-w-0">
-                    <h1 className="truncate text-sm font-black">
-                      منصة المدرسة الذكية
-                    </h1>
-                    <p className="mt-1 truncate text-[11px] text-[var(--sidebar-muted)]">
-                      الإصدار 1.0.0
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-xl bg-white/10 p-2 transition hover:bg-white/15 hover:text-[var(--app-primary)] lg:hidden"
-                aria-label="إغلاق القائمة"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="mt-3 hidden items-center gap-2 lg:flex">
-              <button
-                type="button"
-                onClick={() => setCollapsed((value) => !value)}
-                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl border border-[var(--sidebar-border)] bg-white/10 px-3 py-2 text-xs font-bold text-[var(--sidebar-muted)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
-              >
-                <ChevronRight
-                  size={16}
-                  className={`transition ${expanded ? "rotate-180" : ""}`}
-                />
-                {expanded && <span>طي القائمة</span>}
-              </button>
-
-              <button
-                type="button"
-                onClick={cycleTheme}
-                title={`تبديل المظهر: ${activeTheme.label}`}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--sidebar-border)] bg-white/10 text-[var(--app-accent)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950"
-              >
-                <ActiveThemeIcon size={18} />
-              </button>
-            </div>
-          </div>
+          <SidebarHeader
+            expanded={expanded}
+            mobileOpen={mobileOpen}
+            schoolName={currentSchool?.school_name}
+            roleName={roleName}
+            ActiveThemeIcon={ActiveThemeIcon}
+            onToggleCollapse={() => setCollapsed((value) => !value)}
+            onToggleTheme={cycleTheme}
+            onCloseMobile={() => setMobileOpen(false)}
+          />
 
           <div className="app-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
-            <nav className="space-y-3">
+            <nav className="space-y-2.5">
               {loading && (
-                <div className="rounded-2xl bg-white/10 p-4 text-center text-sm text-[var(--sidebar-muted)]">
-                  {expanded ? "جاري تحميل القائمة..." : "..."}
+                <div className="space-y-2 rounded-2xl bg-white/5 p-3">
+                  {Array.from({ length: expanded ? 8 : 5 }).map((_, index) => (
+                    <Skeleton
+                      key={index}
+                      className={`bg-white/10 ${
+                        expanded ? "h-10 w-full" : "mx-auto h-9 w-9"
+                      }`}
+                    />
+                  ))}
                 </div>
               )}
 
               {!loading && expanded && (
-                <div className="space-y-3">
-                  <div className="relative">
-                    <Search
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--sidebar-muted)]"
-                    />
-                    <input
-                      value={sectionSearch}
-                      onChange={(event) => setSectionSearch(event.target.value)}
-                      placeholder="بحث في القائمة..."
-                      className="w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] py-2.5 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-[var(--sidebar-muted)] transition focus:border-[var(--app-accent)] focus:bg-white/[0.11]"
-                    />
-                  </div>
-
+                <SidebarSearch
+                  value={sectionSearch}
+                  onChange={setSectionSearch}
+                  hasResults={hasSearchResults}
+                >
                   {favoriteItems.length > 0 && (
                     <div>
-                      <p className="mb-2 flex items-center gap-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
+                      <p className="mb-1.5 flex items-center gap-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
                         <Star size={13} />
                         المفضلة
                       </p>
-                      <div className="space-y-1.5">
-                        {favoriteItems.map((item) => renderItem(item, true))}
+
+                      <div className="space-y-1">
+                        {favoriteItems.map((item) => (
+                          <SidebarItem
+                            key={item.href}
+                            item={item}
+                            active={activeHref === item.href}
+                            expanded={expanded}
+                            favorite={favorites.includes(item.href)}
+                            compact
+                            onNavigate={() => setMobileOpen(false)}
+                            onToggleFavorite={toggleFavorite}
+                          />
+                        ))}
                       </div>
                     </div>
                   )}
-                </div>
+                </SidebarSearch>
               )}
 
               {!loading &&
                 allowedSections.map((section) => {
-                  const SectionIcon = section.icon;
                   const opened = expanded
                     ? openSections[section.id] ?? section.id === "main"
                     : true;
 
                   return (
-                    <div key={section.id}>
-                      {expanded ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleSection(section.id)}
-                          className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2 text-xs font-black text-[var(--sidebar-muted)] transition hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
-                        >
-                          <span className="flex items-center gap-2">
-                            <SectionIcon size={15} />
-                            {section.label}
-                          </span>
-                          <ChevronDown
-                            size={15}
-                            className={`transition ${
-                              opened ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-                      ) : (
-                        <div className="mx-auto mb-2 h-px w-8 bg-gradient-to-l from-transparent via-white/20 to-transparent" />
-                      )}
-
-                      {opened && (
-                        <div className="mt-1 space-y-1">
-                          {section.children.map((item) => renderItem(item))}
-                        </div>
-                      )}
-                    </div>
+                    <SidebarSection
+                      key={section.id}
+                      title={section.label}
+                      icon={section.icon}
+                      expanded={expanded}
+                      opened={opened}
+                      count={section.children.length}
+                      onToggle={() => toggleSection(section.id)}
+                    >
+                      {section.children.map((item) => (
+                        <SidebarItem
+                          key={item.href}
+                          item={item}
+                          active={activeHref === item.href}
+                          expanded={expanded}
+                          favorite={favorites.includes(item.href)}
+                          onNavigate={() => setMobileOpen(false)}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                      ))}
+                    </SidebarSection>
                   );
                 })}
             </nav>
           </div>
 
-          <div className="relative border-t border-[var(--sidebar-border)] bg-white/[0.025] p-3">
-            {expanded && schools.length > 1 && (
-              <select
-                value={currentSchool?.id ?? ""}
-                onChange={(event) => switchSchool(event.target.value)}
-                className="mb-3 w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
-              >
-                {schools.map((school) => (
-                  <option
-                    key={school.id}
-                    value={school.id}
-                    className="bg-slate-900 text-white"
-                  >
-                    {school.school_name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              title={!expanded ? "تسجيل الخروج" : undefined}
-              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-red-200 transition hover:bg-red-500/10 hover:text-red-100 ${
-                !expanded ? "justify-center" : ""
-              }`}
-            >
-              <LogOut size={20} className="shrink-0" />
-              {expanded && (
-                <span className="truncate text-sm font-semibold">
-                  تسجيل الخروج
-                </span>
-              )}
-            </button>
-          </div>
+          <SidebarFooter
+            expanded={expanded}
+            schools={schools}
+            currentSchoolId={currentSchool?.id}
+            onSwitchSchool={switchSchool}
+            onLogout={handleLogout}
+          />
         </div>
       </aside>
     </>

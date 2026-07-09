@@ -5,6 +5,11 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageActions from "@/components/layout/PageActions";
+import PageContainer from "@/components/layout/PageContainer";
+import PageHeader from "@/components/ui/page/PageHeader";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -340,60 +345,54 @@ export default function StudentProfilePage() {
   return (
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
-        <div className="space-y-5 print:space-y-4">
+        <PageContainer size="wide" className="space-y-5 print:space-y-4">
+          <Breadcrumb />
+
           {toast && <ToastBox toast={toast} />}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <PageHeader
+            variant="hero"
+            title={student.full_name}
+            description="ملف الطالب الذكي لمتابعة التنبيهات، التدخلات الإرشادية، التحويلات الصحية، وتواصل ولي الأمر في مكان واحد."
+            badge="ملف الطالب الذكي"
+            icon={<User className="h-4 w-4" />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الإرشاد الطلابي", href: "/counselor" },
+              { label: "ملف الطالب" },
+            ]}
+            meta={[
+              { label: "المرحلة", value: student.grade_level || "-" },
+              { label: "الفصل", value: student.classroom || "-" },
+              { label: "الشعبة", value: student.section || "-" },
+              { label: "مستوى الخطورة", value: risk.level },
+            ]}
+            stats={[
+              { label: "التنبيهات", value: alerts.length, icon: <Bell size={20} />, tone: "blue" },
+              { label: "التدخلات", value: interventions.length, icon: <ShieldAlert size={20} />, tone: "red" },
+              { label: "الصحة", value: healthReferrals.length, icon: <HeartPulse size={20} />, tone: "green" },
+              { label: "ولي الأمر", value: parentContacts.length, icon: <Phone size={20} />, tone: "gold" },
+            ]}
+          />
+
+          <PageActions className="print:hidden">
             <Link
               href="/counselor"
-              className="inline-flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-[#0f1f3d]"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-[#0f1f3d]"
             >
               <ArrowRight size={18} />
               العودة للموجه الطلابي
             </Link>
 
             <button
+              type="button"
               onClick={printProfile}
-              className="inline-flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white"
+              className="inline-flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#15445A]"
             >
               <Printer size={17} />
               طباعة ملف الطالب
             </button>
-          </div>
-
-          <section className="relative overflow-hidden rounded-[30px] bg-[#0f1f3d] p-6 text-white shadow-sm">
-            <div className="absolute left-0 top-0 h-40 w-40 rounded-full bg-[#d4af37]/10 blur-3xl" />
-
-            <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/10">
-                  <User size={38} />
-                </div>
-
-                <div>
-                  <p className="mb-2 text-sm font-bold text-[#d4af37]">
-                    ملف الطالب الذكي
-                  </p>
-
-                  <h1 className="text-3xl font-black md:text-4xl">
-                    {student.full_name}
-                  </h1>
-
-                  <p className="mt-2 text-sm text-slate-300">
-                    {student.grade_level || "-"} | {student.classroom || "-"} |{" "}
-                    {student.section || "-"}
-                  </p>
-                </div>
-              </div>
-
-              <div className={`rounded-2xl px-5 py-3 text-sm font-black ${risk.color}`}>
-                مستوى الخطورة: {risk.level}
-                <div className="mt-1 text-xs font-bold opacity-80">
-                  الدرجة: {risk.score}
-                </div>
-              </div>
-            </div>
-          </section>
+          </PageActions>
 
           {errorMsg && (
             <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
@@ -402,11 +401,50 @@ export default function StudentProfilePage() {
           )}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <StatCard title="التنبيهات" value={alerts.length} icon={<Bell size={22} />} color="blue" />
-            <StatCard title="التدخلات" value={interventions.length} icon={<ShieldAlert size={22} />} color="red" />
-            <StatCard title="التحويلات الصحية" value={healthReferrals.length} icon={<HeartPulse size={22} />} color="emerald" />
-            <StatCard title="تواصل ولي الأمر" value={parentContacts.length} icon={<Phone size={22} />} color="amber" />
-            <StatCard title="مستوى الخطورة" value={risk.level} icon={<Activity size={22} />} color="blue" />
+            <ExecutiveCard
+              title="التنبيهات"
+              value={alerts.length}
+              subtitle={`${unreadAlerts} غير مقروءة`}
+              icon={<Bell size={22} />}
+              tone="blue"
+              progress={alerts.length > 0 ? Math.min(100, unreadAlerts * 20) : 0}
+            />
+
+            <ExecutiveCard
+              title="التدخلات"
+              value={interventions.length}
+              subtitle={`${openInterventions} مفتوحة`}
+              icon={<ShieldAlert size={22} />}
+              tone="red"
+              progress={interventions.length > 0 ? Math.round((openInterventions / interventions.length) * 100) : 0}
+            />
+
+            <ExecutiveCard
+              title="التحويلات الصحية"
+              value={healthReferrals.length}
+              subtitle={`${activeHealth} حالة نشطة`}
+              icon={<HeartPulse size={22} />}
+              tone="green"
+              progress={healthReferrals.length > 0 ? Math.round((activeHealth / healthReferrals.length) * 100) : 0}
+            />
+
+            <ExecutiveCard
+              title="تواصل ولي الأمر"
+              value={parentContacts.length}
+              subtitle={lastContact ? "آخر تواصل موثق" : "لم يوثق بعد"}
+              icon={<Phone size={22} />}
+              tone="gold"
+              progress={parentContacts.length > 0 ? 100 : 0}
+            />
+
+            <ExecutiveCard
+              title="مستوى الخطورة"
+              value={risk.level}
+              subtitle={`الدرجة ${risk.score}`}
+              icon={<Activity size={22} />}
+              tone={risk.level === "حرج" || risk.level === "مرتفع" ? "red" : risk.level === "متوسط" ? "gold" : "green"}
+              progress={Math.min(100, risk.score)}
+            />
           </section>
 
           <Card title="ملخص الحالة الذكي" icon={<Activity size={22} />}>
@@ -551,7 +589,7 @@ export default function StudentProfilePage() {
               ))}
             </div>
           </Card>
-        </div>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );
@@ -629,35 +667,6 @@ function Recommendation({ text }: { text: string }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold leading-7 text-slate-700">
       {text}
-    </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: "blue" | "amber" | "red" | "emerald";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}>
-        {icon}
-      </div>
-      <p className="text-sm text-slate-500">{title}</p>
-      <h2 className="mt-2 text-3xl font-black text-[#0f1f3d]">{value}</h2>
     </div>
   );
 }

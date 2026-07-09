@@ -14,7 +14,9 @@ import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryInsightCard from "@/components/ui/cards/SummaryCard";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
@@ -27,7 +29,6 @@ import {
   CalendarDays,
   CheckCircle2,
   GraduationCap,
-  Loader2,
   RefreshCcw,
   Search,
   ShieldAlert,
@@ -1312,19 +1313,14 @@ function SmallRecord({
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
+    <EmptyState
+      title="لا توجد بيانات"
+      description={text}
+      className="bg-slate-50"
+    />
   );
 }
 
 function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-3xl bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-        جاري تحميل بوابة الطالب...
-      </div>
-    </div>
-  );
+  return <PageLoader text="جاري تحميل بوابة الطالب..." />;
 }

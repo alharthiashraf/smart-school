@@ -10,6 +10,11 @@ import {
 } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { PageLoader } from "@/components/ui/loading";
+import { EmptyState as UiEmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -23,9 +28,7 @@ import {
   CheckCircle2,
   GraduationCap,
   HeartPulse,
-  Loader2,
   RefreshCcw,
-  Search,
   ShieldAlert,
   Sparkles,
   User,
@@ -611,7 +614,7 @@ export default function ParentPortalPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل بوابة ولي الأمر..." />
         </AppShell>
       </RoleGuard>
     );
@@ -621,61 +624,35 @@ export default function ParentPortalPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main dir="rtl" className="space-y-6">
-          <section className="overflow-hidden rounded-[32px] bg-gradient-to-l from-[#0f1f3d] via-[#18315f] to-[#24477f] p-6 text-white shadow-xl">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-              <div className="flex min-w-0 items-start gap-4">
-                <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-[#d4af37] text-[#0f1f3d] shadow-lg sm:flex">
-                  <Users size={32} />
-                </div>
-
-                <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-[#d4af37]">
-                      بوابة ولي الأمر
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
-                      اليوم {todayDate()}
-                    </span>
-                  </div>
-
-                  <h1 className="text-3xl font-black md:text-4xl">
-                    متابعة الأبناء
-                  </h1>
-
-                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
-                    متابعة حضور الأبناء، الدرجات، السلوك، الإحالات، والتنبيهات
-                    المهمة من المدرسة في مكان واحد.
-                  </p>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[#d4af37] px-4 py-2 text-xs font-black text-[#0f1f3d]">
-                      {selectedStudent
-                        ? studentName(selectedStudent)
-                        : "لا يوجد طالب مرتبط"}
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white">
-                      {todayLabel()}
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white">
-                      عدد الأبناء: {students.length}
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white">
-                      {currentSchool?.school_name || "منصة المدرسة الذكية"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <PageHeader
+            variant="hero"
+            title="متابعة الأبناء"
+            description="متابعة حضور الأبناء، الدرجات، السلوك، الإحالات، والتنبيهات المهمة من المدرسة في مكان واحد."
+            badge="بوابة ولي الأمر"
+            icon={<Users size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "بوابة ولي الأمر" },
+            ]}
+            meta={[
+              { label: "المدرسة", value: currentSchool?.school_name || "منصة المدرسة الذكية" },
+              { label: "اليوم", value: todayLabel() },
+              { label: "عدد الأبناء", value: students.length },
+              { label: "الطالب المحدد", value: selectedStudent ? studentName(selectedStudent) : "لا يوجد طالب مرتبط" },
+            ]}
+            stats={[
+              { label: "نسبة الحضور", value: stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—", icon: <CalendarDays size={20} />, tone: stats.attendanceRecords === 0 ? "slate" : stats.attendanceRate >= 90 ? "green" : stats.attendanceRate >= 75 ? "gold" : "red" },
+              { label: "متوسط الدرجات", value: stats.averageGrade ? `${stats.averageGrade}%` : "—", icon: <Award size={20} />, tone: stats.averageGrade >= 90 ? "green" : stats.averageGrade >= 70 ? "gold" : stats.averageGrade > 0 ? "red" : "slate" },
+              { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
+              { label: "مؤشر المتابعة", value: stats.followUpLabel, icon: <ShieldAlert size={20} />, tone: stats.followUpLabel === "يحتاج متابعة عاجلة" ? "red" : stats.followUpLabel === "يحتاج متابعة" ? "gold" : "green" },
+            ]}
+            actions={
+              <>
                 {students.length > 1 && (
                   <select
                     value={selectedStudent?.id || ""}
                     onChange={(event) => setSelectedStudentId(event.target.value)}
-                    className="h-12 min-w-[220px] rounded-2xl border border-white/20 bg-white px-4 text-sm font-black text-[#0f1f3d] outline-none"
+                    className="h-11 min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm outline-none transition focus:border-[#0DA9A6]"
                   >
                     {students.map((student) => (
                       <option key={student.id} value={student.id}>
@@ -688,35 +665,28 @@ export default function ParentPortalPage() {
                 <button
                   type="button"
                   onClick={() => void loadPage()}
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-[#d4af37] px-4 text-sm font-black text-[#0f1f3d]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
+                  <RefreshCcw size={17} />
                   تحديث
-                  <RefreshCcw size={16} />
                 </button>
 
                 <Link
                   href="/notifications"
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-black text-white hover:bg-white/20"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
+                  <Bell size={17} />
                   التنبيهات
-                  <Bell size={16} />
                 </Link>
-
-                <Link
-                  href="/search"
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#0f1f3d]"
-                >
-                  البحث
-                  <Search size={16} />
-                </Link>
-              </div>
-            </div>
-          </section>
+              </>
+            }
+          />
 
           {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
+            <ErrorState
+              title="تعذر تحميل البيانات"
+              description={errorMsg}
+            />
           )}
 
           {!selectedStudent ? (
@@ -730,75 +700,80 @@ export default function ParentPortalPage() {
               )}
 
               <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7">
-                <SummaryCard
+                <ExecutiveCard
                   title="نسبة الحضور"
-                  value={
-                    stats.attendanceRecords > 0
-                      ? `${stats.attendanceRate}%`
-                      : "—"
-                  }
+                  value={stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—"}
+                  subtitle="حسب آخر سجلات الحضور"
                   icon={<CalendarDays size={22} />}
-                  color={
+                  tone={
                     stats.attendanceRecords === 0
                       ? "slate"
                       : stats.attendanceRate >= 90
                         ? "green"
                         : stats.attendanceRate >= 75
-                          ? "amber"
+                          ? "gold"
                           : "red"
                   }
+                  progress={stats.attendanceRecords > 0 ? stats.attendanceRate : 0}
                 />
 
-                <SummaryCard
+                <ExecutiveCard
                   title="غياب / تأخر"
                   value={`${stats.absent} / ${stats.late}`}
+                  subtitle="مؤشرات تحتاج متابعة"
                   icon={<AlertTriangle size={22} />}
-                  color={stats.absent > 2 ? "red" : "amber"}
+                  tone={stats.absent > 2 ? "red" : "gold"}
                 />
 
-                <SummaryCard
+                <ExecutiveCard
                   title="تنبيهات"
                   value={stats.unreadNotifications}
+                  subtitle="تنبيهات غير مقروءة"
                   icon={<Bell size={22} />}
-                  color={stats.unreadNotifications > 0 ? "red" : "green"}
+                  tone={stats.unreadNotifications > 0 ? "red" : "green"}
                 />
 
-                <SummaryCard
+                <ExecutiveCard
                   title="حالة اليوم"
                   value={normalizeAttendanceStatus(
                     todayAttendance?.attendance_status || todayAttendance?.status,
                   )}
+                  subtitle="حضور اليوم الحالي"
                   icon={<CheckCircle2 size={22} />}
-                  color={todayAttendance ? "green" : "slate"}
+                  tone={todayAttendance ? "green" : "slate"}
                 />
 
-                <SummaryCard
+                <ExecutiveCard
                   title="متوسط الدرجات"
                   value={stats.averageGrade ? `${stats.averageGrade}%` : "—"}
+                  subtitle="متوسط النتائج المسجلة"
                   icon={<Award size={22} />}
-                  color={
+                  tone={
                     stats.averageGrade >= 90
                       ? "green"
                       : stats.averageGrade >= 70
-                        ? "amber"
+                        ? "gold"
                         : stats.averageGrade > 0
                           ? "red"
                           : "slate"
                   }
+                  progress={stats.averageGrade || 0}
                 />
 
-                <SummaryCard
+                <ExecutiveCard
                   title="السلوك"
                   value={stats.behaviorCount}
+                  subtitle="سجلات سلوكية"
                   icon={<ShieldAlert size={22} />}
-                  color={stats.behaviorCount > 0 ? "amber" : "green"}
+                  tone={stats.behaviorCount > 0 ? "gold" : "green"}
                 />
 
-                <SummaryCard
+                <ExecutiveCard
                   title="إحالات مفتوحة"
                   value={stats.openReferrals}
+                  subtitle="إحالات قيد المتابعة"
                   icon={<HeartPulse size={22} />}
-                  color={stats.openReferrals > 0 ? "red" : "green"}
+                  tone={stats.openReferrals > 0 ? "red" : "green"}
                 />
               </section>
 
@@ -1118,38 +1093,6 @@ export default function ParentPortalPage() {
   );
 }
 
-function SummaryCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: ReactNode;
-  color: "green" | "amber" | "red" | "slate";
-}) {
-  const colors = {
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-    slate: "bg-slate-100 text-slate-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}
-      >
-        {icon}
-      </div>
-
-      <p className="text-sm font-bold text-slate-500">{title}</p>
-      <h3 className="mt-2 text-3xl font-black text-[#0f1f3d]">{value}</h3>
-    </div>
-  );
-}
-
 function Panel({
   title,
   icon,
@@ -1262,19 +1205,9 @@ function SmallRecord({
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-3xl bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#0f1f3d]" />
-        جاري تحميل بوابة ولي الأمر...
-      </div>
-    </div>
+    <UiEmptyState
+      title="لا توجد بيانات"
+      description={text}
+    />
   );
 }

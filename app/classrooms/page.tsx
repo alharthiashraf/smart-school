@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
@@ -566,7 +568,8 @@ export default function ClassroomsPage() {
 
   return (
     <AuthGuard>
-      <div className="space-y-5" dir="rtl">
+      <PageContainer size="wide" className="space-y-5">
+        <Breadcrumb />
         {toast && <ToastBox toast={toast} />}
         <PageHeader
           variant="hero"
@@ -1048,7 +1051,7 @@ export default function ClassroomsPage() {
             setSelectedClassroom={setSelectedClassroom}
           />
         </section>
-      </div>
+      </PageContainer>
     </AuthGuard>
   );
 }

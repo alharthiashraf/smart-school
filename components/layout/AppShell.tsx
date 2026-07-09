@@ -27,7 +27,7 @@ export default function AppShell({
     <AppShellContext.Provider value={true}>
       <main
         dir="rtl"
-        className="min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--app-text)] transition-colors duration-300"
+        className="min-h-screen overflow-x-hidden bg-[#F6F8FB] text-slate-950"
       >
         <div className="flex min-h-screen w-full overflow-x-hidden">
           <AppSidebar />
@@ -35,7 +35,7 @@ export default function AppShell({
           <section className="min-w-0 flex-1 overflow-x-hidden">
             {showHeader && <AppHeader />}
 
-            <div className="w-full bg-[radial-gradient(circle_at_top_left,rgba(15,118,110,0.08),transparent_34%),var(--app-bg)] px-3 py-4 transition-colors duration-300 sm:px-4 lg:px-5 xl:px-6">
+            <div className="w-full px-3 py-4 sm:px-4 lg:px-6">
               <PageContainer>
                 {showBreadcrumb && <Breadcrumb />}
                 <div className="min-w-0">{children}</div>

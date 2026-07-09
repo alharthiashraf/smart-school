@@ -20,7 +20,7 @@ import {
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import KpiCard from "@/components/ui/cards/KpiCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";

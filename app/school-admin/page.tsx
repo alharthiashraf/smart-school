@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
@@ -438,7 +440,8 @@ export default function SchoolAdminPage() {
   return (
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
-        <main className="space-y-5" dir="rtl">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
           <PageHeader
             variant="hero"
             title={currentSchool?.school_name || "بوابة مدير المدرسة"}
@@ -609,7 +612,7 @@ export default function SchoolAdminPage() {
               )}
             </Panel>
           </section>
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

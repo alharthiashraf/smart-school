@@ -35,6 +35,11 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import EmptyState from "@/components/ui/empty-state/EmptyState";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import UiStatusBadge from "@/components/ui/badges/StatusBadge";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { exportTableToPDF } from "@/lib/exports/pdf";
@@ -769,7 +774,7 @@ export default function TeachersPage() {
   if (schoolLoading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        <PageLoader text="جاري تحميل بيانات المدرسة..." />
       </AuthGuard>
     );
   }
@@ -816,43 +821,37 @@ export default function TeachersPage() {
           actions={
             <>
               {canManage && (
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<Plus size={17} />}
                   onClick={openAddForm}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  tone="warning"
                 >
-                  <Plus size={17} />
                   إضافة معلم
-                </button>
+                </SecondaryButton>
               )}
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<Download size={17} />}
                 onClick={() => void exportTeachersExcel()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <Download size={17} />
                 Excel
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
+              <PrimaryButton
+                icon={<FileText size={17} />}
                 onClick={() => exportTeachersPDF()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <FileText size={17} />
                 PDF
-              </button>
+              </PrimaryButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<RefreshCcw size={17} className={loading ? "animate-spin" : ""} />}
                 onClick={() => void fetchAllData()}
                 disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                tone="dark"
               >
-                <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
                 تحديث
-              </button>
+              </SecondaryButton>
             </>
           }
         />
@@ -938,13 +937,9 @@ export default function TeachersPage() {
                 </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold"
-              >
+              <SecondaryButton onClick={closeForm}>
                 إغلاق
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1010,19 +1005,18 @@ export default function TeachersPage() {
               className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
             />
 
-            <button
-              type="button"
+            <PrimaryButton
+              className="mt-5"
+              icon={saving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
               onClick={() => void saveTeacher()}
               disabled={saving}
-              className="mt-5 flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
             >
-              {editingId ? <Save size={16} /> : <Plus size={16} />}
               {saving
                 ? "جاري الحفظ..."
                 : editingId
                   ? "حفظ التعديل"
                   : "إضافة المعلم"}
-            </button>
+            </PrimaryButton>
           </section>
         )}
 
@@ -1333,15 +1327,17 @@ export default function TeachersPage() {
               </table>
 
               {loading && (
-                <div className="py-10 text-center text-slate-500">
-                  جاري تحميل المعلمين...
+                <div className="py-6">
+                  <PageLoader text="جاري تحميل المعلمين..." />
                 </div>
               )}
 
               {!loading && filteredTeachers.length === 0 && (
-                <div className="py-10 text-center text-slate-500">
-                  لا يوجد معلمون مطابقون للبحث
-                </div>
+                <EmptyState
+                  icon={<Search size={30} />}
+                  title="لا توجد نتائج"
+                  description="لا يوجد معلمون مطابقون للبحث أو الفلاتر الحالية."
+                />
               )}
             </div>
 
@@ -1513,17 +1509,12 @@ function TeacherSideCard({
           </div>
         </div>
       ) : (
-        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
-          <div>
-            <GraduationCap size={42} className="mx-auto text-[#C1B489]" />
-            <h3 className="mt-4 text-xl font-black text-[#15445A]">
-              اختر معلمًا
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              اضغط على أيقونة العين لعرض الملف المختصر
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          icon={<GraduationCap size={42} />}
+          title="اختر معلمًا"
+          description="اضغط على أيقونة العين لعرض الملف المختصر."
+          className="min-h-[350px]"
+        />
       )}
     </div>
   );
@@ -1574,26 +1565,18 @@ function QuickFilter({
 function StatusBadge({ status }: { status?: string | null }) {
   const value = status || DEFAULT_STATUS;
 
-  const style =
+  const tone =
     value === DEFAULT_STATUS || value === "active"
-      ? "bg-[#07A869]/10 text-[#07A869]"
+      ? "success"
       : value === "غير نشط"
-        ? "bg-red-50 text-red-700"
-        : "bg-[#C1B489]/20 text-[#15445A]";
+        ? "danger"
+        : "warning";
 
-  return (
-    <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>
-      {value}
-    </span>
-  );
+  return <UiStatusBadge tone={tone}>{value}</UiStatusBadge>;
 }
 
 function SmallBadge({ label }: { label: string }) {
-  return (
-    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-      {label}
-    </span>
-  );
+  return <UiStatusBadge tone="default">{label}</UiStatusBadge>;
 }
 
 function DetailStat({
@@ -1653,15 +1636,6 @@ function Input({
       placeholder={placeholder}
       className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
     />
-  );
-}
-
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
   );
 }
 

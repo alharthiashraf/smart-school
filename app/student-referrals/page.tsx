@@ -1,10 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
@@ -311,7 +313,9 @@ function StudentReferralsContent() {
   return (
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
-        <main dir="rtl" className="space-y-5">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
+
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
@@ -500,7 +504,7 @@ function StudentReferralsContent() {
               onUpdateStatus={updateReferralStatus}
             />
           )}
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

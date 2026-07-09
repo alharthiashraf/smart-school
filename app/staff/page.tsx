@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar from "@/components/ui/page/PageToolbar";
@@ -343,7 +345,8 @@ export default function StaffPage() {
   return (
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
-        <main className="space-y-5" dir="rtl">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
           <PageHeader
             variant="hero"
             title="خدمات الإدارة المدرسية"
@@ -537,7 +540,7 @@ export default function StaffPage() {
               ))}
             </div>
           </section>
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );

@@ -5,6 +5,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageSection from "@/components/ui/page/PageSection";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
@@ -12,14 +18,9 @@ import { useSchool } from "@/contexts/SchoolContext";
 import {
   Award,
   Bell,
-  CalendarDays,
   CheckCircle2,
-  ClipboardCheck,
   FileText,
   Flag,
-  FolderKanban,
-  Loader2,
-  Megaphone,
   RefreshCcw,
   Search,
   Sparkles,
@@ -91,50 +92,50 @@ const PAGE_ROLES: SchoolRole[] = [
 
 const QUICK_LINKS: QuickLink[] = [
   {
-    title: "ط§ظ„ط£ظ†ط´ط·ط©",
-    description: "ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط© ظˆط§ظ„ط®ط·ط· ظˆط§ظ„ط¨ط±ط§ظ…ط¬.",
-    href: "/activities",
+    title: "الأنشطة",
+    description: "إدارة الأنشطة المدرسية والخطط والبرامج.",
+    href: "/activities/manage",
     icon: Sparkles,
     color: "blue",
   },
   {
-    title: "ط§ظ„ظپط±ظ‚",
-    description: "ط¥ط¯ط§ط±ط© ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط· ظˆط§ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط´ط§ط±ظƒظٹظ†.",
+    title: "الفرق",
+    description: "إدارة فرق النشاط والطلاب المشاركين.",
     href: "/activities/teams",
     icon: Users,
     color: "green",
   },
   {
-    title: "ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ",
-    description: "ظ…طھط§ط¨ط¹ط© ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ط§ظ„ط¯ط§ط®ظ„ظٹط© ظˆط§ظ„ط®ط§ط±ط¬ظٹط©.",
+    title: "المسابقات",
+    description: "متابعة المسابقات الداخلية والخارجية.",
     href: "/activities/competitions",
     icon: Trophy,
     color: "gold",
   },
   {
-    title: "ط§ظ„ظ…ط´ط§ط±ظƒط§طھ",
-    description: "طھظˆط«ظٹظ‚ ظ…ط´ط§ط±ظƒط§طھ ط§ظ„ط·ظ„ط§ط¨ ظˆط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ.",
+    title: "المشاركات",
+    description: "توثيق مشاركات الطلاب والإنجازات.",
     href: "/activities/participations",
     icon: Award,
     color: "blue",
   },
   {
-    title: "ط§ظ„طھظ‚ط§ط±ظٹط±",
-    description: "طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط· ظˆط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ ظˆط§ظ„ظ…ط´ط§ط±ظƒط§طھ.",
+    title: "التقارير",
+    description: "تقارير النشاط والإنجازات والمشاركات.",
     href: "/activities/reports",
     icon: FileText,
     color: "slate",
   },
   {
-    title: "ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ",
-    description: "ظ…طھط§ط¨ط¹ط© ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ظ…ط±طھط¨ط·ط© ط¨ط§ظ„ط£ظ†ط´ط·ط©.",
+    title: "التنبيهات",
+    description: "متابعة التنبيهات المرتبطة بالأنشطة.",
     href: "/notifications",
     icon: Bell,
     color: "red",
   },
   {
-    title: "ط§ظ„ط¨ط­ط« ط§ظ„ط´ط§ظ…ظ„",
-    description: "ط§ظ„ط¨ط­ط« ظپظٹ ط§ظ„ط·ظ„ط§ط¨ ظˆط§ظ„ظ…ط¹ظ„ظ…ظٹظ† ظˆط§ظ„ط³ط¬ظ„ط§طھ.",
+    title: "البحث الشامل",
+    description: "البحث في الطلاب والمعلمين والسجلات.",
     href: "/search",
     icon: Search,
     color: "slate",
@@ -155,13 +156,17 @@ function getTodayLabel() {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
-  return new Date(value).toLocaleDateString("ar-SA", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  try {
+    return new Date(value).toLocaleDateString("ar-SA", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return value;
+  }
 }
 
 function rows<T>(result: PromiseSettledResult<any>): T[] {
@@ -174,9 +179,9 @@ function isActiveStatus(value?: string | null) {
   const status = String(value || "");
 
   return (
-    status.includes("ظ†ط´ط·") ||
-    status.includes("ظ‚ط§ط¦ظ…") ||
-    status.includes("ظ…ط¹طھظ…ط¯") ||
+    status.includes("نشط") ||
+    status.includes("قائم") ||
+    status.includes("معتمد") ||
     status === "active" ||
     status === "approved"
   );
@@ -186,7 +191,7 @@ function getQuickColorClasses(color: QuickLink["color"]) {
   const colors = {
     blue: "bg-blue-50 text-blue-700",
     green: "bg-emerald-50 text-emerald-700",
-    gold: "bg-gold-50 text-gold-700",
+    gold: "bg-[#C1B489]/20 text-[#15445A]",
     red: "bg-red-50 text-red-700",
     slate: "bg-slate-100 text-slate-700",
   };
@@ -198,9 +203,9 @@ function getStatusPill(value?: string | null) {
   const status = String(value || "");
 
   if (
-    status.includes("ظ†ط´ط·") ||
-    status.includes("ظ‚ط§ط¦ظ…") ||
-    status.includes("ظ…ط¹طھظ…ط¯") ||
+    status.includes("نشط") ||
+    status.includes("قائم") ||
+    status.includes("معتمد") ||
     status === "active" ||
     status === "approved"
   ) {
@@ -208,18 +213,18 @@ function getStatusPill(value?: string | null) {
   }
 
   if (
-    status.includes("ط§ظ†طھط¸ط§ط±") ||
-    status.includes("ظ…ط³ظˆط¯ط©") ||
-    status.includes("ظ‚ظٹط¯") ||
+    status.includes("انتظار") ||
+    status.includes("مسودة") ||
+    status.includes("قيد") ||
     status === "pending"
   ) {
-    return "bg-gold-50 text-gold-700";
+    return "bg-[#C1B489]/20 text-[#15445A]";
   }
 
   if (
-    status.includes("ظ…ط؛ظ„ظ‚") ||
-    status.includes("ظ…ظ„ط؛ظٹ") ||
-    status.includes("ظ…ط±ظپظˆط¶") ||
+    status.includes("مغلق") ||
+    status.includes("ملغي") ||
+    status.includes("مرفوض") ||
     status === "closed" ||
     status === "cancelled"
   ) {
@@ -251,10 +256,6 @@ export default function ActivitiesPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const today = getTodayDate();
-
-  useEffect(() => {
-    if (currentSchool?.id) void loadPage();
-  }, [currentSchool?.id]);
 
   async function loadPage() {
     if (!currentSchool?.id) return;
@@ -325,24 +326,39 @@ export default function ActivitiesPage() {
       setStats({
         activities: activityRows.length,
         activeActivities: activityRows.filter((item) =>
-          isActiveStatus(item.status)
+          isActiveStatus(item.status),
         ).length,
         teams: teamRows.length,
         competitions: competitionRows.length,
         participants: participantRows.length,
         reports: reportRows.length,
         unreadNotifications: notificationRows.filter(
-          (item) => item.is_read === false
+          (item) => item.is_read === false,
         ).length,
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·";
+        error instanceof Error
+          ? error.message
+          : "تعذر تحميل بوابة رائد النشاط";
       setErrorMsg(message);
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالمستخدم الحالي.");
+      return;
+    }
+
+    void loadPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSchool?.id, schoolLoading]);
 
   const achievementLevel = useMemo(() => {
     const score =
@@ -351,16 +367,19 @@ export default function ActivitiesPage() {
       stats.teams * 8 +
       stats.participants;
 
-    if (score >= 80) return "ظ…طھظ…ظٹط²";
-    if (score >= 40) return "ط¬ظٹط¯";
-    return "ظ‚ظٹط¯ ط§ظ„ط¨ظ†ط§ط،";
+    if (score >= 80) return "متميز";
+    if (score >= 40) return "جيد";
+    return "قيد البناء";
   }, [stats]);
+
+  const readinessValue =
+    achievementLevel === "متميز" ? 90 : achievementLevel === "جيد" ? 60 : 25;
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل بوابة رائد النشاط..." />
         </AppShell>
       </RoleGuard>
     );
@@ -370,166 +389,164 @@ export default function ActivitiesPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6" dir="rtl">
-          <section className="overflow-hidden rounded-[32px] bg-gradient-to-l from-[#15445A] via-[#15445A] to-[#0DA9A6] p-6 text-white shadow-xl">
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-              <div className="flex min-w-0 items-start gap-4">
-                <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-[#C1B489] text-[#15445A] shadow-lg sm:flex">
-                  <Trophy size={32} />
-                </div>
-
-                <div className="min-w-0">
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-[#C1B489]">
-                      ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
-                      ط§ظ„ظٹظˆظ… {today}
-                    </span>
-                  </div>
-
-                  <h1 className="text-3xl font-black md:text-4xl">
-                    ظ…ط±ظƒط² ط§ظ„ظ†ط´ط§ط· ط§ظ„ط·ظ„ط§ط¨ظٹ
-                  </h1>
-
-                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
-                    ظ…طھط§ط¨ط¹ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط©طŒ ط§ظ„ظپط±ظ‚طŒ ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھطŒ ط§ظ„ظ…ط´ط§ط±ظƒط§طھطŒ
-                    ط§ظ„طھظ‚ط§ط±ظٹط±طŒ ظˆط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ ظپظٹ ظ…ظƒط§ظ† ظˆط§ط­ط¯.
-                  </p>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-[#C1B489] px-4 py-2 text-xs font-black text-[#15445A]">
-                      ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white">
-                      {getTodayLabel()}
-                    </span>
-
-                    <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white">
-                      ظ…ط³طھظˆظ‰ ط§ظ„ظ†ط´ط§ط·: {achievementLevel}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <PageHeader
+            variant="hero"
+            title="مركز النشاط الطلابي"
+            description="متابعة الأنشطة المدرسية، الفرق، المسابقات، المشاركات، التقارير، والإنجازات في مكان واحد."
+            badge="بوابة رائد النشاط"
+            icon={<Trophy size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الأنشطة" },
+            ]}
+            meta={[
+              { label: "اليوم", value: today },
+              { label: "التاريخ", value: getTodayLabel() },
+              { label: "المدرسة", value: currentSchool?.school_name || "منصة المدرسة الذكية" },
+              { label: "مستوى النشاط", value: achievementLevel },
+            ]}
+            stats={[
+              { label: "الأنشطة", value: stats.activities, icon: <Sparkles size={20} />, tone: "blue" },
+              { label: "الفرق", value: stats.teams, icon: <Users size={20} />, tone: "green" },
+              { label: "المسابقات", value: stats.competitions, icon: <Trophy size={20} />, tone: "gold" },
+              { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
+            ]}
+            actions={
+              <>
                 <button
+                  type="button"
                   onClick={() => void loadPage()}
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  طھط­ط¯ظٹط«
-                  <RefreshCcw size={16} />
+                  <RefreshCcw size={17} />
+                  تحديث
                 </button>
 
                 <Link
                   href="/search"
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#15445A]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0DA9A6] hover:shadow-md"
                 >
-                  ط§ظ„ط¨ط­ط«
-                  <Search size={16} />
+                  <Search size={17} />
+                  البحث
                 </Link>
 
                 <Link
                   href="/notifications"
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-black text-white hover:bg-white/20"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ
-                  <Bell size={16} />
+                  <Bell size={17} />
+                  التنبيهات
                 </Link>
-              </div>
-            </div>
-          </section>
+              </>
+            }
+          />
 
           {errorMsg && (
-            <div className="rounded-3xl border border-gold-100 bg-gold-50 p-5 text-sm font-bold text-gold-700">
-              {errorMsg}
-              <div className="mt-2 text-xs leading-6 text-gold-600">
-                ط¥ط°ط§ ظ„ظ… طھظƒظ† ط¬ط¯ط§ظˆظ„ ط§ظ„ط£ظ†ط´ط·ط© ظ…ظˆط¬ظˆط¯ط© ط¨ط¹ط¯طŒ ط³طھط¨ظ‚ظ‰ ط§ظ„طµظپط­ط© طھط¹ظ…ظ„ ظƒظˆط§ط¬ظ‡ط©
-                ط±ط¦ظٹط³ظٹط© ظˆظٹظ…ظƒظ† ط¥ظ†ط´ط§ط، ط§ظ„ط¬ط¯ط§ظˆظ„ ظ„ط§ط­ظ‚ظ‹ط§.
-              </div>
-            </div>
+            <SummaryCard
+              title="تنبيه تشغيل"
+              description={errorMsg}
+              tone="gold"
+              items={[
+                {
+                  label: "ملاحظة",
+                  value:
+                    "إذا لم تكن جداول الأنشطة موجودة بعد، ستبقى الصفحة تعمل كواجهة رئيسية ويمكن إنشاء الجداول لاحقًا.",
+                },
+              ]}
+            />
           )}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            <SummaryCard
-              title="ط§ظ„ط£ظ†ط´ط·ط©"
+            <ExecutiveCard
+              title="الأنشطة"
               value={stats.activities}
+              subtitle="إجمالي الأنشطة"
               icon={<Sparkles size={22} />}
-              color="blue"
+              tone="blue"
+              progress={stats.activities > 0 ? 100 : 0}
             />
 
-            <SummaryCard
-              title="ط§ظ„ظ†ط´ط·ط©"
+            <ExecutiveCard
+              title="النشطة"
               value={stats.activeActivities}
+              subtitle="أنشطة مفعلة"
               icon={<CheckCircle2 size={22} />}
-              color="green"
+              tone="green"
+              progress={stats.activities ? Math.round((stats.activeActivities / stats.activities) * 100) : 0}
             />
 
-            <SummaryCard
-              title="ط§ظ„ظپط±ظ‚"
+            <ExecutiveCard
+              title="الفرق"
               value={stats.teams}
+              subtitle="فرق النشاط"
               icon={<Users size={22} />}
-              color="green"
+              tone="green"
+              progress={stats.teams > 0 ? 100 : 0}
             />
 
-            <SummaryCard
-              title="ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ"
+            <ExecutiveCard
+              title="المسابقات"
               value={stats.competitions}
+              subtitle="داخلية وخارجية"
               icon={<Trophy size={22} />}
-              color="gold"
+              tone="gold"
+              progress={stats.competitions > 0 ? 100 : 0}
             />
 
-            <SummaryCard
-              title="ط§ظ„ظ…ط´ط§ط±ظƒظˆظ†"
+            <ExecutiveCard
+              title="المشاركون"
               value={stats.participants}
+              subtitle="طلاب مشاركون"
               icon={<UserCheck size={22} />}
-              color="blue"
+              tone="blue"
+              progress={stats.participants > 0 ? 100 : 0}
             />
 
-            <SummaryCard
-              title="طھظ†ط¨ظٹظ‡ط§طھ"
+            <ExecutiveCard
+              title="تنبيهات"
               value={stats.unreadNotifications}
+              subtitle="غير مقروءة"
               icon={<Bell size={22} />}
-              color="red"
+              tone={stats.unreadNotifications > 0 ? "red" : "green"}
+              progress={stats.unreadNotifications > 0 ? 100 : 0}
             />
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_.85fr]">
-            <Panel title="ظ…ظ„ط®طµ ط§ظ„ظ†ط´ط§ط· ط§ظ„ط·ظ„ط§ط¨ظٹ" icon={<Target size={24} />}>
+            <Panel title="ملخص النشاط الطلابي" icon={<Target size={24} />}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 <MiniInfo
-                  label="ط£ظ†ط´ط·ط© ظ…ظپط¹ظ„ط©"
+                  label="أنشطة مفعلة"
                   value={stats.activeActivities}
                   icon={<CheckCircle2 size={18} />}
                 />
 
                 <MiniInfo
-                  label="ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·"
+                  label="فرق النشاط"
                   value={stats.teams}
                   icon={<Users size={18} />}
                 />
 
                 <MiniInfo
-                  label="ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ"
+                  label="المسابقات"
                   value={stats.competitions}
                   icon={<Flag size={18} />}
                 />
 
                 <MiniInfo
-                  label="ط§ظ„ظ…ط´ط§ط±ظƒظˆظ†"
+                  label="المشاركون"
                   value={stats.participants}
                   icon={<UserCheck size={18} />}
                 />
 
                 <MiniInfo
-                  label="ط§ظ„طھظ‚ط§ط±ظٹط±"
+                  label="التقارير"
                   value={stats.reports}
                   icon={<FileText size={18} />}
                 />
 
                 <MiniInfo
-                  label="ظ…ط³طھظˆظ‰ ط§ظ„ظ†ط´ط§ط·"
+                  label="مستوى النشاط"
                   value={achievementLevel}
                   icon={<Trophy size={18} />}
                 />
@@ -538,15 +555,15 @@ export default function ActivitiesPage() {
               <div className="mt-5 rounded-3xl bg-slate-50 p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="font-black text-[#15445A]">
-                    ط¬ط§ظ‡ط²ظٹط© ط§ظ„ظ†ط´ط§ط· ط§ظ„ظ…ط¯ط±ط³ظٹ
+                    جاهزية النشاط المدرسي
                   </p>
 
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-black ${
-                      achievementLevel === "ظ…طھظ…ظٹط²"
+                      achievementLevel === "متميز"
                         ? "bg-emerald-50 text-emerald-700"
-                        : achievementLevel === "ط¬ظٹط¯"
-                          ? "bg-gold-50 text-gold-700"
+                        : achievementLevel === "جيد"
+                          ? "bg-[#C1B489]/20 text-[#15445A]"
                           : "bg-red-50 text-red-700"
                     }`}
                   >
@@ -554,25 +571,20 @@ export default function ActivitiesPage() {
                   </span>
                 </div>
 
-                <ProgressBar
-                  value={
-                    achievementLevel === "ظ…طھظ…ظٹط²"
-                      ? 90
-                      : achievementLevel === "ط¬ظٹط¯"
-                        ? 60
-                        : 25
-                  }
-                />
+                <ProgressBar value={readinessValue} />
 
                 <p className="mt-3 text-sm leading-7 text-slate-500">
-                  ظٹظ‚ظٹط³ ط§ظ„ظ…ط¤ط´ط± ظƒط«ط§ظپط© ط§ظ„ط£ظ†ط´ط·ط©طŒ ط§ظ„ظپط±ظ‚طŒ ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھطŒ ظˆظ…ط´ط§ط±ظƒط§طھ ط§ظ„ط·ظ„ط§ط¨.
+                  يقيس المؤشر كثافة الأنشطة، الفرق، المسابقات، ومشاركات الطلاب.
                 </p>
               </div>
             </Panel>
 
-            <Panel title="ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ط£ط®ظٹط±ط©" icon={<Bell size={24} />}>
+            <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} />}>
               {notifications.length === 0 ? (
-                <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ طھظ†ط¨ظٹظ‡ط§طھ ط­ط§ظ„ظٹط§ظ‹." />
+                <EmptyState
+                  title="لا توجد تنبيهات"
+                  description="لا توجد تنبيهات مرتبطة بالأنشطة حاليًا."
+                />
               ) : (
                 <div className="space-y-3">
                   {notifications.map((item) => (
@@ -583,7 +595,7 @@ export default function ActivitiesPage() {
                     >
                       <div className="mb-1 flex items-center justify-between gap-2">
                         <h3 className="line-clamp-1 font-black text-[#15445A]">
-                          {item.title || "طھظ†ط¨ظٹظ‡"}
+                          {item.title || "تنبيه"}
                         </h3>
 
                         {item.is_read === false && (
@@ -592,7 +604,7 @@ export default function ActivitiesPage() {
                       </div>
 
                       <p className="line-clamp-2 text-sm leading-7 text-slate-500">
-                        {item.message || "ظ„ط§ طھظˆط¬ط¯ طھظپط§طµظٹظ„."}
+                        {item.message || "لا توجد تفاصيل."}
                       </p>
 
                       <p className="mt-2 text-xs font-bold text-slate-400">
@@ -606,44 +618,48 @@ export default function ActivitiesPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-            <Panel title="ط¢ط®ط± ط§ظ„ط£ظ†ط´ط·ط©" icon={<Sparkles size={24} />}>
+            <Panel title="آخر الأنشطة" icon={<Sparkles size={24} />}>
               {activities.length === 0 ? (
-                <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ ط£ظ†ط´ط·ط© ظ…ط³ط¬ظ„ط© ط­طھظ‰ ط§ظ„ط¢ظ†." />
+                <EmptyState
+                  title="لا توجد أنشطة"
+                  description="لا توجد أنشطة مسجلة حتى الآن."
+                />
               ) : (
                 <div className="space-y-3">
                   {activities.map((item) => (
                     <ActivityCard
                       key={item.id}
-                      title={item.title || item.activity_name || "ظ†ط´ط§ط· ظ…ط¯ط±ط³ظٹ"}
-                      subtitle={item.activity_type || "ظ†ط´ط§ط·"}
-                      status={item.status || "ط؛ظٹط± ظ…ط­ط¯ط¯"}
+                      title={item.title || item.activity_name || "نشاط مدرسي"}
+                      subtitle={item.activity_type || "نشاط"}
+                      status={item.status || "غير محدد"}
                       date={item.start_date || item.created_at}
-                      href="/activities"
+                      href="/activities/manage"
                     />
                   ))}
                 </div>
               )}
             </Panel>
 
-            <Panel title="ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ظˆط§ظ„ظپط±ظ‚" icon={<Trophy size={24} />}>
+            <Panel title="المسابقات والفرق" icon={<Trophy size={24} />}>
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <h3 className="mb-3 font-black text-[#15445A]">
-                    ط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ط§ظ„ط£ط®ظٹط±ط©
+                    المسابقات الأخيرة
                   </h3>
 
                   {competitions.length === 0 ? (
-                    <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ ظ…ط³ط§ط¨ظ‚ط§طھ ظ…ط³ط¬ظ„ط©." />
+                    <EmptyState
+                      title="لا توجد مسابقات"
+                      description="لا توجد مسابقات مسجلة."
+                    />
                   ) : (
                     <div className="space-y-3">
                       {competitions.slice(0, 4).map((item) => (
                         <ActivityCard
                           key={item.id}
-                          title={
-                            item.title || item.competition_name || "ظ…ط³ط§ط¨ظ‚ط©"
-                          }
-                          subtitle="ظ…ط³ط§ط¨ظ‚ط©"
-                          status={item.status || "ط؛ظٹط± ظ…ط­ط¯ط¯"}
+                          title={item.title || item.competition_name || "مسابقة"}
+                          subtitle="مسابقة"
+                          status={item.status || "غير محدد"}
                           date={item.competition_date || item.created_at}
                           href="/activities/competitions"
                         />
@@ -654,19 +670,22 @@ export default function ActivitiesPage() {
 
                 <div>
                   <h3 className="mb-3 font-black text-[#15445A]">
-                    ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·
+                    فرق النشاط
                   </h3>
 
                   {teams.length === 0 ? (
-                    <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ ظپط±ظ‚ ظ†ط´ط§ط· ظ…ط³ط¬ظ„ط©." />
+                    <EmptyState
+                      title="لا توجد فرق"
+                      description="لا توجد فرق نشاط مسجلة."
+                    />
                   ) : (
                     <div className="space-y-3">
                       {teams.slice(0, 4).map((item) => (
                         <ActivityCard
                           key={item.id}
-                          title={item.team_name || item.title || "ظپط±ظٹظ‚ ظ†ط´ط§ط·"}
-                          subtitle="ظپط±ظٹظ‚"
-                          status={item.status || "ط؛ظٹط± ظ…ط­ط¯ط¯"}
+                          title={item.team_name || item.title || "فريق نشاط"}
+                          subtitle="فريق"
+                          status={item.status || "غير محدد"}
                           date={item.created_at}
                           href="/activities/teams"
                         />
@@ -678,59 +697,20 @@ export default function ActivitiesPage() {
             </Panel>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-5">
-              <h2 className="text-2xl font-black text-[#15445A]">
-                ط®ط¯ظ…ط§طھ ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                ط£ظ‡ظ… ط§ظ„طµظپط­ط§طھ ط§ظ„ظٹظˆظ…ظٹط© ظ„ط¥ط¯ط§ط±ط© ط§ظ„ظ†ط´ط§ط· ط§ظ„ط·ظ„ط§ط¨ظٹ.
-              </p>
-            </div>
-
+          <PageSection
+            title="خدمات بوابة رائد النشاط"
+            description="أهم الصفحات اليومية لإدارة النشاط الطلابي."
+            icon={<Sparkles size={24} />}
+          >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {QUICK_LINKS.map((link) => (
                 <QuickLinkCard key={link.href} link={link} />
               ))}
             </div>
-          </section>
+          </PageSection>
         </main>
       </AppShell>
     </RoleGuard>
-  );
-}
-
-function SummaryCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: ReactNode;
-  color: "blue" | "green" | "gold" | "red";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    green: "bg-emerald-50 text-emerald-700",
-    gold: "bg-gold-50 text-gold-700",
-    red: "bg-red-50 text-red-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}
-      >
-        {icon}
-      </div>
-
-      <p className="text-sm font-bold text-slate-500">{title}</p>
-
-      <h3 className="mt-2 text-3xl font-black text-[#15445A]">{value}</h3>
-    </div>
   );
 }
 
@@ -744,17 +724,9 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#15445A]/5 text-[#15445A]">
-          {icon}
-        </div>
-
-        <h2 className="text-2xl font-black text-[#15445A]">{title}</h2>
-      </div>
-
+    <PageSection title={title} icon={icon} className="transition hover:shadow-md">
       {children}
-    </section>
+    </PageSection>
   );
 }
 
@@ -826,7 +798,7 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
     >
       <div
         className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition ${getQuickColorClasses(
-          link.color
+          link.color,
         )}`}
       >
         <Icon size={24} />
@@ -839,7 +811,7 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
       </p>
 
       <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-center text-sm font-black text-[#15445A] transition group-hover:bg-[#15445A] group-hover:text-white">
-        ظپطھط­
+        فتح
       </div>
     </Link>
   );
@@ -852,7 +824,7 @@ function ProgressBar({ value }: { value: number }) {
     safeValue >= 75
       ? "bg-emerald-500"
       : safeValue >= 40
-        ? "bg-gold-500"
+        ? "bg-[#C1B489]"
         : "bg-red-500";
 
   return (
@@ -861,25 +833,6 @@ function ProgressBar({ value }: { value: number }) {
         className={`h-full rounded-full ${color}`}
         style={{ width: `${safeValue}%` }}
       />
-    </div>
-  );
-}
-
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-3xl bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-        ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·...
-      </div>
     </div>
   );
 }

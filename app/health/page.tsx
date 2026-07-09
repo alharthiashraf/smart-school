@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryInsightCard from "@/components/ui/cards/SummaryCard";
@@ -145,64 +147,64 @@ type UnifiedHealthReferral = {
 const HEALTH_TABS: { key: HealthTab; title: string; icon: ReactNode }[] = [
   {
     key: "dashboard",
-    title: "ط§ظ„ظ…ط¤ط´ط±ط§طھ",
+    title: "المؤشرات",
     icon: <HeartPulse size={16} />,
   },
   {
     key: "referrals",
-    title: "ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„طµط­ظٹط©",
+    title: "التحويلات الصحية",
     icon: <ClipboardList size={16} />,
   },
   {
     key: "visits",
-    title: "ط§ظ„ط²ظٹط§ط±ط§طھ ط§ظ„طµط­ظٹط©",
+    title: "الزيارات الصحية",
     icon: <Stethoscope size={16} />,
   },
   {
     key: "cases",
-    title: "ط§ظ„ط­ط§ظ„ط§طھ ط§ظ„ظ…ط²ظ…ظ†ط©",
+    title: "الحالات المزمنة",
     icon: <ShieldAlert size={16} />,
   },
 ];
 
 const HEALTH_STATUS_OPTIONS = [
-  "ط¬ط¯ظٹط¯",
-  "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©",
-  "طھظ… ط§ظ„ظƒط´ظپ",
-  "ظٹط­طھط§ط¬ ظ…طھط§ط¨ط¹ط©",
-  "ط¹ط§ط¯ ظ„ظ„ظپطµظ„",
-  "طھط­ظˆظٹظ„ ظ„ظˆظ„ظٹ ط§ظ„ط£ظ…ط±",
-  "طھط­ظˆظٹظ„ ظ„ظ…ط±ظƒط² طµط­ظٹ",
-  "ظ…ط؛ظ„ظ‚",
+  "جديد",
+  "تحت المتابعة",
+  "تم الكشف",
+  "يحتاج متابعة",
+  "عاد للفصل",
+  "تحويل لولي الأمر",
+  "تحويل لمركز صحي",
+  "مغلق",
 ];
 
 const VISIT_STATUS_OPTIONS = [
-  "ظ…ظƒطھظ…ظ„ط©",
-  "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©",
-  "طھط­ظˆظٹظ„ ظ„ظ…ط±ظƒط² طµط­ظٹ",
-  "طھط­ظˆظٹظ„ ظ„ظˆظ„ظٹ ط§ظ„ط£ظ…ط±",
+  "مكتملة",
+  "تحت المتابعة",
+  "تحويل لمركز صحي",
+  "تحويل لولي الأمر",
 ];
 
-const CASE_STATUS_OPTIONS = ["ظ†ط´ط·ط©", "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©", "ظ…ط³طھظ‚ط±ط©", "ظ…ط؛ظ„ظ‚ط©"];
+const CASE_STATUS_OPTIONS = ["نشطة", "تحت المتابعة", "مستقرة", "مغلقة"];
 
 const CASE_TYPES = [
-  "ط±ط¨ظˆ",
-  "ط³ظƒط±ظٹ",
-  "ط­ط³ط§ط³ظٹط©",
-  "طµط±ط¹",
-  "ط£ظ…ط±ط§ط¶ ظ‚ظ„ط¨",
-  "ط¥طµط§ط¨ط©",
-  "ط£ط®ط±ظ‰",
+  "ربو",
+  "سكري",
+  "حساسية",
+  "صرع",
+  "أمراض قلب",
+  "إصابة",
+  "أخرى",
 ];
 
-const SEVERITY_OPTIONS = ["ظ…ظ†ط®ظپط¶ط©", "ظ…طھظˆط³ط·ط©", "ط¹ط§ظ„ظٹط©", "ط­ط±ط¬ط©"];
+const SEVERITY_OPTIONS = ["منخفضة", "متوسطة", "عالية", "حرجة"];
 
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
   return new Date(value).toLocaleString("ar-SA", {
     dateStyle: "medium",
@@ -211,48 +213,48 @@ function formatDate(value?: string | null) {
 }
 
 function getElapsedLabel(value?: string | null) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
   const diff = Date.now() - new Date(value).getTime();
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (days > 0) return `ظ…ظ†ط° ${days} ظٹظˆظ…`;
-  if (hours > 0) return `ظ…ظ†ط° ${hours} ط³ط§ط¹ط©`;
-  if (minutes > 0) return `ظ…ظ†ط° ${minutes} ط¯ظ‚ظٹظ‚ط©`;
+  if (days > 0) return `منذ ${days} يوم`;
+  if (hours > 0) return `منذ ${hours} ساعة`;
+  if (minutes > 0) return `منذ ${minutes} دقيقة`;
 
-  return "ط§ظ„ط¢ظ†";
+  return "الآن";
 }
 
 function normalizeHealthStatus(status?: string | null) {
-  if (!status) return "ط¬ط¯ظٹط¯";
-  if (status === "ظ…ط­ظˆظ„ط© ظ„ظ„ظ…ظˆط¬ظ‡ ط§ظ„طµط­ظٹ") return "ط¬ط¯ظٹط¯";
-  if (status === "sent_to_health") return "ط¬ط¯ظٹط¯";
-  if (status === "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط© ط§ظ„طµط­ظٹط©") return "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©";
-  if (status === "ظ…ط؛ظ„ظ‚ط© طµط­ظٹط§ظ‹") return "ظ…ط؛ظ„ظ‚";
+  if (!status) return "جديد";
+  if (status === "محولة للموجه الصحي") return "جديد";
+  if (status === "sent_to_health") return "جديد";
+  if (status === "تحت المتابعة الصحية") return "تحت المتابعة";
+  if (status === "مغلقة صحياً") return "مغلق";
   return status;
 }
 
 function isHealthReferralStatus(status?: string | null) {
   return [
-    "ظ…ط­ظˆظ„ط© ظ„ظ„ظ…ظˆط¬ظ‡ ط§ظ„طµط­ظٹ",
+    "محولة للموجه الصحي",
     "sent_to_health",
-    "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط© ط§ظ„طµط­ظٹط©",
-    "ظ…ط؛ظ„ظ‚ط© طµط­ظٹط§ظ‹",
+    "تحت المتابعة الصحية",
+    "مغلقة صحياً",
   ].includes(String(status || ""));
 }
 
 function getStatusStyle(status: string) {
-  if (["ط¹ط§ط¯ ظ„ظ„ظپطµظ„", "ظ…ط؛ظ„ظ‚", "ظ…ط؛ظ„ظ‚ط© طµط­ظٹط§ظ‹", "ظ…ظƒطھظ…ظ„ط©", "ظ…ط³طھظ‚ط±ط©"].includes(status)) {
+  if (["عاد للفصل", "مغلق", "مغلقة صحياً", "مكتملة", "مستقرة"].includes(status)) {
     return "bg-[#07A869]/10 text-[#07A869]";
   }
 
-  if (["طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©", "ظٹط­طھط§ط¬ ظ…طھط§ط¨ط¹ط©", "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط© ط§ظ„طµط­ظٹط©", "ط­ط±ط¬ط©"].includes(status)) {
+  if (["تحت المتابعة", "يحتاج متابعة", "تحت المتابعة الصحية", "حرجة"].includes(status)) {
     return "bg-red-50 text-red-700";
   }
 
-  if (["طھط­ظˆظٹظ„ ظ„ظˆظ„ظٹ ط§ظ„ط£ظ…ط±", "طھط­ظˆظٹظ„ ظ„ظ…ط±ظƒط² طµط­ظٹ", "طھظ… ط§ظ„ظƒط´ظپ"].includes(status)) {
+  if (["تحويل لولي الأمر", "تحويل لمركز صحي", "تم الكشف"].includes(status)) {
     return "bg-[#3D7EB9]/10 text-[#3D7EB9]";
   }
 
@@ -278,9 +280,9 @@ export default function HealthPage() {
   const [sourceFilter, setSourceFilter] = useState("all");
 
   const [newStudentId, setNewStudentId] = useState("");
-  const [newReason, setNewReason] = useState("طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©");
+  const [newReason, setNewReason] = useState("تحويل إلى العيادة الصحية");
   const [newNotes, setNewNotes] = useState("");
-  const [newReferralType, setNewReferralType] = useState("طھط­ظˆظٹظ„ ط¯ط§ط®ظ„ظٹ");
+  const [newReferralType, setNewReferralType] = useState("تحويل داخلي");
   const [newReferralDestination, setNewReferralDestination] = useState("");
 
   const [newVisitStudentId, setNewVisitStudentId] = useState("");
@@ -290,16 +292,16 @@ export default function HealthPage() {
   const [newVisitBloodPressure, setNewVisitBloodPressure] = useState("");
   const [newVisitTreatment, setNewVisitTreatment] = useState("");
   const [newVisitNotes, setNewVisitNotes] = useState("");
-  const [newVisitStatus, setNewVisitStatus] = useState("ظ…ظƒطھظ…ظ„ط©");
+  const [newVisitStatus, setNewVisitStatus] = useState("مكتملة");
 
   const [newCaseStudentId, setNewCaseStudentId] = useState("");
-  const [newCaseType, setNewCaseType] = useState("ط±ط¨ظˆ");
-  const [newCaseSeverity, setNewCaseSeverity] = useState("ظ…طھظˆط³ط·ط©");
+  const [newCaseType, setNewCaseType] = useState("ربو");
+  const [newCaseSeverity, setNewCaseSeverity] = useState("متوسطة");
   const [newCaseDiagnosis, setNewCaseDiagnosis] = useState("");
   const [newCaseMedications, setNewCaseMedications] = useState("");
   const [newCaseEmergencyContact, setNewCaseEmergencyContact] = useState("");
   const [newCaseActionPlan, setNewCaseActionPlan] = useState("");
-  const [newCaseStatus, setNewCaseStatus] = useState("ظ†ط´ط·ط©");
+  const [newCaseStatus, setNewCaseStatus] = useState("نشطة");
 
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [errorMsg, setErrorMsg] = useState("");
@@ -424,7 +426,7 @@ export default function HealthPage() {
         source: "health_referrals",
         school_id: item.school_id,
         student_id: item.student_id,
-        student_name: student?.full_name || "ط·ط§ظ„ط¨ ط؛ظٹط± ظ…ط¹ط±ظˆظپ",
+        student_name: student?.full_name || "طالب غير معروف",
         class_name: student?.classroom || null,
         section: student?.section || null,
         grade_level: student?.grade_level || null,
@@ -450,11 +452,11 @@ export default function HealthPage() {
           school_id: item.school_id,
           student_id: item.student_id ?? null,
           student_name:
-            item.student_name || student?.full_name || "ط·ط§ظ„ط¨ ط؛ظٹط± ظ…ط¹ط±ظˆظپ",
+            item.student_name || student?.full_name || "طالب غير معروف",
           class_name: item.class_name || student?.classroom || null,
           section: item.section || student?.section || null,
           grade_level: student?.grade_level || null,
-          reason: item.reason || "طھط­ظˆظٹظ„ ظ„ظ„ظ…ظˆط¬ظ‡ ط§ظ„طµط­ظٹ",
+          reason: item.reason || "تحويل للموجه الصحي",
           notes: item.close_notes || item.teacher_notes || null,
           status: normalizeHealthStatus(item.status),
           created_at: item.created_at ?? null,
@@ -547,22 +549,22 @@ export default function HealthPage() {
   ).length;
 
   const activeCasesCount = healthCases.filter(
-    (item) => item.case_status !== "ظ…ط؛ظ„ظ‚ط©"
+    (item) => item.case_status !== "مغلقة"
   ).length;
 
   const openReferralsCount = unifiedReferrals.filter(
-    (item) => item.status !== "ظ…ط؛ظ„ظ‚"
+    (item) => item.status !== "مغلق"
   ).length;
 
   const closedReferralsCount = unifiedReferrals.filter(
-    (item) => item.status === "ظ…ط؛ظ„ظ‚"
+    (item) => item.status === "مغلق"
   ).length;
 
   const followUpCount =
     unifiedReferrals.filter((item) =>
-      ["طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©", "ظٹط­طھط§ط¬ ظ…طھط§ط¨ط¹ط©"].includes(item.status)
+      ["تحت المتابعة", "يحتاج متابعة"].includes(item.status)
     ).length +
-    healthCases.filter((item) => item.case_status === "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©").length;
+    healthCases.filter((item) => item.case_status === "تحت المتابعة").length;
 
   const totalHealthRecords =
     healthVisits.length + healthCases.length + unifiedReferrals.length;
@@ -602,7 +604,7 @@ export default function HealthPage() {
     if (!currentSchool?.id) return;
 
     if (!newStudentId) {
-      showToast("error", "ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨ ط£ظˆظ„ط§ظ‹");
+      showToast("error", "اختر الطالب أولاً");
       return;
     }
 
@@ -619,9 +621,9 @@ export default function HealthPage() {
         referral_date: getTodayDate(),
         referral_type: newReferralType || null,
         referral_destination: newReferralDestination.trim() || null,
-        reason: newReason.trim() || "طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©",
+        reason: newReason.trim() || "تحويل إلى العيادة الصحية",
         notes: newNotes.trim() || null,
-        status: "ط¬ط¯ظٹط¯",
+        status: "جديد",
         parent_notified: false,
       })
       .select()
@@ -637,8 +639,8 @@ export default function HealthPage() {
     const created = data as HealthReferral;
 
     await addNotification(
-      "طھط­ظˆظٹظ„ طµط­ظٹ ط¬ط¯ظٹط¯",
-      `طھظ… طھط­ظˆظٹظ„ ط§ظ„ط·ط§ظ„ط¨ ${student?.full_name || "ط؛ظٹط± ظ…ط­ط¯ط¯"} ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©.`,
+      "تحويل صحي جديد",
+      `تم تحويل الطالب ${student?.full_name || "غير محدد"} إلى العيادة الصحية.`,
       "health_referral"
     );
 
@@ -646,8 +648,8 @@ export default function HealthPage() {
       school_id: currentSchool.id,
       student_id: newStudentId,
       alert_type: "health",
-      title: "طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©",
-      message: `طھظ… طھط­ظˆظٹظ„ ط§ظ„ط·ط§ظ„ط¨ ${student?.full_name || ""} ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©`,
+      title: "تحويل إلى العيادة الصحية",
+      message: `تم تحويل الطالب ${student?.full_name || ""} إلى العيادة الصحية`,
       severity: "medium",
       is_read: false,
     });
@@ -656,21 +658,21 @@ export default function HealthPage() {
       newStudentId,
       student?.full_name || null,
       "health_referral",
-      "طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©",
-      newReason.trim() || "طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©"
+      "تحويل إلى العيادة الصحية",
+      newReason.trim() || "تحويل إلى العيادة الصحية"
     );
 
     setHealthReferrals((prev) => [created, ...prev]);
     setNewNotes("");
     setNewReferralDestination("");
-    showToast("success", "طھظ… ط¥ط¶ط§ظپط© ط§ظ„طھط­ظˆظٹظ„ ط§ظ„طµط­ظٹ ط¨ظ†ط¬ط§ط­");
+    showToast("success", "تم إضافة التحويل الصحي بنجاح");
   }
 
   async function createHealthVisit() {
     if (!currentSchool?.id) return;
 
     if (!newVisitStudentId) {
-      showToast("error", "ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨ ط£ظˆظ„ط§ظ‹");
+      showToast("error", "اختر الطالب أولاً");
       return;
     }
 
@@ -695,7 +697,7 @@ export default function HealthPage() {
         blood_pressure: newVisitBloodPressure.trim() || null,
         treatment: newVisitTreatment.trim() || null,
         notes: newVisitNotes.trim() || null,
-        visit_status: newVisitStatus || "ظ…ظƒطھظ…ظ„ط©",
+        visit_status: newVisitStatus || "مكتملة",
       })
       .select()
       .single();
@@ -710,8 +712,8 @@ export default function HealthPage() {
     const created = data as HealthVisit;
 
     await addNotification(
-      "ط²ظٹط§ط±ط© طµط­ظٹط© ط¬ط¯ظٹط¯ط©",
-      `طھظ… طھط³ط¬ظٹظ„ ط²ظٹط§ط±ط© طµط­ظٹط© ظ„ظ„ط·ط§ظ„ط¨ ${student?.full_name || "ط؛ظٹط± ظ…ط­ط¯ط¯"}.`,
+      "زيارة صحية جديدة",
+      `تم تسجيل زيارة صحية للطالب ${student?.full_name || "غير محدد"}.`,
       "health_visit"
     );
 
@@ -719,8 +721,8 @@ export default function HealthPage() {
       newVisitStudentId,
       student?.full_name || null,
       "health_visit",
-      "ط²ظٹط§ط±ط© طµط­ظٹط©",
-      newVisitSymptoms.trim() || "طھظ… طھط³ط¬ظٹظ„ ط²ظٹط§ط±ط© طµط­ظٹط© ظپظٹ ط§ظ„ط¹ظٹط§ط¯ط©"
+      "زيارة صحية",
+      newVisitSymptoms.trim() || "تم تسجيل زيارة صحية في العيادة"
     );
 
     setHealthVisits((prev) => [created, ...prev]);
@@ -731,16 +733,16 @@ export default function HealthPage() {
     setNewVisitBloodPressure("");
     setNewVisitTreatment("");
     setNewVisitNotes("");
-    setNewVisitStatus("ظ…ظƒطھظ…ظ„ط©");
+    setNewVisitStatus("مكتملة");
 
-    showToast("success", "طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط²ظٹط§ط±ط© ط§ظ„طµط­ظٹط© ط¨ظ†ط¬ط§ط­");
+    showToast("success", "تم تسجيل الزيارة الصحية بنجاح");
   }
 
   async function createHealthCase() {
     if (!currentSchool?.id) return;
 
     if (!newCaseStudentId) {
-      showToast("error", "ط§ط®طھط± ط§ظ„ط·ط§ظ„ط¨ ط£ظˆظ„ط§ظ‹");
+      showToast("error", "اختر الطالب أولاً");
       return;
     }
 
@@ -754,13 +756,13 @@ export default function HealthPage() {
       .insert({
         school_id: currentSchool.id,
         student_id: newCaseStudentId,
-        case_type: newCaseType || "ط£ط®ط±ظ‰",
-        severity: newCaseSeverity || "ظ…طھظˆط³ط·ط©",
+        case_type: newCaseType || "أخرى",
+        severity: newCaseSeverity || "متوسطة",
         diagnosis: newCaseDiagnosis.trim() || null,
         medications: newCaseMedications.trim() || null,
         emergency_contact: newCaseEmergencyContact.trim() || null,
         action_plan: newCaseActionPlan.trim() || null,
-        case_status: newCaseStatus || "ظ†ط´ط·ط©",
+        case_status: newCaseStatus || "نشطة",
       })
       .select()
       .single();
@@ -775,8 +777,8 @@ export default function HealthPage() {
     const created = data as HealthCase;
 
     await addNotification(
-      "ط­ط§ظ„ط© طµط­ظٹط© ط¬ط¯ظٹط¯ط©",
-      `طھظ… طھط³ط¬ظٹظ„ ط­ط§ظ„ط© طµط­ظٹط© ظ„ظ„ط·ط§ظ„ط¨ ${student?.full_name || "ط؛ظٹط± ظ…ط­ط¯ط¯"}.`,
+      "حالة صحية جديدة",
+      `تم تسجيل حالة صحية للطالب ${student?.full_name || "غير محدد"}.`,
       "health_case"
     );
 
@@ -784,7 +786,7 @@ export default function HealthPage() {
       newCaseStudentId,
       student?.full_name || null,
       "health_case",
-      "طھط³ط¬ظٹظ„ ط­ط§ظ„ط© طµط­ظٹط©",
+      "تسجيل حالة صحية",
       `${newCaseType} - ${newCaseSeverity}`
     );
 
@@ -794,11 +796,11 @@ export default function HealthPage() {
     setNewCaseMedications("");
     setNewCaseEmergencyContact("");
     setNewCaseActionPlan("");
-    setNewCaseType("ط±ط¨ظˆ");
-    setNewCaseSeverity("ظ…طھظˆط³ط·ط©");
-    setNewCaseStatus("ظ†ط´ط·ط©");
+    setNewCaseType("ربو");
+    setNewCaseSeverity("متوسطة");
+    setNewCaseStatus("نشطة");
 
-    showToast("success", "طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط­ط§ظ„ط© ط§ظ„طµط­ظٹط© ط¨ظ†ط¬ط§ط­");
+    showToast("success", "تم تسجيل الحالة الصحية بنجاح");
   }
 
   async function updateReferralStatus(item: UnifiedHealthReferral, status: string) {
@@ -812,18 +814,18 @@ export default function HealthPage() {
       item.source === "health_referrals"
         ? {
             status,
-            closed_at: status === "ظ…ط؛ظ„ظ‚" ? new Date().toISOString() : null,
+            closed_at: status === "مغلق" ? new Date().toISOString() : null,
           }
         : {
             status:
-              status === "ظ…ط؛ظ„ظ‚"
-                ? "ظ…ط؛ظ„ظ‚ط© طµط­ظٹط§ظ‹"
-                : status === "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©"
-                ? "طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط© ط§ظ„طµط­ظٹط©"
+              status === "مغلق"
+                ? "مغلقة صحياً"
+                : status === "تحت المتابعة"
+                ? "تحت المتابعة الصحية"
                 : status,
-            close_notes: `طھط­ط¯ظٹط« طµط­ظٹ: ${status}`,
+            close_notes: `تحديث صحي: ${status}`,
             updated_at: new Date().toISOString(),
-            closed_at: status === "ظ…ط؛ظ„ظ‚" ? new Date().toISOString() : null,
+            closed_at: status === "مغلق" ? new Date().toISOString() : null,
           };
 
     const { error } = await supabase
@@ -839,8 +841,8 @@ export default function HealthPage() {
     }
 
     await addNotification(
-      "طھط­ط¯ظٹط« ط­ط§ظ„ط© طµط­ظٹط©",
-      `طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„ط·ط§ظ„ط¨ ${item.student_name || "ط؛ظٹط± ظ…ط­ط¯ط¯"} ط¥ظ„ظ‰: ${status}`,
+      "تحديث حالة صحية",
+      `تم تحديث حالة الطالب ${item.student_name || "غير محدد"} إلى: ${status}`,
       "health_status"
     );
 
@@ -848,23 +850,23 @@ export default function HealthPage() {
       item.student_id,
       item.student_name,
       "health",
-      "طھط­ط¯ظٹط« ط­ط§ظ„ط© طµط­ظٹط©",
-      `طھظ… طھط­ط¯ظٹط« ط§ظ„ط­ط§ظ„ط© ط§ظ„طµط­ظٹط© ط¥ظ„ظ‰: ${status}`
+      "تحديث حالة صحية",
+      `تم تحديث الحالة الصحية إلى: ${status}`
     );
 
-    if (status === "طھط­ظˆظٹظ„ ظ„ظˆظ„ظٹ ط§ظ„ط£ظ…ط±" && item.student_id) {
+    if (status === "تحويل لولي الأمر" && item.student_id) {
       await supabase.from("student_interventions").insert({
         school_id: currentSchool.id,
         student_id: item.student_id,
         intervention_type: "parent_call",
-        title: "ط§ط³طھط¯ط¹ط§ط، ظˆظ„ظٹ ط£ظ…ط± ط¨ط³ط¨ط¨ ط­ط§ظ„ط© طµط­ظٹط©",
-        notes: `طھظ… ط¥ظ†ط´ط§ط، طھط¯ط®ظ„ طھظ„ظ‚ط§ط¦ظٹ ظ…ظ† ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط© ظ„ظ„ط·ط§ظ„ط¨ ${item.student_name || ""}`,
-        status: "ظ…ظپطھظˆط­",
+        title: "استدعاء ولي أمر بسبب حالة صحية",
+        notes: `تم إنشاء تدخل تلقائي من العيادة الصحية للطالب ${item.student_name || ""}`,
+        status: "مفتوح",
       });
     }
 
     setUpdatingId(null);
-    showToast("success", "طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„طھط­ظˆظٹظ„ ط§ظ„طµط­ظٹ");
+    showToast("success", "تم تحديث حالة التحويل الصحي");
     void fetchData();
   }
 
@@ -902,11 +904,11 @@ export default function HealthPage() {
       item.student_id,
       item.student_name,
       "health",
-      "ط­ظپط¸ ظ…ظ„ط§ط­ط¸ط§طھ طµط­ظٹط©",
-      notes || "طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„طµط­ظٹط©"
+      "حفظ ملاحظات صحية",
+      notes || "تم تحديث الملاحظات الصحية"
     );
 
-    showToast("success", "طھظ… ط­ظپط¸ ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„طµط­ظٹط©");
+    showToast("success", "تم حفظ الملاحظات الصحية");
     void fetchData();
   }
 
@@ -936,11 +938,11 @@ export default function HealthPage() {
       item.student_id,
       student?.full_name || null,
       "health_visit",
-      "طھط­ط¯ظٹط« ط²ظٹط§ط±ط© طµط­ظٹط©",
-      `طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„ط²ظٹط§ط±ط© ط¥ظ„ظ‰: ${status}`
+      "تحديث زيارة صحية",
+      `تم تحديث حالة الزيارة إلى: ${status}`
     );
 
-    showToast("success", "طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„ط²ظٹط§ط±ط©");
+    showToast("success", "تم تحديث حالة الزيارة");
     void fetchData();
   }
     async function updateCaseStatus(item: HealthCase, status: string) {
@@ -970,11 +972,11 @@ export default function HealthPage() {
       item.student_id,
       student?.full_name || null,
       "health_case",
-      "طھط­ط¯ظٹط« ط­ط§ظ„ط© طµط­ظٹط© ظ…ط²ظ…ظ†ط©",
-      `طھظ… طھط­ط¯ظٹط« ط§ظ„ط­ط§ظ„ط© ط¥ظ„ظ‰: ${status}`
+      "تحديث حالة صحية مزمنة",
+      `تم تحديث الحالة إلى: ${status}`
     );
 
-    showToast("success", "طھظ… طھط­ط¯ظٹط« ط§ظ„ط­ط§ظ„ط© ط§ظ„طµط­ظٹط©");
+    showToast("success", "تم تحديث الحالة الصحية");
     void fetchData();
   }
 
@@ -1008,11 +1010,11 @@ export default function HealthPage() {
       item.student_id,
       student?.full_name || null,
       "health_case",
-      "طھط­ط¯ظٹط« ط®ط·ط© ط§ظ„طھط¹ط§ظ…ظ„ ط§ظ„طµط­ظٹ",
-      actionPlan || "طھظ… طھط­ط¯ظٹط« ط®ط·ط© ط§ظ„طھط¹ط§ظ…ظ„ ط§ظ„طµط­ظٹ"
+      "تحديث خطة التعامل الصحي",
+      actionPlan || "تم تحديث خطة التعامل الصحي"
     );
 
-    showToast("success", "طھظ… ط­ظپط¸ ط®ط·ط© ط§ظ„طھط¹ط§ظ…ظ„");
+    showToast("success", "تم حفظ خطة التعامل");
     void fetchData();
   }
 
@@ -1045,11 +1047,11 @@ export default function HealthPage() {
       item.student_id,
       student?.full_name || null,
       "health_visit",
-      "طھط­ط¯ظٹط« ظ…ظ„ط§ط­ط¸ط§طھ ط²ظٹط§ط±ط© طµط­ظٹط©",
-      notes || "طھظ… طھط­ط¯ظٹط« ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„ط²ظٹط§ط±ط© ط§ظ„طµط­ظٹط©"
+      "تحديث ملاحظات زيارة صحية",
+      notes || "تم تحديث ملاحظات الزيارة الصحية"
     );
 
-    showToast("success", "طھظ… ط­ظپط¸ ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„ط²ظٹط§ط±ط©");
+    showToast("success", "تم حفظ ملاحظات الزيارة");
     void fetchData();
   }
 
@@ -1059,7 +1061,7 @@ export default function HealthPage() {
   ) {
     if (!currentSchool?.id) return;
 
-    const confirmed = window.confirm("ظ‡ظ„ طھط±ظٹط¯ ط­ط°ظپ ظ‡ط°ط§ ط§ظ„ط³ط¬ظ„طں");
+    const confirmed = window.confirm("هل تريد حذف هذا السجل؟");
     if (!confirmed) return;
 
     setUpdatingId(`delete-${id}`);
@@ -1077,34 +1079,34 @@ export default function HealthPage() {
       return;
     }
 
-    showToast("success", "طھظ… ط­ط°ظپ ط§ظ„ط³ط¬ظ„ ط¨ظ†ط¬ط§ط­");
+    showToast("success", "تم حذف السجل بنجاح");
     void fetchData();
   }
 
   function exportHealthPDF() {
     exportTableToPDF({
-      title: "طھظ‚ط±ظٹط± ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¬ظ‡ ط§ظ„طµط­ظٹ",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: `طھظ‚ط±ظٹط± طµط­ظٹ ط´ط§ظ…ظ„ ${getTodayDate()}`,
-      headers: ["ط§ظ„ظ…ط¤ط´ط±", "ط§ظ„ظ‚ظٹظ…ط©"],
+      title: "تقرير بوابة الموجه الصحي",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: `تقرير صحي شامل ${getTodayDate()}`,
+      headers: ["المؤشر", "القيمة"],
       rows: [
-        ["ط²ظٹط§ط±ط§طھ ط§ظ„ظٹظˆظ…", todayVisitsCount],
-        ["ط§ظ„ط­ط§ظ„ط§طھ ط§ظ„طµط­ظٹط© ط§ظ„ظ†ط´ط·ط©", activeCasesCount],
-        ["ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„ظ…ظپطھظˆط­ط©", openReferralsCount],
-        ["ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„ظ…ط؛ظ„ظ‚ط©", closedReferralsCount],
-        ["ط·ظ„ط§ط¨ طھط­طھ ط§ظ„ظ…طھط§ط¨ط¹ط©", followUpCount],
-        ["ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط³ط¬ظ„ط§طھ ط§ظ„طµط­ظٹط©", totalHealthRecords],
+        ["زيارات اليوم", todayVisitsCount],
+        ["الحالات الصحية النشطة", activeCasesCount],
+        ["التحويلات المفتوحة", openReferralsCount],
+        ["التحويلات المغلقة", closedReferralsCount],
+        ["طلاب تحت المتابعة", followUpCount],
+        ["إجمالي السجلات الصحية", totalHealthRecords],
       ],
       fileName: `health-report-${getTodayDate()}.pdf`,
     });
 
-    showToast("success", "طھظ… طھط¬ظ‡ظٹط² طھظ‚ط±ظٹط± PDF");
+    showToast("success", "تم تجهيز تقرير PDF");
   }
 
   async function exportHealthExcel() {
     const rows = [
       ...unifiedReferrals.map((item) => [
-        "طھط­ظˆظٹظ„ طµط­ظٹ",
+        "تحويل صحي",
         item.student_name || "-",
         item.class_name || "-",
         item.section || "-",
@@ -1112,8 +1114,8 @@ export default function HealthPage() {
         item.reason || "-",
         item.notes || "-",
         item.source === "health_referrals"
-          ? "طھط­ظˆظٹظ„ طµط­ظٹ ظ…ط¨ط§ط´ط±"
-          : "ط¥ط­ط§ظ„ط© ظ…ظ† ط§ظ„ظˆظƒظٹظ„/ط§ظ„ظ…ط±ط´ط¯",
+          ? "تحويل صحي مباشر"
+          : "إحالة من الوكيل/المرشد",
         item.created_at ? item.created_at.slice(0, 10) : "-",
       ]),
 
@@ -1121,14 +1123,14 @@ export default function HealthPage() {
         const student = studentMap.get(item.student_id);
 
         return [
-          "ط²ظٹط§ط±ط© طµط­ظٹط©",
+          "زيارة صحية",
           student?.full_name || "-",
           student?.classroom || "-",
           student?.section || "-",
           item.visit_status || "-",
           item.symptoms || "-",
           item.notes || "-",
-          "ط¹ظٹط§ط¯ط© ظ…ط¯ط±ط³ظٹط©",
+          "عيادة مدرسية",
           item.visit_date || "-",
         ];
       }),
@@ -1137,7 +1139,7 @@ export default function HealthPage() {
         const student = studentMap.get(item.student_id);
 
         return [
-          "ط­ط§ظ„ط© طµط­ظٹط© ظ…ط²ظ…ظ†ط©",
+          "حالة صحية مزمنة",
           student?.full_name || "-",
           student?.classroom || "-",
           student?.section || "-",
@@ -1151,25 +1153,25 @@ export default function HealthPage() {
     ];
 
     await exportTableToExcel({
-      title: "طھظ‚ط±ظٹط± ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¬ظ‡ ط§ظ„طµط­ظٹ",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ط§ظ„ط³ط¬ظ„ط§طھ ط§ظ„طµط­ظٹط© ط§ظ„ط´ط§ظ…ظ„ط©",
+      title: "تقرير بوابة الموجه الصحي",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "السجلات الصحية الشاملة",
       headers: [
-        "ط§ظ„ظ†ظˆط¹",
-        "ط§ظ„ط·ط§ظ„ط¨",
-        "ط§ظ„ظپطµظ„",
-        "ط§ظ„ط´ط¹ط¨ط©",
-        "ط§ظ„ط­ط§ظ„ط©",
-        "ط§ظ„ط³ط¨ط¨/ط§ظ„ظ†ظˆط¹",
-        "ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ/ط§ظ„ط®ط·ط©",
-        "ط§ظ„ظ…طµط¯ط±/ط§ظ„ط®ط·ظˆط±ط©",
-        "ط§ظ„طھط§ط±ظٹط®",
+        "النوع",
+        "الطالب",
+        "الفصل",
+        "الشعبة",
+        "الحالة",
+        "السبب/النوع",
+        "الملاحظات/الخطة",
+        "المصدر/الخطورة",
+        "التاريخ",
       ],
       rows,
       fileName: `health-records-${getTodayDate()}.xlsx`,
     });
 
-    showToast("success", "طھظ… طھطµط¯ظٹط± Excel");
+    showToast("success", "تم تصدير Excel");
   }
 
   if (schoolLoading || loading) {
@@ -1185,7 +1187,9 @@ export default function HealthPage() {
   return (
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
-        <div className="space-y-5" dir="rtl">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
+
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
@@ -1297,7 +1301,7 @@ export default function HealthPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ط¨ط­ط« ط¨ط§ط³ظ… ط§ظ„ط·ط§ظ„ط¨ ط£ظˆ ط§ظ„ظپطµظ„ ط£ظˆ ط§ظ„طھط´ط®ظٹطµ ط£ظˆ ط§ظ„ظ…ظ„ط§ط­ط¸ط©..."
+                placeholder="بحث باسم الطالب أو الفصل أو التشخيص أو الملاحظة..."
                 className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm outline-none focus:border-[#0DA9A6]"
               />
             </div>
@@ -1305,21 +1309,21 @@ export default function HealthPage() {
                     {activeTab === "dashboard" && (
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <DashboardInfoCard
-                title="ظ…ظ„ط®طµ ط§ظ„طھط­ظˆظٹظ„ط§طھ"
+                title="ملخص التحويلات"
                 value={unifiedReferrals.length}
-                description="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„طµط­ظٹط© ط§ظ„ظ…ط¨ط§ط´ط±ط© ظˆط§ظ„ظ…ط­ظˆظ„ط© ظ…ظ† ط§ظ„ظˆظƒظٹظ„/ط§ظ„ظ…ط±ط´ط¯."
+                description="إجمالي التحويلات الصحية المباشرة والمحولة من الوكيل/المرشد."
                 icon={<ClipboardList size={22} />}
               />
               <DashboardInfoCard
-                title="ظ…ظ„ط®طµ ط§ظ„ط²ظٹط§ط±ط§طھ"
+                title="ملخص الزيارات"
                 value={healthVisits.length}
-                description="ط¥ط¬ظ…ط§ظ„ظٹ ط²ظٹط§ط±ط§طھ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط© ط§ظ„ظ…ط³ط¬ظ„ط©."
+                description="إجمالي زيارات العيادة الصحية المسجلة."
                 icon={<Stethoscope size={22} />}
               />
               <DashboardInfoCard
-                title="ظ…ظ„ط®طµ ط§ظ„ط­ط§ظ„ط§طھ ط§ظ„ظ…ط²ظ…ظ†ط©"
+                title="ملخص الحالات المزمنة"
                 value={healthCases.length}
-                description="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط­ط§ظ„ط§طھ ط§ظ„طµط­ظٹط© ط§ظ„ظ…ط²ظ…ظ†ط© ط£ظˆ ط§ظ„ظ…ظ‡ظ…ط©."
+                description="إجمالي الحالات الصحية المزمنة أو المهمة."
                 icon={<ShieldAlert size={22} />}
               />
             </section>
@@ -1329,7 +1333,7 @@ export default function HealthPage() {
             <>
               <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <h2 className="mb-5 text-2xl font-black text-[#15445A]">
-                  ط¥ط¶ط§ظپط© طھط­ظˆظٹظ„ طµط­ظٹ ظٹط¯ظˆظٹ
+                  إضافة تحويل صحي يدوي
                 </h2>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -1348,21 +1352,21 @@ export default function HealthPage() {
                   <input
                     value={newReason}
                     onChange={(event) => setNewReason(event.target.value)}
-                    placeholder="ط³ط¨ط¨ ط§ظ„طھط­ظˆظٹظ„"
+                    placeholder="سبب التحويل"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newNotes}
                     onChange={(event) => setNewNotes(event.target.value)}
-                    placeholder="ظ…ظ„ط§ط­ط¸ط§طھ ط£ظˆظ„ظٹط©"
+                    placeholder="ملاحظات أولية"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newReferralType}
                     onChange={(event) => setNewReferralType(event.target.value)}
-                    placeholder="ظ†ظˆط¹ ط§ظ„طھط­ظˆظٹظ„"
+                    placeholder="نوع التحويل"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1371,7 +1375,7 @@ export default function HealthPage() {
                     onChange={(event) =>
                       setNewReferralDestination(event.target.value)
                     }
-                    placeholder="ط¬ظ‡ط© ط§ظ„طھط­ظˆظٹظ„"
+                    placeholder="جهة التحويل"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1381,7 +1385,7 @@ export default function HealthPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
                   >
                     <PlusCircle size={17} />
-                    {saving ? "ط¬ط§ط±ظٹ..." : "ط¥ط¶ط§ظپط© ط§ظ„طھط­ظˆظٹظ„"}
+                    {saving ? "جاري..." : "إضافة التحويل"}
                   </button>
                 </div>
               </section>
@@ -1393,7 +1397,7 @@ export default function HealthPage() {
                     onChange={(event) => setStatusFilter(event.target.value)}
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   >
-                    <option value="all">ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ</option>
+                    <option value="all">كل الحالات</option>
                     {HEALTH_STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
                         {status}
@@ -1406,14 +1410,14 @@ export default function HealthPage() {
                     onChange={(event) => setSourceFilter(event.target.value)}
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   >
-                    <option value="all">ظƒظ„ ط§ظ„ظ…طµط§ط¯ط±</option>
-                    <option value="health_referrals">طھط­ظˆظٹظ„ طµط­ظٹ ظ…ط¨ط§ط´ط±</option>
-                    <option value="student_referrals">ط¥ط­ط§ظ„ط© ظ…ظ† ط§ظ„ظˆظƒظٹظ„/ط§ظ„ظ…ط±ط´ط¯</option>
+                    <option value="all">كل المصادر</option>
+                    <option value="health_referrals">تحويل صحي مباشر</option>
+                    <option value="student_referrals">إحالة من الوكيل/المرشد</option>
                   </select>
                 </div>
 
                 {filteredReferrals.length === 0 ? (
-                  <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ طھط­ظˆظٹظ„ط§طھ طµط­ظٹط© ط­ط§ظ„ظٹط§ظ‹." />
+                  <EmptyBox text="لا توجد تحويلات صحية حالياً." />
                 ) : (
                   <div className="space-y-3">
                     {filteredReferrals.map((item) => {
@@ -1427,14 +1431,14 @@ export default function HealthPage() {
                           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
                             <span>
                               {item.source === "health_referrals"
-                                ? "طھط­ظˆظٹظ„ طµط­ظٹ ظ…ط¨ط§ط´ط±"
-                                : "ط¥ط­ط§ظ„ط© ظ…ظ† ط§ظ„ظˆظƒظٹظ„/ط§ظ„ظ…ط±ط´ط¯"}
+                                ? "تحويل صحي مباشر"
+                                : "إحالة من الوكيل/المرشد"}
                             </span>
-                            <span>â€¢</span>
+                            <span>•</span>
                             <span>
                               {getElapsedLabel(item.created_at || item.referral_date)}
                             </span>
-                            <span>â€¢</span>
+                            <span>•</span>
                             <span>
                               {formatDate(item.created_at || item.referral_date)}
                             </span>
@@ -1446,29 +1450,29 @@ export default function HealthPage() {
                                 <h3 className="text-lg font-black text-[#15445A]">
                                   {item.student_name}
                                 </h3>
-                                <StatusBadge status={item.status || "ط¬ط¯ظٹط¯"} />
+                                <StatusBadge status={item.status || "جديد"} />
                               </div>
 
                               <p className="text-sm text-slate-600">
-                                ط§ظ„ظپطµظ„: {item.class_name || "-"}
+                                الفصل: {item.class_name || "-"}
                                 {item.section ? ` - ${item.section}` : ""}
                               </p>
 
                               <p className="mt-2 text-sm leading-7 text-slate-600">
-                                ط§ظ„ط³ط¨ط¨: {item.reason || "طھط­ظˆظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©"}
+                                السبب: {item.reason || "تحويل إلى العيادة الصحية"}
                               </p>
 
                               {item.referral_destination && (
                                 <p className="mt-1 text-xs font-bold text-slate-500">
-                                  ط¬ظ‡ط© ط§ظ„طھط­ظˆظٹظ„: {item.referral_destination}
+                                  جهة التحويل: {item.referral_destination}
                                 </p>
                               )}
 
                               {item.source_teacher_name && (
                                 <p className="mt-1 text-xs text-slate-400">
-                                  ظ…ظ†: {item.source_teacher_name} | ط§ظ„ظ…ط§ط¯ط©:{" "}
-                                  {item.source_subject || "â€”"} | ط§ظ„ط­طµط©:{" "}
-                                  {item.source_period_number || "â€”"}
+                                  من: {item.source_teacher_name} | المادة:{" "}
+                                  {item.source_subject || "—"} | الحصة:{" "}
+                                  {item.source_period_number || "—"}
                                 </p>
                               )}
 
@@ -1480,7 +1484,7 @@ export default function HealthPage() {
                                     [key]: event.target.value,
                                   }))
                                 }
-                                placeholder="ط§ظƒطھط¨ ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„طµط­ظٹط© ط£ظˆ ط§ظ„ط¥ط¬ط±ط§ط، ط§ظ„ظ…طھط®ط°..."
+                                placeholder="اكتب الملاحظات الصحية أو الإجراء المتخذ..."
                                 className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
                               />
 
@@ -1491,7 +1495,7 @@ export default function HealthPage() {
                                   className="inline-flex items-center gap-1 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
                                 >
                                   <Save size={14} />
-                                  ط­ظپط¸ ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ
+                                  حفظ الملاحظات
                                 </button>
 
                                 <button
@@ -1502,14 +1506,14 @@ export default function HealthPage() {
                                   className="inline-flex items-center gap-1 rounded-2xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
                                 >
                                   <Trash2 size={14} />
-                                  ط­ط°ظپ
+                                  حذف
                                 </button>
                               </div>
                             </div>
 
                             <div className="w-full xl:w-72">
                               <select
-                                value={item.status || "ط¬ط¯ظٹط¯"}
+                                value={item.status || "جديد"}
                                 onChange={(event) =>
                                   void updateReferralStatus(item, event.target.value)
                                 }
@@ -1537,7 +1541,7 @@ export default function HealthPage() {
             <>
               <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <h2 className="mb-5 text-2xl font-black text-[#15445A]">
-                  طھط³ط¬ظٹظ„ ط²ظٹط§ط±ط© طµط­ظٹط©
+                  تسجيل زيارة صحية
                 </h2>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -1556,14 +1560,14 @@ export default function HealthPage() {
                   <input
                     value={newVisitSymptoms}
                     onChange={(event) => setNewVisitSymptoms(event.target.value)}
-                    placeholder="ط§ظ„ط£ط¹ط±ط§ط¶"
+                    placeholder="الأعراض"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newVisitDiagnosis}
                     onChange={(event) => setNewVisitDiagnosis(event.target.value)}
-                    placeholder="ط§ظ„طھط´ط®ظٹطµ"
+                    placeholder="التشخيص"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1572,7 +1576,7 @@ export default function HealthPage() {
                     onChange={(event) =>
                       setNewVisitTemperature(event.target.value)
                     }
-                    placeholder="ط§ظ„ط­ط±ط§ط±ط©"
+                    placeholder="الحرارة"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1581,21 +1585,21 @@ export default function HealthPage() {
                     onChange={(event) =>
                       setNewVisitBloodPressure(event.target.value)
                     }
-                    placeholder="ط¶ط؛ط· ط§ظ„ط¯ظ…"
+                    placeholder="ضغط الدم"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newVisitTreatment}
                     onChange={(event) => setNewVisitTreatment(event.target.value)}
-                    placeholder="ط§ظ„ط¹ظ„ط§ط¬ / ط§ظ„ط¥ط¬ط±ط§ط،"
+                    placeholder="العلاج / الإجراء"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newVisitNotes}
                     onChange={(event) => setNewVisitNotes(event.target.value)}
-                    placeholder="ظ…ظ„ط§ط­ط¸ط§طھ"
+                    placeholder="ملاحظات"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1617,13 +1621,13 @@ export default function HealthPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
                   >
                     <PlusCircle size={17} />
-                    طھط³ط¬ظٹظ„ ط§ظ„ط²ظٹط§ط±ط©
+                    تسجيل الزيارة
                   </button>
                 </div>
               </section>
                             <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
                 {filteredVisits.length === 0 ? (
-                  <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ ط²ظٹط§ط±ط§طھ طµط­ظٹط© ط­ط§ظ„ظٹط§ظ‹." />
+                  <EmptyBox text="لا توجد زيارات صحية حالياً." />
                 ) : (
                   <div className="space-y-3">
                     {filteredVisits.map((item) => {
@@ -1636,10 +1640,10 @@ export default function HealthPage() {
                           className="rounded-3xl border border-slate-100 bg-slate-50 p-5"
                         >
                           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
-                            <span>ط²ظٹط§ط±ط© طµط­ظٹط©</span>
-                            <span>â€¢</span>
+                            <span>زيارة صحية</span>
+                            <span>•</span>
                             <span>{formatDate(item.created_at || item.visit_date)}</span>
-                            <span>â€¢</span>
+                            <span>•</span>
                             <span>{getElapsedLabel(item.created_at || item.visit_date)}</span>
                           </div>
 
@@ -1647,26 +1651,26 @@ export default function HealthPage() {
                             <div className="flex-1">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
                                 <h3 className="text-lg font-black text-[#15445A]">
-                                  {student?.full_name || "ط·ط§ظ„ط¨ ط؛ظٹط± ظ…ط¹ط±ظˆظپ"}
+                                  {student?.full_name || "طالب غير معروف"}
                                 </h3>
-                                <StatusBadge status={item.visit_status || "ظ…ظƒطھظ…ظ„ط©"} />
+                                <StatusBadge status={item.visit_status || "مكتملة"} />
                               </div>
 
                               <p className="text-sm text-slate-600">
-                                ط§ظ„ظپطµظ„: {student?.classroom || "-"}
+                                الفصل: {student?.classroom || "-"}
                                 {student?.section ? ` - ${student.section}` : ""}
                               </p>
 
                               <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                                <MiniInfo label="ط§ظ„ط£ط¹ط±ط§ط¶" value={item.symptoms} />
-                                <MiniInfo label="ط§ظ„طھط´ط®ظٹطµ" value={item.diagnosis} />
+                                <MiniInfo label="الأعراض" value={item.symptoms} />
+                                <MiniInfo label="التشخيص" value={item.diagnosis} />
                                 <MiniInfo
-                                  label="ط§ظ„ط­ط±ط§ط±ط©"
+                                  label="الحرارة"
                                   value={item.temperature ? `${item.temperature}` : null}
                                 />
-                                <MiniInfo label="ط¶ط؛ط· ط§ظ„ط¯ظ…" value={item.blood_pressure} />
-                                <MiniInfo label="ط§ظ„ط¹ظ„ط§ط¬" value={item.treatment} />
-                                <MiniInfo label="طھط§ط±ظٹط® ط§ظ„ط²ظٹط§ط±ط©" value={item.visit_date} />
+                                <MiniInfo label="ضغط الدم" value={item.blood_pressure} />
+                                <MiniInfo label="العلاج" value={item.treatment} />
+                                <MiniInfo label="تاريخ الزيارة" value={item.visit_date} />
                               </div>
 
                               <textarea
@@ -1677,7 +1681,7 @@ export default function HealthPage() {
                                     [key]: event.target.value,
                                   }))
                                 }
-                                placeholder="ظ…ظ„ط§ط­ط¸ط§طھ ط§ظ„ط²ظٹط§ط±ط©..."
+                                placeholder="ملاحظات الزيارة..."
                                 className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
                               />
 
@@ -1688,7 +1692,7 @@ export default function HealthPage() {
                                   className="inline-flex items-center gap-1 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
                                 >
                                   <Save size={14} />
-                                  ط­ظپط¸ ط§ظ„ظ…ظ„ط§ط­ط¸ط§طھ
+                                  حفظ الملاحظات
                                 </button>
 
                                 <button
@@ -1699,14 +1703,14 @@ export default function HealthPage() {
                                   className="inline-flex items-center gap-1 rounded-2xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
                                 >
                                   <Trash2 size={14} />
-                                  ط­ط°ظپ
+                                  حذف
                                 </button>
                               </div>
                             </div>
 
                             <div className="w-full xl:w-72">
                               <select
-                                value={item.visit_status || "ظ…ظƒطھظ…ظ„ط©"}
+                                value={item.visit_status || "مكتملة"}
                                 onChange={(event) =>
                                   void updateVisitStatus(item, event.target.value)
                                 }
@@ -1734,7 +1738,7 @@ export default function HealthPage() {
             <>
               <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <h2 className="mb-5 text-2xl font-black text-[#15445A]">
-                  طھط³ط¬ظٹظ„ ط­ط§ظ„ط© طµط­ظٹط© ظ…ط²ظ…ظ†ط©
+                  تسجيل حالة صحية مزمنة
                 </h2>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -1777,14 +1781,14 @@ export default function HealthPage() {
                   <input
                     value={newCaseDiagnosis}
                     onChange={(event) => setNewCaseDiagnosis(event.target.value)}
-                    placeholder="ط§ظ„طھط´ط®ظٹطµ"
+                    placeholder="التشخيص"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newCaseMedications}
                     onChange={(event) => setNewCaseMedications(event.target.value)}
-                    placeholder="ط§ظ„ط£ط¯ظˆظٹط©"
+                    placeholder="الأدوية"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1793,14 +1797,14 @@ export default function HealthPage() {
                     onChange={(event) =>
                       setNewCaseEmergencyContact(event.target.value)
                     }
-                    placeholder="ط±ظ‚ظ… ط§ظ„ط·ظˆط§ط±ط¦"
+                    placeholder="رقم الطوارئ"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
                   <input
                     value={newCaseActionPlan}
                     onChange={(event) => setNewCaseActionPlan(event.target.value)}
-                    placeholder="ط®ط·ط© ط§ظ„طھط¹ط§ظ…ظ„"
+                    placeholder="خطة التعامل"
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
                   />
 
@@ -1822,14 +1826,14 @@ export default function HealthPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
                   >
                     <PlusCircle size={17} />
-                    طھط³ط¬ظٹظ„ ط§ظ„ط­ط§ظ„ط©
+                    تسجيل الحالة
                   </button>
                 </div>
               </section>
 
               <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
                 {filteredHealthCases.length === 0 ? (
-                  <EmptyBox text="ظ„ط§ طھظˆط¬ط¯ ط­ط§ظ„ط§طھ طµط­ظٹط© ظ…ط²ظ…ظ†ط© ط­ط§ظ„ظٹط§ظ‹." />
+                  <EmptyBox text="لا توجد حالات صحية مزمنة حالياً." />
                 ) : (
                   <div className="space-y-3">
                     {filteredHealthCases.map((item) => {
@@ -1842,10 +1846,10 @@ export default function HealthPage() {
                           className="rounded-3xl border border-slate-100 bg-slate-50 p-5"
                         >
                           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
-                            <span>ط­ط§ظ„ط© طµط­ظٹط© ظ…ط²ظ…ظ†ط©</span>
-                            <span>â€¢</span>
+                            <span>حالة صحية مزمنة</span>
+                            <span>•</span>
                             <span>{formatDate(item.created_at)}</span>
-                            <span>â€¢</span>
+                            <span>•</span>
                             <span>{getElapsedLabel(item.created_at)}</span>
                           </div>
 
@@ -1853,23 +1857,23 @@ export default function HealthPage() {
                             <div className="flex-1">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
                                 <h3 className="text-lg font-black text-[#15445A]">
-                                  {student?.full_name || "ط·ط§ظ„ط¨ ط؛ظٹط± ظ…ط¹ط±ظˆظپ"}
+                                  {student?.full_name || "طالب غير معروف"}
                                 </h3>
-                                <StatusBadge status={item.case_status || "ظ†ط´ط·ط©"} />
-                                <StatusBadge status={item.severity || "ظ…طھظˆط³ط·ط©"} />
+                                <StatusBadge status={item.case_status || "نشطة"} />
+                                <StatusBadge status={item.severity || "متوسطة"} />
                               </div>
 
                               <p className="text-sm text-slate-600">
-                                ط§ظ„ظپطµظ„: {student?.classroom || "-"}
+                                الفصل: {student?.classroom || "-"}
                                 {student?.section ? ` - ${student.section}` : ""}
                               </p>
 
                               <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                                <MiniInfo label="ظ†ظˆط¹ ط§ظ„ط­ط§ظ„ط©" value={item.case_type} />
-                                <MiniInfo label="ط§ظ„طھط´ط®ظٹطµ" value={item.diagnosis} />
-                                <MiniInfo label="ط§ظ„ط£ط¯ظˆظٹط©" value={item.medications} />
+                                <MiniInfo label="نوع الحالة" value={item.case_type} />
+                                <MiniInfo label="التشخيص" value={item.diagnosis} />
+                                <MiniInfo label="الأدوية" value={item.medications} />
                                 <MiniInfo
-                                  label="ط±ظ‚ظ… ط§ظ„ط·ظˆط§ط±ط¦"
+                                  label="رقم الطوارئ"
                                   value={item.emergency_contact}
                                 />
                               </div>
@@ -1882,7 +1886,7 @@ export default function HealthPage() {
                                     [key]: event.target.value,
                                   }))
                                 }
-                                placeholder="ط®ط·ط© ط§ظ„طھط¹ط§ظ…ظ„ ط§ظ„طµط­ظٹ..."
+                                placeholder="خطة التعامل الصحي..."
                                 className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
                               />
 
@@ -1893,7 +1897,7 @@ export default function HealthPage() {
                                   className="inline-flex items-center gap-1 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
                                 >
                                   <Save size={14} />
-                                  ط­ظپط¸ ط§ظ„ط®ط·ط©
+                                  حفظ الخطة
                                 </button>
 
                                 <button
@@ -1904,14 +1908,14 @@ export default function HealthPage() {
                                   className="inline-flex items-center gap-1 rounded-2xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
                                 >
                                   <Trash2 size={14} />
-                                  ط­ط°ظپ
+                                  حذف
                                 </button>
                               </div>
                             </div>
 
                             <div className="w-full xl:w-72">
                               <select
-                                value={item.case_status || "ظ†ط´ط·ط©"}
+                                value={item.case_status || "نشطة"}
                                 onChange={(event) =>
                                   void updateCaseStatus(item, event.target.value)
                                 }
@@ -1934,7 +1938,7 @@ export default function HealthPage() {
               </section>
             </>
           )}
-        </div>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );
@@ -1990,7 +1994,7 @@ function MiniInfo({
   return (
     <div className="rounded-2xl bg-white px-4 py-3 text-sm">
       <p className="mb-1 text-xs font-bold text-slate-400">{label}</p>
-      <p className="font-bold text-slate-700">{value || "â€”"}</p>
+      <p className="font-bold text-slate-700">{value || "—"}</p>
     </div>
   );
 }
@@ -2068,7 +2072,7 @@ function LoadingBox() {
     <div className="flex min-h-[55vh] items-center justify-center">
       <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
         <Loader2 className="h-5 w-5 animate-spin text-[#15445A]" />
-        ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط§ظ„ط¹ظٹط§ط¯ط© ط§ظ„طµط­ظٹط©...
+        جاري تحميل العيادة الصحية...
       </div>
     </div>
   );

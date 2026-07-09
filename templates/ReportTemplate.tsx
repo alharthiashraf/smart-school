@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import PageHeader from "@/components/ui/page/PageHeader";
-import Section from "@/components/ui/page/Section";
+import Section from "@/components/ui/page/PageSection";
 import LoadingSkeleton from "@/components/ui/feedback/LoadingSkeleton";
 import ErrorState from "@/components/ui/feedback/ErrorState";
 

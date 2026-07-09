@@ -8,6 +8,10 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import SharedExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import PageLoader from "@/components/ui/loading/PageLoader";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -16,7 +20,6 @@ import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
-  AlertCircle,
   BarChart3,
   BookOpen,
   CalendarCheck,
@@ -29,7 +32,6 @@ import {
   FileText,
   GraduationCap,
   LineChart as LineChartIcon,
-  Loader2,
   PieChart as PieChartIcon,
   Printer,
   RefreshCcw,
@@ -874,7 +876,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
     return (
       <RoleGuard allowedRoles={REPORT_ROLES}>
         <AppShell>
-          <LoadingScreen />
+          <PageLoader text="جاري تحميل مركز التقارير..." />
         </AppShell>
       </RoleGuard>
     );
@@ -884,7 +886,15 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
     <RoleGuard allowedRoles={REPORT_ROLES}>
       <AppShell>
         <main className="space-y-6 pb-10" dir="rtl">
-          {toast && <ToastBox toast={toast} onClose={() => setToast(null)} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
@@ -1069,30 +1079,30 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <FilterSelect value={selectedGrade} onChange={setSelectedGrade}>
+              <ToolbarSelect value={selectedGrade} onChange={setSelectedGrade}>
                 <option value="all">كل المراحل / الصفوف</option>
                 {gradeNames.map((grade) => (
                   <option key={grade} value={grade}>
                     {grade}
                   </option>
                 ))}
-              </FilterSelect>
+              </ToolbarSelect>
 
-              <FilterSelect value={selectedClassroom} onChange={setSelectedClassroom}>
+              <ToolbarSelect value={selectedClassroom} onChange={setSelectedClassroom}>
                 <option value="all">كل الفصول</option>
                 {classroomNames.map((classroom) => (
                   <option key={classroom} value={classroom}>
                     {classroom}
                   </option>
                 ))}
-              </FilterSelect>
+              </ToolbarSelect>
 
-              <FilterSelect>
+              <ToolbarSelect value="all" onChange={() => undefined}>
                 <option>نوع التقرير</option>
                 <option>تشغيلي</option>
                 <option>تنفيذي</option>
                 <option>إحصائي</option>
-              </FilterSelect>
+              </ToolbarSelect>
             </div>
           </section>
 
@@ -1167,7 +1177,13 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
               })}
           </section>
 
-          {filteredReports.length === 0 && <EmptyState />}
+          {filteredReports.length === 0 && (
+            <UiEmptyState
+              icon={<Search className="h-8 w-8" />}
+              title="لا توجد تقارير مطابقة"
+              description="جرّب تغيير كلمات البحث أو نوع التقرير أو تصفير الفلاتر."
+            />
+          )}
 
           <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1253,48 +1269,6 @@ function groupLabel(group: ReportCard["group"]) {
   if (group === "academic") return "التقارير الأكاديمية";
   if (group === "operations") return "التقارير التشغيلية";
   return "التقارير التنفيذية";
-}
-
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-        <p className="font-bold">جاري تحميل مركز التقارير...</p>
-      </div>
-    </div>
-  );
-}
-
-function InfoPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 line-clamp-1 font-black text-[#15445A]">{value}</p>
-    </div>
-  );
-}
-
-function FilterSelect({
-  children,
-  value,
-  onChange,
-}: {
-  children: ReactNode;
-  value?: string;
-  onChange?: (value: string) => void;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange?.(event.target.value)}
-      className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
-    >
-      {children}
-    </select>
-  );
 }
 
 function QuickAction({
@@ -1474,21 +1448,6 @@ function ReportLinkCard({
   );
 }
 
-function EmptyState() {
-  return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-10 text-center shadow-sm">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[24px] bg-slate-50">
-        <Search className="h-8 w-8 text-slate-400" />
-      </div>
-      <h2 className="text-xl font-black text-[#15445A]">لا توجد تقارير مطابقة</h2>
-      <p className="mt-2 text-sm text-slate-500">
-        جرّب تغيير كلمات البحث أو نوع التقرير أو تصفير الفلاتر.
-      </p>
-    </section>
-  );
-}
-
-
 function MiniInsight({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-slate-50 p-4">
@@ -1512,18 +1471,3 @@ function ProgressMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ToastBox({ toast, onClose }: { toast: Toast; onClose: () => void }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold shadow-lg print:hidden ${
-        toast.type === "success" ? "bg-[#07A869] text-white" : "bg-red-600 text-white"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      <span>{toast.message}</span>
-      <button type="button" onClick={onClose} className="mr-2 rounded-full bg-white/15 p-1">
-        <X size={14} />
-      </button>
-    </div>
-  );
-}

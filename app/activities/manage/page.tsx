@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiPrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import UiSecondaryButton from "@/components/ui/buttons/SecondaryButton";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -24,24 +32,8 @@ import {
   XCircle,
 } from "lucide-react";
 
-import {
-  ActivityEmpty,
-  ActivityError,
-  ActivityHero,
-  ActivityInfo,
-  ActivityInput,
-  ActivityLoading,
-  ActivityPanel,
-  ActivitySelect,
-  ActivitySummaryCard,
-  ActivityTextarea,
-  ActivityToastBox,
-  DangerButton,
-  DarkButton,
-  LightButton,
-  PrimaryButton,
-  type ActivityToast,
-} from "../../../components/activities/ActivityPageParts";
+type ActivityToast = { type: "success" | "error"; message: string };
+
 
 type Activity = {
   id: string;
@@ -351,27 +343,30 @@ export default function ActivitiesManagePage() {
   }
 
   function exportPDF() {
-  exportTableToPDF(
-    ["ط§ظ„ظ†ط´ط§ط·", "ط§ظ„ظ†ظˆط¹", "ط§ظ„ط­ط§ظ„ط©", "ط§ظ„ط¨ط¯ط§ظٹط©", "ط§ظ„ظ†ظ‡ط§ظٹط©", "ط§ظ„ظ…ط´ط±ظپ"],
-    filteredItems.map((item) => [
-      item.title || item.activity_name || "-",
-      item.activity_type || "-",
-      item.status || "-",
-      item.start_date || "-",
-      item.end_date || "-",
-      item.supervisor_name || "-",
-    ]),
-    "ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©"
-  );
+    (exportTableToPDF as any)({
+      title: "ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©",
+      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
+      subtitle: "ظ‚ط§ط¦ظ…ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط©",
+      headers: ["ط§ظ„ظ†ط´ط§ط·", "ط§ظ„ظ†ظˆط¹", "ط§ظ„ط­ط§ظ„ط©", "ط§ظ„ط¨ط¯ط§ظٹط©", "ط§ظ„ظ†ظ‡ط§ظٹط©", "ط§ظ„ظ…ط´ط±ظپ"],
+      rows: filteredItems.map((item) => [
+        item.title || item.activity_name || "-",
+        item.activity_type || "-",
+        item.status || "-",
+        item.start_date || "-",
+        item.end_date || "-",
+        item.supervisor_name || "-",
+      ]),
+      fileName: "activities.pdf",
+    });
 
-  showToast("success", "طھظ… طھط¬ظ‡ظٹط² PDF");
-}
+    showToast("success", "طھظ… طھط¬ظ‡ظٹط² PDF");
+  }
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <ActivityLoading text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©..." />
+          <PageLoader text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©..." />
         </AppShell>
       </RoleGuard>
     );
@@ -381,12 +376,29 @@ export default function ActivitiesManagePage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6" dir="rtl">
-          {toast && <ActivityToastBox toast={toast} />}
+          {toast?.type === "success" ? (
+            <SuccessBanner description={toast.message} />
+          ) : toast ? (
+            <ErrorState description={toast.message} />
+          ) : null}
 
-          <ActivityHero
+          <PageHeader
+            variant="hero"
             title="ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©"
-            subtitle="ط¥ط¶ط§ظپط© ظˆطھط¹ط¯ظٹظ„ ظˆظ…طھط§ط¨ط¹ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط© ظˆط§ظ„ط®ط·ط· ظˆط§ظ„ط¨ط±ط§ظ…ط¬ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            icon={<Sparkles size={32} />}
+            description="ط¥ط¶ط§ظپط© ظˆطھط¹ط¯ظٹظ„ ظˆظ…طھط§ط¨ط¹ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط© ظˆط§ظ„ط®ط·ط· ظˆط§ظ„ط¨ط±ط§ظ…ط¬ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
+            badge="بوابة رائد النشاط"
+            icon={<Sparkles size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الأنشطة", href: "/activities" },
+              { label: "إدارة الأنشطة" },
+            ]}
+            stats={[
+              { label: "الإجمالي", value: stats.total, icon: <Sparkles size={20} />, tone: "blue" },
+              { label: "النشطة", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
+              { label: "المنفذة", value: stats.done, icon: <CalendarDays size={20} />, tone: "gold" },
+              { label: "قيد التخطيط", value: stats.planning, icon: <Loader2 size={20} />, tone: "primary" },
+            ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
@@ -394,21 +406,21 @@ export default function ActivitiesManagePage() {
                   ط¥ط¶ط§ظپط© ظ†ط´ط§ط·
                 </PrimaryButton>
 
-                <DarkButton onClick={() => void loadData()}>
+                <SecondaryButton onClick={() => void loadData()}>
                   <RefreshCcw size={16} />
                   طھط­ط¯ظٹط«
-                </DarkButton>
+                </SecondaryButton>
               </>
             }
           />
 
-          {errorMsg && <ActivityError text={errorMsg} />}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ActivitySummaryCard title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط£ظ†ط´ط·ط©" value={stats.total} icon={<Sparkles size={22} />} color="blue" />
-            <ActivitySummaryCard title="ط£ظ†ط´ط·ط© ظ†ط´ط·ط©" value={stats.active} icon={<CheckCircle2 size={22} />} color="green" />
-            <ActivitySummaryCard title="ظ…ظ†ظپط°ط©" value={stats.done} icon={<CalendarDays size={22} />} color="amber" />
-            <ActivitySummaryCard title="ظ‚ظٹط¯ ط§ظ„طھط®ط·ظٹط·" value={stats.planning} icon={<Loader2 size={22} />} color="slate" />
+            <ExecutiveCard title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط£ظ†ط´ط·ط©" value={stats.total} subtitle="كل الأنشطة" icon={<Sparkles size={22} />} tone="blue" progress={stats.total > 0 ? 100 : 0} />
+            <ExecutiveCard title="ط£ظ†ط´ط·ط© ظ†ط´ط·ط©" value={stats.active} subtitle="نشطة حاليًا" icon={<CheckCircle2 size={22} />} tone="green" progress={stats.total ? Math.round((stats.active / stats.total) * 100) : 0} />
+            <ExecutiveCard title="ظ…ظ†ظپط°ط©" value={stats.done} subtitle="أنشطة منفذة" icon={<CalendarDays size={22} />} tone="gold" progress={stats.total ? Math.round((stats.done / stats.total) * 100) : 0} />
+            <ExecutiveCard title="ظ‚ظٹط¯ ط§ظ„طھط®ط·ظٹط·" value={stats.planning} subtitle="قيد التخطيط" icon={<Loader2 size={22} />} tone="primary" progress={stats.total ? Math.round((stats.planning / stats.total) * 100) : 0} />
           </section>
 
           {showForm && (
@@ -435,10 +447,10 @@ export default function ActivitiesManagePage() {
                   ط­ظپط¸
                 </PrimaryButton>
 
-                <LightButton onClick={resetForm}>
+                <SecondaryButton onClick={resetForm}>
                   <XCircle size={16} />
                   ط¥ظ„ط؛ط§ط،
-                </LightButton>
+                </SecondaryButton>
               </div>
             </ActivityPanel>
           )}
@@ -465,19 +477,19 @@ export default function ActivitiesManagePage() {
                 {STATUS_OPTIONS.map((item) => <option key={item}>{item}</option>)}
               </select>
 
-              <LightButton onClick={() => void exportExcel()}>Excel</LightButton>
+              <SecondaryButton onClick={() => void exportExcel()}>Excel</SecondaryButton>
 
-              <LightButton onClick={exportPDF}>
+              <SecondaryButton onClick={exportPDF}>
                 <FileText size={16} />
                 PDF
-              </LightButton>
+              </SecondaryButton>
             </div>
           </ActivityPanel>
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <ActivityEmpty text="ظ„ط§ طھظˆط¬ط¯ ط£ظ†ط´ط·ط© ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState title="لا توجد بيانات" description="ظ„ط§ طھظˆط¬ط¯ ط£ظ†ط´ط·ط© ظ…ط·ط§ط¨ظ‚ط©." />
               </div>
             ) : (
               filteredItems.map((item) => (
@@ -514,10 +526,10 @@ export default function ActivitiesManagePage() {
                   )}
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <LightButton onClick={() => editItem(item)}>
+                    <SecondaryButton onClick={() => editItem(item)}>
                       <Edit size={15} />
                       طھط¹ط¯ظٹظ„
-                    </LightButton>
+                    </SecondaryButton>
 
                     <DangerButton onClick={() => void deleteItem(item)}>
                       <Trash2 size={15} />
@@ -531,5 +543,154 @@ export default function ActivitiesManagePage() {
         </main>
       </AppShell>
     </RoleGuard>
+  );
+}
+
+
+function ActivityPanel({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+          {icon}
+        </div>
+        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ActivityInput({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-black text-[#15445A]">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+      />
+    </label>
+  );
+}
+
+function ActivityTextarea({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-black text-[#15445A]">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+      />
+    </label>
+  );
+}
+
+function ActivitySelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-black text-[#15445A]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+      >
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ActivityInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p className="mt-1 line-clamp-1 font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function PrimaryButton({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <UiPrimaryButton type="button" onClick={onClick} disabled={disabled}>
+      {children}
+    </UiPrimaryButton>
+  );
+}
+
+function SecondaryButton({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <UiSecondaryButton type="button" onClick={onClick} disabled={disabled}>
+      {children}
+    </UiSecondaryButton>
+  );
+}
+
+function DangerButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 transition hover:bg-red-100"
+    >
+      {children}
+    </button>
   );
 }

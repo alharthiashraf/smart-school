@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
+import PageHeader from "@/components/ui/page/PageHeader";
+import StatCard from "@/components/ui/cards/StatCard";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -246,41 +250,49 @@ export default function AlertsPage() {
   return (
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
-        <div className="space-y-5">
+        <PageContainer className="space-y-5" size="wide">
+          <Breadcrumb />
           {toast && <ToastBox toast={toast} />}
 
-          <section className="rounded-[30px] bg-[#0f1f3d] p-6 text-white shadow-sm">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="mb-2 text-sm font-bold text-[#d4af37]">
-                  ظ…ظ†طµط© ط§ظ„ظ…ط¯ط§ط±ط³ ط§ظ„ط°ظƒظٹط©
-                </p>
-                <h1 className="text-4xl font-black">ظ…ط±ظƒط² ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ</h1>
-                <p className="mt-3 text-sm leading-7 text-slate-300">
-                  ط´ط§ط´ط© ظ…ظˆط­ط¯ط© ظ„ظ…طھط§ط¨ط¹ط© ط§ظ„ط؛ظٹط§ط¨ ط§ظ„ظ…طھظƒط±ط±طŒ ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„طµط­ظٹط©طŒ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ط£ظƒط§ط¯ظٹظ…ظٹط©طŒ ظˆط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط¹ط§ظ„ظٹط© ط§ظ„ط®ط·ظˆط±ط©.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
+          <PageHeader
+            variant="hero"
+            title="ظ…ط±ظƒط² ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ"
+            description="ط´ط§ط´ط© ظ…ظˆط­ط¯ط© ظ„ظ…طھط§ط¨ط¹ط© ط§ظ„ط؛ظٹط§ط¨ ط§ظ„ظ…طھظƒط±ط±طŒ ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„طµط­ظٹط©طŒ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ط£ظƒط§ط¯ظٹظ…ظٹط©طŒ ظˆط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط¹ط§ظ„ظٹط© ط§ظ„ط®ط·ظˆط±ط©."
+            badge="ظ…ظ†طµط© ط§ظ„ظ…ط¯ط§ط±ط³ ط§ظ„ط°ظƒظٹط©"
+            icon={<Bell size={18} />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "التنبيهات" },
+            ]}
+            meta={[
+              { label: "المدرسة", value: currentSchool?.school_name || "غير محدد" },
+              { label: "إجمالي التنبيهات", value: String(total) },
+              { label: "غير مقروءة", value: String(unread) },
+              { label: "عالية الخطورة", value: String(high) },
+            ]}
+            actions={
+              <>
                 <button
-                  onClick={fetchData}
-                  className="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
+                  type="button"
+                  onClick={() => void fetchData()}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <RefreshCcw size={17} />
                   طھط­ط¯ظٹط«
                 </button>
 
                 <button
-                  onClick={markAllAsRead}
+                  type="button"
+                  onClick={() => void markAllAsRead()}
                   disabled={unread === 0}
-                  className="flex items-center gap-2 rounded-2xl bg-[#d4af37] px-4 py-3 text-sm font-bold text-[#0f1f3d] disabled:opacity-50"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
                 >
                   <CheckCircle2 size={17} />
                   ظ‚ط±ط§ط،ط© ط§ظ„ظƒظ„
                 </button>
-              </div>
-            </div>
-          </section>
+              </>
+            }
+          />
 
           {errorMsg && (
             <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
@@ -289,10 +301,10 @@ export default function AlertsPage() {
           )}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ" value={total} icon={<Bell size={22} />} color="blue" />
-            <StatCard title="ط؛ظٹط± ظ…ظ‚ط±ظˆط،ط©" value={unread} icon={<AlertTriangle size={22} />} color="amber" />
-            <StatCard title="ط¹ط§ظ„ظٹط© ط§ظ„ط®ط·ظˆط±ط©" value={high} icon={<ShieldAlert size={22} />} color="red" />
-            <StatCard title="طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ظٹظˆظ…" value={todayCount} icon={<CheckCircle2 size={22} />} color="emerald" />
+            <StatCard title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ" value={total} icon={<Bell size={22} />} tone="blue" />
+            <StatCard title="ط؛ظٹط± ظ…ظ‚ط±ظˆط،ط©" value={unread} icon={<AlertTriangle size={22} />} tone="gold" />
+            <StatCard title="ط¹ط§ظ„ظٹط© ط§ظ„ط®ط·ظˆط±ط©" value={high} icon={<ShieldAlert size={22} />} tone="red" />
+            <StatCard title="طھظ†ط¨ظٹظ‡ط§طھ ط§ظ„ظٹظˆظ…" value={todayCount} icon={<CheckCircle2 size={22} />} tone="green" />
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -445,7 +457,7 @@ export default function AlertsPage() {
               </div>
             )}
           </section>
-        </div>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );
@@ -506,35 +518,6 @@ function SeverityBadge({ severity }: { severity: string | null }) {
     <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>
       {SEVERITY_LABELS[key] || "ظ…طھظˆط³ط·"}
     </span>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  color: "blue" | "amber" | "red" | "emerald";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}>
-        {icon}
-      </div>
-      <p className="text-sm text-slate-500">{title}</p>
-      <h2 className="mt-2 text-4xl font-black text-[#0f1f3d]">{value}</h2>
-    </div>
   );
 }
 

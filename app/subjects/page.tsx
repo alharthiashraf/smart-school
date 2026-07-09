@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
@@ -502,12 +504,16 @@ export default function SubjectsPage() {
   if (!canView) {
     return (
       <AuthGuard>
-        <SummaryCard
-          title="لا تملك صلاحية الوصول إلى المواد الدراسية"
-          description="هذه الصفحة مخصصة للإدارة المدرسية حسب الصلاحيات."
-          tone="gold"
-          icon={<BookOpen size={22} />}
-        />
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
+
+          <SummaryCard
+            title="لا تملك صلاحية الوصول إلى المواد الدراسية"
+            description="هذه الصفحة مخصصة للإدارة المدرسية حسب الصلاحيات."
+            tone="gold"
+            icon={<BookOpen size={22} />}
+          />
+        </PageContainer>
       </AuthGuard>
     );
   }
@@ -515,7 +521,10 @@ export default function SubjectsPage() {
   if (schoolLoading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
+          <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        </PageContainer>
       </AuthGuard>
     );
   }
@@ -523,19 +532,25 @@ export default function SubjectsPage() {
   if (!currentSchool) {
     return (
       <AuthGuard>
-        <SummaryCard
-          title="لا توجد مدرسة مرتبطة"
-          description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
-          tone="red"
-          icon={<BookOpen size={22} />}
-        />
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
+
+          <SummaryCard
+            title="لا توجد مدرسة مرتبطة"
+            description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
+            tone="red"
+            icon={<BookOpen size={22} />}
+          />
+        </PageContainer>
       </AuthGuard>
     );
   }
 
   return (
     <AuthGuard>
-      <div className="space-y-5" dir="rtl">
+      <PageContainer size="wide" className="space-y-5">
+        <Breadcrumb />
+
         {toast && <ToastBox toast={toast} />}
         <PageHeader
           variant="hero"
@@ -998,7 +1013,7 @@ export default function SubjectsPage() {
             setSelectedSubject={setSelectedSubject}
           />
         </section>
-      </div>
+      </PageContainer>
     </AuthGuard>
   );
 }

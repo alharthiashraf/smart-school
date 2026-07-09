@@ -40,6 +40,11 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import EmptyState from "@/components/ui/empty-state/EmptyState";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import UiStatusBadge from "@/components/ui/badges/StatusBadge";
 import { useSchool } from "@/contexts/SchoolContext";
 import {
   StudentsService,
@@ -717,7 +722,7 @@ export default function StudentsPage() {
   if (schoolLoading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        <PageLoader text="جاري تحميل بيانات المدرسة..." />
       </AuthGuard>
     );
   }
@@ -765,52 +770,44 @@ export default function StudentsPage() {
           actions={
             <>
               {canManage && (
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<Plus size={17} />}
                   onClick={openAddForm}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  tone="warning"
                 >
-                  <Plus size={17} />
                   إضافة طالب
-                </button>
+                </SecondaryButton>
               )}
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<Download size={17} />}
                 onClick={() => void exportStudentsExcel()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <Download size={17} />
                 Excel
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
+              <PrimaryButton
+                icon={<FileText size={17} />}
                 onClick={() => exportStudentsPDF()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <FileText size={17} />
                 PDF
-              </button>
+              </PrimaryButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw size={17} />}
                 onClick={() => void fetchAllData()}
                 disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                tone="dark"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw size={17} />}
                 تحديث
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<Printer size={17} />}
                 onClick={() => window.print()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <Printer size={17} />
                 طباعة
-              </button>
+              </SecondaryButton>
             </>
           }
         />
@@ -851,13 +848,9 @@ export default function StudentsPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
-              >
+              <SecondaryButton onClick={closeForm}>
                 إغلاق
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -884,15 +877,14 @@ export default function StudentsPage() {
               </select>
             </div>
 
-            <button
-              type="button"
+            <PrimaryButton
+              className="mt-5"
+              icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
               onClick={() => void saveStudent()}
               disabled={saving}
-              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
               {saving ? "جاري الحفظ..." : editingId ? "حفظ التعديل" : "إضافة الطالب"}
-            </button>
+            </PrimaryButton>
           </section>
         )}
 
@@ -1035,9 +1027,9 @@ export default function StudentsPage() {
             </div>
 
             {loading ? (
-              <LoadingBox text="جاري تحميل الطلاب..." />
+              <PageLoader text="جاري تحميل الطلاب..." />
             ) : filteredStudents.length === 0 ? (
-              <EmptyBox icon={<Search size={30} />} title="لا توجد نتائج" description="لا يوجد طلاب مطابقون للبحث أو الفلاتر الحالية." />
+              <EmptyState icon={<Search size={30} />} title="لا توجد نتائج" description="لا يوجد طلاب مطابقون للبحث أو الفلاتر الحالية." />
             ) : viewMode === "cards" ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {pagedStudents.map((student) => (
@@ -1199,7 +1191,7 @@ function StudentsTable({
               </td>
 
               <td className="px-4 py-3">
-                <StatusBadge status={student.todayStatus} />
+                <AttendanceStatusBadge status={student.todayStatus} />
               </td>
 
               <td className="px-4 py-3">
@@ -1220,9 +1212,9 @@ function StudentsTable({
               </td>
 
               <td className="px-4 py-3">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                <UiStatusBadge tone="default">
                   {student.status || DEFAULT_STATUS}
-                </span>
+                </UiStatusBadge>
               </td>
 
               <td className="px-4 py-3 print:hidden">
@@ -1453,7 +1445,7 @@ function QuickFilter({
   );
 }
 
-function StatusBadge({ status }: { status?: string | null }) {
+function AttendanceStatusBadge({ status }: { status?: string | null }) {
   const label = getStatusLabel(status);
 
   const style = isPresent(status)
@@ -1634,31 +1626,3 @@ function MiniValue({ label, value }: { label: string; value: string | number }) 
   );
 }
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
-
-function EmptyBox({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#0DA9A6]">
-        {icon}
-      </div>
-      <h3 className="text-lg font-black text-[#15445A]">{title}</h3>
-      <p className="mt-2 text-sm text-slate-500">{description}</p>
-    </div>
-  );
-}

@@ -6,7 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SchoolProvider } from "@/contexts/SchoolContext";
 
 export const metadata: Metadata = {
-  title: "منصة المدرسة الذكية 2.0",
+  title: "منصة المدرسة الذكية",
   description: "منصة مدرسية ذكية متعددة المدارس والصلاحيات",
 };
 
@@ -17,7 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-slate-50 text-[#15445A] antialiased"
+      >
         <AuthProvider>
           <SchoolProvider>
             <ShellGate>{children}</ShellGate>

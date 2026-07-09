@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import Breadcrumb from "@/components/layout/Breadcrumb";
+import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
@@ -538,7 +540,8 @@ export default function StudentPortfolioPage() {
   return (
     <RoleGuard allowedRoles={STUDENT_ROLES}>
       <AppShell>
-        <main dir="rtl" className="space-y-5">
+        <PageContainer size="wide" className="space-y-5">
+          <Breadcrumb />
           <PageHeader
             variant="hero"
             title="ملف إنجازي"
@@ -745,7 +748,7 @@ export default function StudentPortfolioPage() {
               ))}
             </section>
           )}
-        </main>
+        </PageContainer>
       </AppShell>
     </RoleGuard>
   );
