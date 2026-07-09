@@ -15,9 +15,9 @@ export default function ChartBar({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--app-card)]">
+      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
         <div
-          className={`h-full rounded-full ${className}`}
+          className={`h-full rounded-full transition-all duration-500 ${className}`}
           style={{ width: `${width}%` }}
         />
       </div>

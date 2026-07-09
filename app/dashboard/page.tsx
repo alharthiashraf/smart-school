@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -12,18 +12,15 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
-  ExternalLink,
   FileText,
   GraduationCap,
   HeartPulse,
   LayoutDashboard,
-  RefreshCcw,
   School,
   Search,
   Settings,
   Shield,
   Sparkles,
-  TrendingUp,
   Trophy,
   UserCheck,
   Users,
@@ -33,18 +30,17 @@ import {
 import AuthGuard from "@/components/auth/AuthGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
-import Section from "@/components/ui/page/PageSection";
-import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import KpiCard from "@/components/ui/cards/KpiCard";
-import StatCard from "@/components/ui/cards/StatCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
-  ActionCard,
-  AttendanceTrend,
-  CommandCenter,
-  ExternalSystemCard,
-  PortalLink,
+  ActivityFeed,
+  ExecutiveCharts,
+  ExecutiveHealth,
+  ExecutiveHero,
+  ExecutiveStats,
+  ExternalSystems,
+  PortalGrid,
+  QuickLauncher,
+  SmartInsights,
 } from "@/components/dashboard";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
@@ -114,6 +110,23 @@ type CountResult = {
 type RowsResult<T> = {
   data: T[] | null;
   error: unknown;
+};
+
+type InsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type InsightItem = {
+  title: string;
+  description: string;
+  tone: InsightTone;
+  icon: ReactNode;
+};
+
+type ActivityItem = {
+  id: string;
+  time: string;
+  title: string;
+  description: string;
+  tone: InsightTone;
 };
 
 const ROLE_NAME_MAP: Record<SchoolRole, string> = {
@@ -391,6 +404,113 @@ function buildAttendanceTrend(
   });
 }
 
+function buildInsights({
+  stats,
+  attendanceRate,
+  dataQuality,
+  systemHealth,
+}: {
+  stats: DashboardStats;
+  attendanceRate: number;
+  dataQuality: number;
+  systemHealth: string;
+}): InsightItem[] {
+  const insights: InsightItem[] = [];
+
+  if (systemHealth === "مستقر") {
+    insights.push({
+      title: "الحالة التشغيلية مستقرة",
+      description: "لا توجد مؤشرات حرجة حاليًا، ويمكن متابعة العمل اليومي بشكل طبيعي.",
+      tone: "green",
+      icon: <CheckCircle2 className="h-5 w-5" />,
+    });
+  } else {
+    insights.push({
+      title: "توجد عناصر تحتاج متابعة",
+      description: "راجع التنبيهات والغياب والتأخر قبل نهاية اليوم الدراسي.",
+      tone: "gold",
+      icon: <AlertTriangle className="h-5 w-5" />,
+    });
+  }
+
+  if (attendanceRate >= 90) {
+    insights.push({
+      title: "انضباط حضور ممتاز",
+      description: `نسبة الحضور اليوم ${attendanceRate}% وهي ضمن المستوى المستهدف.`,
+      tone: "green",
+      icon: <ClipboardCheck className="h-5 w-5" />,
+    });
+  } else if (attendanceRate > 0) {
+    insights.push({
+      title: "الحضور يحتاج متابعة",
+      description: `نسبة الحضور اليوم ${attendanceRate}%، يفضّل مراجعة سجلات الغياب والتأخر.`,
+      tone: "red",
+      icon: <Activity className="h-5 w-5" />,
+    });
+  }
+
+  if (dataQuality < 75) {
+    insights.push({
+      title: "جودة البيانات غير مكتملة",
+      description: "أكمل بيانات الطلاب والمعلمين والفصول والمواد حتى تصبح مؤشرات المنصة أدق.",
+      tone: "blue",
+      icon: <Sparkles className="h-5 w-5" />,
+    });
+  }
+
+  if (stats.averageScore > 0 && stats.averageScore < 70) {
+    insights.push({
+      title: "متوسط الدرجات منخفض",
+      description: "قد تحتاج بعض المواد أو الفصول إلى خطة علاجية أو متابعة مع المعلمين.",
+      tone: "gold",
+      icon: <BarChart3 className="h-5 w-5" />,
+    });
+  }
+
+  if (stats.unreadNotifications > 0) {
+    insights.push({
+      title: "تنبيهات غير مقروءة",
+      description: `يوجد ${stats.unreadNotifications} تنبيهًا يحتاج مراجعة في مركز التنبيهات.`,
+      tone: "teal",
+      icon: <Bell className="h-5 w-5" />,
+    });
+  }
+
+  return insights.slice(0, 4);
+}
+
+function buildActivityFeed(
+  notifications: NotificationItem[],
+  stats: DashboardStats,
+  lastSync: string | null,
+): ActivityItem[] {
+  const feed: ActivityItem[] = notifications.slice(0, 4).map((item) => ({
+    id: item.id,
+    time: formatDateTime(item.created_at),
+    title: item.title || "تنبيه جديد",
+    description: item.body || "لا توجد تفاصيل إضافية.",
+    tone: item.is_read === false ? "gold" : "teal",
+  }));
+
+  feed.push({
+    id: "attendance",
+    time: "اليوم",
+    title: "حالة الحضور",
+    description: `حاضر: ${stats.presentToday} · غائب: ${stats.absentToday} · متأخر: ${stats.lateToday}`,
+    tone: stats.absentToday + stats.lateToday > 0 ? "gold" : "green",
+  });
+
+  feed.push({
+    id: "sync",
+    time: formatDateTime(lastSync),
+    title: "آخر مزامنة",
+    description: "تم تحديث مؤشرات لوحة التحكم من قاعدة البيانات.",
+    tone: "blue",
+  });
+
+  return feed.slice(0, 6);
+}
+
 export default function DashboardPage() {
   const {
     currentSchool,
@@ -467,6 +587,22 @@ export default function DashboardPage() {
       (stats.teachers > 0 ? 25 : 0) +
       (stats.classrooms > 0 ? 25 : 0) +
       (stats.subjects > 0 ? 25 : 0)),
+  );
+
+  const insights = useMemo(
+    () =>
+      buildInsights({
+        stats,
+        attendanceRate,
+        dataQuality,
+        systemHealth,
+      }),
+    [stats, attendanceRate, dataQuality, systemHealth],
+  );
+
+  const activityFeed = useMemo(
+    () => buildActivityFeed(notifications, stats, lastSync),
+    [notifications, stats, lastSync],
   );
 
   useEffect(() => {
@@ -642,48 +778,16 @@ export default function DashboardPage() {
     <AuthGuard>
       <div className="space-y-6" dir="rtl">
         <PageHeader
-          variant="hero"
-          title={`أهلًا، ${userName}`}
-          description="لوحة القيادة الرسمية لمنصة المدرسة الذكية 2.0. تعرض المؤشرات اليومية، البوابات، التنبيهات، والإجراءات السريعة حسب صلاحية المستخدم."
-          badge="لوحة التحكم التنفيذية"
+          variant="compact"
+          title="لوحة التحكم"
+          description="ملخص تنفيذي مباشر لحالة المدرسة ومؤشرات اليوم."
+          badge="Dashboard V4"
           icon={<LayoutDashboard size={18} />}
           breadcrumbs={[
             { label: "الرئيسية", href: "/" },
             { label: "لوحة التحكم" },
           ]}
           lastUpdated={formatDateTime(lastSync)}
-          meta={[
-            { label: "الدور", value: roleName },
-            { label: "المدرسة", value: currentSchool?.school_name || "لم يتم تحديد مدرسة" },
-            { label: "العام والفصل", value: `${academicYear || "العام الدراسي"} · ${semester || "الفصل الدراسي"}` },
-            { label: "اليوم", value: todayLabel() },
-          ]}
-          stats={[
-            { label: "الحالة", value: systemHealth, icon: <Shield size={20} />, tone: systemHealth === "مستقر" ? "green" : "red" },
-            { label: "جودة البيانات", value: `${dataQuality}%`, icon: <CheckCircle2 size={20} />, tone: dataQuality >= 75 ? "green" : "gold" },
-            { label: "الحضور", value: `${attendanceRate}%`, icon: <ClipboardCheck size={20} />, tone: attendanceRate >= 85 ? "green" : "blue" },
-            { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "gold" : "teal" },
-          ]}
-          actions={
-            <>
-              <button
-                type="button"
-                onClick={() => void loadDashboard()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <RefreshCcw size={17} />
-                تحديث
-              </button>
-
-              <Link
-                href="/search"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--app-primary)] hover:shadow-md"
-              >
-                <Search size={17} />
-                البحث الشامل
-              </Link>
-            </>
-          }
         />
 
         {errorMsg && (
@@ -695,175 +799,76 @@ export default function DashboardPage() {
           />
         )}
 
-        <CommandCenter
+        <ExecutiveHero
+          userName={userName}
           schoolName={currentSchool?.school_name || "لم يتم تحديد مدرسة"}
           roleName={roleName}
-          academicYear={academicYear || "غير محدد"}
-          semester={semester || "غير محدد"}
+          academicYear={academicYear}
+          semester={semester}
           today={todayLabel()}
-          stats={stats}
-          attendanceRate={attendanceRate}
-          dataQuality={dataQuality}
           systemHealth={systemHealth}
-          loading={schoolLoading || loading}
-          quickActions={visibleActions.slice(0, 5)}
+          lastSync={formatDateTime(lastSync)}
+          onRefresh={() => void loadDashboard()}
         />
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <ExecutiveCard
-            title="الطلاب"
-            value={stats.students}
-            subtitle="إجمالي الطلاب في المدرسة"
-            icon={<Users size={22} />}
-            tone="blue"
-            loading={schoolLoading || loading}
-            progress={stats.students > 0 ? 100 : 0}
-          />
-          <ExecutiveCard
-            title="المعلمون"
-            value={stats.teachers}
-            subtitle="إجمالي الكادر التعليمي"
-            icon={<GraduationCap size={22} />}
-            tone="green"
-            loading={schoolLoading || loading}
-            progress={stats.teachers > 0 ? 100 : 0}
-          />
-          <ExecutiveCard
-            title="الفصول"
-            value={stats.classrooms}
-            subtitle="الفصول النشطة في المدرسة"
-            icon={<Building2 size={22} />}
-            tone="gold"
-            loading={schoolLoading || loading}
-            progress={stats.classrooms > 0 ? 100 : 0}
-          />
-          <ExecutiveCard
-            title="المواد"
-            value={stats.subjects}
-            subtitle="المواد الدراسية المعتمدة"
-            icon={<BookOpen size={22} />}
-            tone="teal"
-            loading={schoolLoading || loading}
-            progress={stats.subjects > 0 ? 100 : 0}
-          />
+        <ExecutiveStats
+          items={[
+            {
+              title: "الطلاب",
+              value: stats.students,
+              subtitle: "إجمالي الطلاب في المدرسة",
+              icon: <Users size={22} />,
+              tone: "blue",
+              large: true,
+              progress: stats.students > 0 ? 100 : 0,
+              loading: schoolLoading || loading,
+            },
+            {
+              title: "المعلمون",
+              value: stats.teachers,
+              subtitle: "إجمالي الكادر التعليمي",
+              icon: <GraduationCap size={22} />,
+              tone: "green",
+              large: true,
+              progress: stats.teachers > 0 ? 100 : 0,
+              loading: schoolLoading || loading,
+            },
+            {
+              title: "الفصول",
+              value: stats.classrooms,
+              caption: "الفصول النشطة في المدرسة",
+              icon: <Building2 size={20} />,
+              tone: "gold",
+              loading: schoolLoading || loading,
+            },
+            {
+              title: "المواد",
+              value: stats.subjects,
+              caption: "المواد الدراسية المعتمدة",
+              icon: <BookOpen size={20} />,
+              tone: "teal",
+              loading: schoolLoading || loading,
+            },
+          ]}
+        />
+
+        <ExecutiveHealth
+          systemHealth={systemHealth}
+          dataQuality={dataQuality}
+          attendanceRate={attendanceRate}
+          unreadNotifications={stats.unreadNotifications}
+        />
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <SmartInsights insights={insights} />
+          <ActivityFeed items={activityFeed} />
         </section>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            title="حضور اليوم"
-            value={stats.presentToday}
-            caption={`نسبة الحضور الفعلي ${attendanceRate}%`}
-            icon={<CheckCircle2 size={20} />}
-            tone="green"
-            loading={schoolLoading || loading}
-          />
-          <KpiCard
-            title="غياب وتأخر"
-            value={stats.absentToday + stats.lateToday}
-            caption={`نسبة المتابعة ${absenceRate}%`}
-            icon={<AlertTriangle size={20} />}
-            tone="red"
-            loading={schoolLoading || loading}
-          />
-          <KpiCard
-            title="متوسط الدرجات"
-            value={`${stats.averageScore}%`}
-            caption={`${stats.scoresCount} سجل درجات`}
-            icon={<BarChart3 size={20} />}
-            tone="blue"
-            loading={schoolLoading || loading}
-          />
-          <KpiCard
-            title="تنبيهات"
-            value={stats.unreadNotifications}
-            caption="تنبيهات غير مقروءة"
-            icon={<Bell size={20} />}
-            tone="gold"
-            loading={schoolLoading || loading}
-          />
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Section
-            title="المشهد التشغيلي اليومي"
-            description="قراءة مباشرة لحضور اليوم، السلوك، الجداول، والمؤشرات التشغيلية."
-            icon={<Activity size={20} />}
-            className="xl:col-span-2"
-            badge="مباشر"
-            actions={
-              <span className="rounded-full bg-[var(--app-surface)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
-                آخر مزامنة: {formatDateTime(lastSync)}
-              </span>
-            }
-          >
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <StatCard title="حاضر" value={stats.presentToday} icon={<CheckCircle2 size={18} />} tone="green" loading={loading} />
-              <StatCard title="غائب" value={stats.absentToday} icon={<AlertTriangle size={18} />} tone="red" loading={loading} />
-              <StatCard title="متأخر" value={stats.lateToday} icon={<Activity size={18} />} tone="gold" loading={loading} />
-              <StatCard title="ملاحظات سلوكية" value={stats.behaviorNotes} icon={<ClipboardCheck size={18} />} tone="teal" loading={loading} />
-              <StatCard title="نسبة الحضور" value={`${attendanceRate}%`} icon={<TrendingUp size={18} />} tone="blue" loading={loading} />
-              <StatCard title="حصص مجدولة" value={stats.scheduleLessons} icon={<CalendarDays size={18} />} tone="primary" loading={loading} />
-            </div>
-
-            <div className="mt-5 rounded-[28px] bg-[var(--app-surface)] p-4">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-black text-[var(--app-text)]">
-                    اتجاه الحضور آخر 7 أيام
-                  </h3>
-                  <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
-                    قراءة مبسطة تساعد الإدارة على متابعة الانضباط.
-                  </p>
-                </div>
-                <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
-                  حضور / غياب / تأخر
-                </span>
-              </div>
-
-              <AttendanceTrend data={attendanceTrend} />
-            </div>
-          </Section>
-
-          <Section
-            title="آخر التنبيهات"
-            description="تنبيهات النظام غير المقروءة وآخر الرسائل المهمة."
-            icon={<Bell size={20} />}
-            actions={
-              <Link href="/alerts" className="text-xs font-black text-[var(--app-text)] hover:underline">
-                عرض الكل
-              </Link>
-            }
-          >
-            {notifications.length === 0 ? (
-              <EmptyState title="لا توجد تنبيهات" description="النظام مستقر ولا توجد رسائل تحتاج إجراء." />
-            ) : (
-              <div className="space-y-2">
-                {notifications.map((notification) => (
-                  <Link
-                    key={notification.id}
-                    href="/alerts"
-                    className="block rounded-2xl bg-[var(--app-surface)] px-4 py-3 transition hover:bg-[var(--app-card-soft)]"
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <p className="line-clamp-1 font-black text-[var(--app-text)]">
-                        {notification.title || "تنبيه"}
-                      </p>
-                      {notification.is_read === false && (
-                        <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                      )}
-                    </div>
-                    <p className="line-clamp-2 text-sm leading-6 text-[var(--app-text-muted)]">
-                      {notification.body || "لا توجد تفاصيل."}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
-                      {formatDateTime(notification.created_at)}
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </Section>
-        </section>
+        <ExecutiveCharts
+          attendance={attendanceTrend}
+          averageScore={stats.averageScore}
+          behaviorNotes={stats.behaviorNotes}
+        />
 
         <SummaryCard
           title="الملخص التنفيذي"
@@ -899,59 +904,14 @@ export default function DashboardPage() {
         />
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Section
-            title="الإجراءات السريعة"
-            description="أهم الإجراءات المتاحة حسب صلاحية المستخدم."
-            icon={<Sparkles size={20} />}
-            className="xl:col-span-2"
-            badge={`${filteredActions.length} إجراء`}
-          >
-            {filteredActions.length === 0 ? (
-              <EmptyState title="لا توجد إجراءات" description="لا توجد إجراءات متاحة حسب البحث أو الفلتر الحالي." />
-            ) : (
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {filteredActions.slice(0, 8).map((action) => (
-                  <ActionCard key={action.href} action={action} />
-                ))}
-              </div>
-            )}
-          </Section>
+          <div className="xl:col-span-2">
+            <QuickLauncher actions={filteredActions.slice(0, 8)} />
+          </div>
 
-          <Section title="مؤشرات مختصرة" icon={<TrendingUp size={20} />} badge="KPI">
-            <div className="space-y-3">
-              <StatCard title="المدارس" value={stats.schools} icon={<School size={18} />} tone="primary" loading={loading} />
-              <StatCard title="الحضور" value={`${attendanceRate}%`} icon={<ClipboardCheck size={18} />} tone="green" loading={loading} />
-              <StatCard title="متوسط الدرجات" value={`${stats.averageScore}%`} icon={<BarChart3 size={18} />} tone="blue" loading={loading} />
-            </div>
-          </Section>
+          <ExternalSystems systems={EXTERNAL_SYSTEMS} />
         </section>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <Section
-            title="البوابات الرئيسية"
-            description="روابط مباشرة للبوابات حسب الدور والصلاحيات."
-            icon={<LayoutDashboard size={20} />}
-            className="xl:col-span-2"
-          >
-            {visiblePortals.length === 0 ? (
-              <EmptyState title="لا توجد بوابات" description="لا توجد بوابات متاحة لهذا الحساب." />
-            ) : (
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {visiblePortals.map((portal) => (
-                  <PortalLink key={portal.href} portal={portal} />
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section title="الأنظمة الخارجية" icon={<ExternalLink size={20} />}>
-            <div className="space-y-3">
-              {EXTERNAL_SYSTEMS.map((system) => (
-                <ExternalSystemCard key={system.href} system={system} />
-              ))}
-            </div>
-          </Section>
-        </section>
+        <PortalGrid portals={visiblePortals} />
       </div>
     </AuthGuard>
   );

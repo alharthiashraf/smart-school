@@ -46,18 +46,20 @@ export default function CommandCenter({
   quickActions,
 }: CommandCenterProps) {
   const healthTone =
-    systemHealth === "مستقر" ? "text-emerald-600" : "text-amber-600";
+    systemHealth === "مستقر"
+      ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
+      : "bg-[var(--app-warning-soft)] text-[var(--app-warning)]";
 
   return (
-    <section className="overflow-hidden rounded-[32px] border border-[var(--app-border)] bg-[var(--app-card)] shadow-sm">
+    <section className="overflow-hidden rounded-[32px] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm">
       <div className="grid gap-0 xl:grid-cols-[1.25fr_1fr]">
-        <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.18),transparent_34%),linear-gradient(135deg,var(--app-card),var(--app-surface))] p-5 sm:p-6">
+        <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(13,169,166,0.18),transparent_34%),linear-gradient(135deg,var(--app-card),var(--app-surface))] p-5 sm:p-6">
           <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-[var(--app-primary-soft)] blur-3xl" />
 
           <div className="relative flex flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-teal)]">
                   <Sparkles size={14} />
                   مركز القيادة اليومي
                 </div>
@@ -71,7 +73,7 @@ export default function CommandCenter({
                 </p>
               </div>
 
-              <div className="rounded-3xl border border-[var(--app-border)] bg-[var(--app-surface)] px-4 py-3 text-right shadow-sm">
+              <div className="rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-right shadow-sm">
                 <p className="text-xs font-bold text-[var(--app-text-muted)]">
                   الدور
                 </p>
@@ -110,34 +112,15 @@ export default function CommandCenter({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-4">
-              <MiniMetric
-                label="الحضور"
-                value={`${attendanceRate}%`}
-                loading={loading}
-              />
-
-              <MiniMetric
-                label="الطلاب"
-                value={stats.students}
-                loading={loading}
-              />
-
-              <MiniMetric
-                label="المعلمون"
-                value={stats.teachers}
-                loading={loading}
-              />
-
-              <MiniMetric
-                label="التنبيهات"
-                value={stats.unreadNotifications}
-                loading={loading}
-              />
+              <MiniMetric label="الحضور" value={`${attendanceRate}%`} loading={loading} />
+              <MiniMetric label="الطلاب" value={stats.students} loading={loading} />
+              <MiniMetric label="المعلمون" value={stats.teachers} loading={loading} />
+              <MiniMetric label="التنبيهات" value={stats.unreadNotifications} loading={loading} />
             </div>
           </div>
         </div>
 
-        <div className="border-t border-[var(--app-border)] bg-[var(--app-surface)] p-5 sm:p-6 xl:border-r xl:border-t-0">
+        <div className="border-t border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 sm:p-6 xl:border-r xl:border-t-0">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-black text-[var(--app-text)]">
@@ -149,9 +132,7 @@ export default function CommandCenter({
               </p>
             </div>
 
-            <span
-              className={`rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black ${healthTone}`}
-            >
+            <span className={`rounded-full px-3 py-1 text-xs font-black ${healthTone}`}>
               {systemHealth}
             </span>
           </div>
@@ -172,7 +153,7 @@ export default function CommandCenter({
                     href={action.href}
                     className="group flex items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-3 transition hover:-translate-y-0.5 hover:border-[var(--app-accent)] hover:shadow-sm"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-primary-soft)] text-[var(--app-primary)] transition group-hover:bg-[var(--app-primary)] group-hover:text-white">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-primary-soft)] text-[var(--app-primary)] transition group-hover:bg-[var(--app-primary)] group-hover:text-[var(--app-primary-foreground)]">
                       <Icon size={18} />
                     </span>
 
@@ -186,10 +167,7 @@ export default function CommandCenter({
                       </span>
                     </span>
 
-                    <ExternalLink
-                      size={15}
-                      className="text-[var(--app-text-muted)]"
-                    />
+                    <ExternalLink size={15} className="text-[var(--app-text-muted)]" />
                   </Link>
                 );
               })}

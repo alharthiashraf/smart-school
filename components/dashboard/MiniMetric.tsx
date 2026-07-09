@@ -10,7 +10,7 @@ export default function MiniMetric({
   loading,
 }: MiniMetricProps) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-3 text-center">
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-3 text-center shadow-sm">
       <p className="text-lg font-black text-[var(--app-text)]">
         {loading ? "..." : value}
       </p>

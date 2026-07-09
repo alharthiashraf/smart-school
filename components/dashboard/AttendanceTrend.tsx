@@ -12,9 +12,7 @@ type AttendanceTrendProps = {
   data: AttendanceTrendItem[];
 };
 
-export default function AttendanceTrend({
-  data,
-}: AttendanceTrendProps) {
+export default function AttendanceTrend({ data }: AttendanceTrendProps) {
   if (data.length === 0) {
     return (
       <EmptyState
@@ -39,32 +37,32 @@ export default function AttendanceTrend({
         return (
           <div
             key={item.date}
-            className="grid grid-cols-[70px_1fr] items-center gap-3"
+            className="grid grid-cols-[70px_1fr] items-center gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-3"
           >
             <span className="text-xs font-black text-[var(--app-text-muted)]">
               {label}
             </span>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <ChartBar
                 value={item.present}
                 max={maxValue}
                 label="حضور"
-                className="bg-[#07A869]"
+                className="bg-[var(--app-green)]"
               />
 
               <ChartBar
                 value={item.absent}
                 max={maxValue}
                 label="غياب"
-                className="bg-red-500"
+                className="bg-[var(--app-destructive)]"
               />
 
               <ChartBar
                 value={item.late}
                 max={maxValue}
                 label="تأخر"
-                className="bg-[#C1B489]"
+                className="bg-[var(--app-accent)]"
               />
             </div>
           </div>
