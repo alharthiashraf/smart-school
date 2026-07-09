@@ -4,6 +4,7 @@ import "./globals.css";
 import ShellGate from "@/components/layout/ShellGate";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SchoolProvider } from "@/contexts/SchoolContext";
+import ThemeProvider from "@/providers/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "منصة المدرسة الذكية",
@@ -19,13 +20,15 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className="min-h-screen bg-slate-50 text-[#15445A] antialiased"
+        className="min-h-screen bg-background text-foreground antialiased"
       >
-        <AuthProvider>
-          <SchoolProvider>
-            <ShellGate>{children}</ShellGate>
-          </SchoolProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <SchoolProvider>
+              <ShellGate>{children}</ShellGate>
+            </SchoolProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
