@@ -23,18 +23,18 @@ export default function SidebarFooter({
   onLogout,
 }: SidebarFooterProps) {
   return (
-    <div className="border-t border-[var(--sidebar-border)] bg-white/[0.025] p-3">
+    <div className="border-t border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)]/60 p-3">
       {expanded && schools.length > 1 && (
         <select
           value={currentSchoolId ?? ""}
           onChange={(event) => onSwitchSchool(event.target.value)}
-          className="mb-3 w-full rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.08] px-3 py-2 text-xs font-bold text-white outline-none transition focus:border-[var(--app-accent)]"
+          className="mb-3 w-full rounded-2xl border border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] px-3 py-2 text-xs font-bold text-[var(--sidebar-text)] outline-none transition focus:border-[var(--app-accent)]"
         >
           {schools.map((school) => (
             <option
               key={school.id}
               value={school.id}
-              className="bg-slate-900 text-white"
+              className="bg-[var(--app-card)] text-[var(--app-text)]"
             >
               {school.school_name}
             </option>
@@ -46,9 +46,10 @@ export default function SidebarFooter({
         type="button"
         onClick={onLogout}
         title={!expanded ? "تسجيل الخروج" : undefined}
-        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-red-200 transition-all duration-200 hover:bg-red-500/10 hover:text-red-100 ${
-          !expanded ? "justify-center" : ""
-        }`}
+        className={[
+          "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-red-200 transition-all duration-200 hover:bg-red-500/10 hover:text-red-100",
+          !expanded ? "justify-center" : "",
+        ].join(" ")}
       >
         <LogOut size={20} className="shrink-0" />
 

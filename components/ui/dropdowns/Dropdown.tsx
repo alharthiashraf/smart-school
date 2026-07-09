@@ -28,16 +28,17 @@ export default function Dropdown({
     <div className={`group relative inline-block text-right ${className}`}>
       <button
         type="button"
-        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-2.5 text-sm font-bold text-[var(--app-text)] shadow-sm transition hover:bg-[var(--app-card-soft)]"
       >
         {label}
         <ChevronDown className="h-4 w-4" />
       </button>
 
       <div
-        className={`invisible absolute z-50 mt-2 min-w-52 rounded-2xl border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition-all group-hover:visible group-hover:opacity-100 ${
-          align === "end" ? "left-0" : "right-0"
-        }`}
+        className={[
+          "invisible absolute z-50 mt-2 min-w-52 rounded-2xl border border-[var(--app-border)] bg-[var(--app-popover)] p-2 text-[var(--app-text)] opacity-0 shadow-xl transition-all group-hover:visible group-hover:opacity-100",
+          align === "end" ? "left-0" : "right-0",
+        ].join(" ")}
       >
         {items.map((item, index) => (
           <button
@@ -45,11 +46,12 @@ export default function Dropdown({
             type="button"
             disabled={item.disabled}
             onClick={item.onClick}
-            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-right text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={[
+              "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-right text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50",
               item.danger
-                ? "text-red-700 hover:bg-red-50"
-                : "text-slate-700 hover:bg-slate-50"
-            }`}
+                ? "text-[var(--app-destructive)] hover:bg-[var(--app-destructive-soft)]"
+                : "text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
+            ].join(" ")}
           >
             {item.icon && <span className="shrink-0">{item.icon}</span>}
             <span className="truncate">{item.label}</span>

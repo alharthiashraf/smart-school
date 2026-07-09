@@ -26,11 +26,11 @@ export default function SidebarSearch({
         placeholder="بحث في القائمة..."
         className="
           [&_input]:border-[var(--sidebar-border)]
-          [&_input]:bg-white/[0.08]
+          [&_input]:bg-[var(--sidebar-bg-soft)]
           [&_input]:text-[var(--sidebar-text)]
           [&_input]:placeholder:text-[var(--sidebar-muted)]
           [&_input]:focus:border-[var(--app-accent)]
-          [&_input]:focus:ring-[rgba(212,175,55,0.12)]
+          [&_input]:focus:ring-[var(--app-accent-soft)]
         "
       />
 
@@ -38,7 +38,7 @@ export default function SidebarSearch({
         <EmptyState
           title="لا توجد نتائج"
           description="جرّب كلمة بحث مختلفة."
-          className="border-white/10 bg-white/[0.05]"
+          className="border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] text-[var(--sidebar-text)]"
         />
       ) : (
         children

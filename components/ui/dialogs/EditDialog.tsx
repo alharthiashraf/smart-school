@@ -29,24 +29,14 @@ export default function EditDialog({
   onClose,
 }: EditDialogProps) {
   return (
-    <DetailsDialog
-      open={open}
-      title={title}
-      width={width}
-      onClose={onClose}
-    >
+    <DetailsDialog open={open} title={title} width={width} onClose={onClose}>
       <div className="space-y-6">
         {children}
 
-        <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-          <SecondaryButton onClick={onClose}>
-            {cancelText}
-          </SecondaryButton>
+        <div className="flex justify-end gap-3 border-t border-[var(--app-border)] pt-5">
+          <SecondaryButton onClick={onClose}>{cancelText}</SecondaryButton>
 
-          <PrimaryButton
-            onClick={onSave}
-            disabled={loading}
-          >
+          <PrimaryButton onClick={onSave} disabled={loading}>
             {loading ? "جارٍ الحفظ..." : saveText}
           </PrimaryButton>
         </div>

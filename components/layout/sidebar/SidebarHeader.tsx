@@ -1,7 +1,7 @@
 "use client";
 
 import type { ElementType } from "react";
-import { ChevronRight, Menu, X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badges";
 
 type SidebarHeaderProps = {
@@ -34,7 +34,9 @@ export default function SidebarHeader({
           <button
             type="button"
             onClick={onCloseMobile}
-            className="rounded-xl bg-white/10 p-2 transition hover:bg-white/15 hover:text-[var(--app-primary)]"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] text-[var(--sidebar-muted)] transition hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-accent)]"
+            aria-label="إغلاق القائمة"
+            title="إغلاق القائمة"
           >
             <X size={18} />
           </button>
@@ -42,7 +44,7 @@ export default function SidebarHeader({
       )}
 
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-accent)] text-lg font-black text-slate-950 shadow-lg">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-accent)] text-lg font-black text-slate-950 shadow-lg shadow-black/10">
           ذ
         </div>
 
@@ -60,21 +62,15 @@ export default function SidebarHeader({
       </div>
 
       {expanded && (
-        <div className="mb-3 rounded-2xl border border-[var(--sidebar-border)] bg-white/[0.06] p-3">
+        <div className="mb-3 rounded-2xl border border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] p-3">
           <p className="truncate text-xs font-black text-[var(--sidebar-text)]">
             {schoolName || "لم يتم تحديد مدرسة"}
           </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <StatusBadge tone="success">
-              {roleName}
-            </StatusBadge>
+            <StatusBadge tone="success">{roleName}</StatusBadge>
 
-            {semester && (
-              <StatusBadge tone="warning">
-                {semester}
-              </StatusBadge>
-            )}
+            {semester && <StatusBadge tone="warning">{semester}</StatusBadge>}
           </div>
         </div>
       )}
@@ -83,8 +79,9 @@ export default function SidebarHeader({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--sidebar-border)] bg-white/10 text-[var(--sidebar-muted)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] text-[var(--sidebar-muted)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] hover:text-[var(--app-accent)]"
           title={expanded ? "طي القائمة" : "توسيع القائمة"}
+          aria-label={expanded ? "طي القائمة" : "توسيع القائمة"}
         >
           <ChevronRight
             size={18}
@@ -95,8 +92,9 @@ export default function SidebarHeader({
         <button
           type="button"
           onClick={onToggleTheme}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--sidebar-border)] bg-white/10 text-[var(--app-accent)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950"
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] text-[var(--app-accent)] transition hover:border-[var(--app-accent)] hover:bg-[var(--app-accent)] hover:text-slate-950"
           title="تبديل المظهر"
+          aria-label="تبديل المظهر"
         >
           <ActiveThemeIcon size={18} />
         </button>

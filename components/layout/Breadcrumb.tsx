@@ -51,12 +51,12 @@ export default function Breadcrumb() {
 
   return (
     <nav
-      className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400"
+      className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-muted)]"
       aria-label="مسار الصفحة"
     >
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-600 shadow-sm transition hover:border-emerald-200 hover:text-emerald-700"
+        className="inline-flex items-center gap-1 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-[var(--app-text)] shadow-sm transition hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
       >
         <Home className="h-4 w-4" />
         الرئيسية
@@ -68,16 +68,16 @@ export default function Breadcrumb() {
 
         return (
           <span key={href} className="inline-flex items-center gap-2">
-            <ChevronLeft className="h-3.5 w-3.5 text-slate-300" />
+            <ChevronLeft className="h-3.5 w-3.5 text-[var(--app-text-muted)]" />
 
             {isLast ? (
-              <span className="rounded-2xl bg-emerald-50 px-3 py-2 text-emerald-700">
+              <span className="rounded-2xl bg-[var(--app-teal-soft)] px-3 py-2 text-[var(--app-teal)]">
                 {getPageName(segment)}
               </span>
             ) : (
               <Link
                 href={href}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-slate-600 shadow-sm transition hover:border-emerald-200 hover:text-emerald-700"
+                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-[var(--app-text)] shadow-sm transition hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
               >
                 {getPageName(segment)}
               </Link>

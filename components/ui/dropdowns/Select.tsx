@@ -26,17 +26,19 @@ export default function Select({
   return (
     <label className="block">
       {label && (
-        <span className="mb-2 block text-sm font-black text-slate-700">
+        <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
           {label}
         </span>
       )}
 
       <select
-        className={`h-11 w-full rounded-2xl border bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:ring-4 ${
+        className={[
+          "h-11 w-full rounded-2xl border bg-[var(--app-card)] px-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:ring-4",
           error
-            ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-            : "border-slate-200 focus:border-emerald-600 focus:ring-emerald-100"
-        } ${className}`}
+            ? "border-[var(--app-destructive)] focus:border-[var(--app-destructive)] focus:ring-[var(--app-destructive-soft)]"
+            : "border-[var(--app-input)] focus:border-[var(--app-teal)] focus:ring-[var(--app-teal-soft)]",
+          className,
+        ].join(" ")}
         {...props}
       >
         <option value="">{placeholder}</option>
@@ -53,7 +55,7 @@ export default function Select({
       </select>
 
       {error && (
-        <p className="mt-1 text-xs font-bold text-red-600">
+        <p className="mt-1 text-xs font-bold text-[var(--app-destructive)]">
           {error}
         </p>
       )}

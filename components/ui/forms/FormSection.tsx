@@ -17,14 +17,19 @@ export default function FormSection({
 }: FormSectionProps) {
   return (
     <section
-      className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+      className={[
+        "rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm",
+        className,
+      ].join(" ")}
     >
-      <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="mb-5 flex flex-col gap-3 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-xl font-black text-[#15445a]">{title}</h2>
+          <h2 className="text-xl font-black text-[var(--app-text)]">
+            {title}
+          </h2>
 
           {description && (
-            <p className="mt-1 text-sm leading-7 text-slate-500">
+            <p className="mt-1 text-sm leading-7 text-[var(--app-text-muted)]">
               {description}
             </p>
           )}

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  Download,
   FileSpreadsheet,
   FileText,
   Loader2,
@@ -53,11 +52,16 @@ type PageToolbarProps = {
 };
 
 const buttonClasses: Record<NonNullable<ToolbarAction["variant"]>, string> = {
-  primary: "bg-[#15445A] text-white hover:bg-[#0DA9A6]",
-  secondary: "bg-[#0DA9A6] text-white hover:bg-[#08918f]",
-  outline: "border border-slate-200 bg-white text-[#15445A] hover:bg-slate-50",
-  ghost: "bg-slate-50 text-slate-600 hover:bg-slate-100",
-  danger: "bg-red-50 text-red-700 hover:bg-red-100",
+  primary:
+    "border-transparent bg-[var(--app-teal)] text-white hover:bg-[var(--app-teal-hover)]",
+  secondary:
+    "border-transparent bg-[var(--app-primary)] text-[var(--app-primary-foreground)] hover:bg-[var(--app-primary-hover)]",
+  outline:
+    "border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
+  ghost:
+    "border border-transparent bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]",
+  danger:
+    "border border-transparent bg-[var(--app-destructive-soft)] text-[var(--app-destructive)] hover:opacity-90",
 };
 
 export default function PageToolbar({
@@ -142,7 +146,7 @@ export default function PageToolbar({
     <section
       dir="rtl"
       className={[
-        "rounded-[28px] border border-slate-100 bg-white shadow-sm",
+        "rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
         isCompact ? "p-3" : "p-4",
         className,
       ].join(" ")}
@@ -151,20 +155,20 @@ export default function PageToolbar({
         <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           {search && (
             <div className="relative w-full lg:max-w-md">
-              <Search className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--app-text-muted)]" />
               <input
                 value={search.value}
                 onChange={(event) => search.onChange(event.target.value)}
                 disabled={disabled || search.disabled}
                 placeholder={search.placeholder || "ابحث..."}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-12 pl-4 text-sm text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-12 w-full rounded-2xl border border-[var(--app-input)] bg-[var(--app-card-soft)] pr-12 pl-4 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-muted)] focus:border-[var(--app-teal)] focus:bg-[var(--app-card)] disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
           )}
 
           {filters && (
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <div className="hidden items-center gap-1 rounded-full bg-slate-50 px-3 py-2 text-xs font-black text-slate-500 lg:inline-flex">
+              <div className="hidden items-center gap-1 rounded-full bg-[var(--app-card-soft)] px-3 py-2 text-xs font-black text-[var(--app-text-muted)] lg:inline-flex">
                 <SlidersHorizontal className="h-4 w-4" />
                 الفلاتر
               </div>
@@ -172,7 +176,11 @@ export default function PageToolbar({
             </div>
           )}
 
-          {children && <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{children}</div>}
+          {children && (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {children}
+            </div>
+          )}
         </div>
 
         {(quickActions.length > 0 || actions) && (
@@ -258,7 +266,7 @@ export function ToolbarSelect({
       onChange={(event) => onChange?.(event.target.value)}
       disabled={disabled}
       className={[
-        "h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60",
+        "h-11 rounded-2xl border border-[var(--app-input)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-teal)] focus:bg-[var(--app-card)] disabled:cursor-not-allowed disabled:opacity-60",
         className,
       ].join(" ")}
     >

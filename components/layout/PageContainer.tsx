@@ -24,7 +24,7 @@ export default function PageContainer({
   return (
     <div
       className={[
-        "w-full",
+        "w-full text-[var(--app-text)]",
         SIZE_CLASSES[size],
         centered ? "mx-auto" : "",
         className,

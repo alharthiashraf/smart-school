@@ -26,7 +26,7 @@ export default function SidebarSection({
         <button
           type="button"
           onClick={onToggle}
-          className="flex w-full items-center justify-between gap-2 rounded-2xl px-2.5 py-2 text-[11px] font-black text-[var(--sidebar-muted)] transition-all duration-200 hover:bg-[var(--app-primary-soft)] hover:text-[var(--app-primary)]"
+          className="flex w-full items-center justify-between gap-2 rounded-2xl px-2.5 py-2 text-[11px] font-black text-[var(--sidebar-muted)] transition-all duration-200 hover:bg-[var(--sidebar-bg-soft)] hover:text-[var(--sidebar-text)]"
         >
           <span className="flex items-center gap-2">
             <Icon size={14} />
@@ -35,7 +35,7 @@ export default function SidebarSection({
 
           <span className="flex items-center gap-2">
             {typeof count === "number" && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
+              <span className="rounded-full bg-[var(--sidebar-bg-soft)] px-2 py-0.5 text-[10px] text-[var(--sidebar-muted)]">
                 {count}
               </span>
             )}
@@ -49,14 +49,10 @@ export default function SidebarSection({
           </span>
         </button>
       ) : (
-        <div className="mx-auto mb-2 h-px w-8 bg-gradient-to-l from-transparent via-white/20 to-transparent" />
+        <div className="mx-auto mb-2 h-px w-8 bg-gradient-to-l from-transparent via-[var(--sidebar-border)] to-transparent" />
       )}
 
-      {opened && (
-        <div className="space-y-1">
-          {children}
-        </div>
-      )}
+      {opened && <div className="space-y-1">{children}</div>}
     </div>
   );
 }

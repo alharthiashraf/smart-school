@@ -17,20 +17,20 @@ export default function TableSearch({
 }: TableSearchProps) {
   return (
     <div className={`relative w-full ${className}`}>
-      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--app-text-muted)]" />
 
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-11 w-full rounded-2xl border border-slate-200 bg-white py-2 pl-10 pr-10 text-sm font-bold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+        className="h-11 w-full rounded-2xl border border-[var(--app-input)] bg-[var(--app-card)] py-2 pl-10 pr-10 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-muted)] focus:border-[var(--app-teal)] focus:ring-4 focus:ring-[var(--app-teal-soft)]"
       />
 
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
-          className="absolute left-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          className="absolute left-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-xl text-[var(--app-text-muted)] transition hover:bg-[var(--app-card-soft)] hover:text-[var(--app-text)]"
           aria-label="مسح البحث"
         >
           <X className="h-4 w-4" />

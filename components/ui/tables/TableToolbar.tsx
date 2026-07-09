@@ -1,14 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  Download,
-  Plus,
-  Printer,
-  RefreshCcw,
-} from "lucide-react";
+import { Download, Plus, Printer, RefreshCcw } from "lucide-react";
 
-import SearchBar from "../forms/SearchBar";
+import TableSearch from "./TableSearch";
 import PrimaryButton from "../buttons/PrimaryButton";
 import SecondaryButton from "../buttons/SecondaryButton";
 
@@ -49,12 +44,15 @@ export default function TableToolbar({
 }: TableToolbarProps) {
   return (
     <div
-      className={`border-b border-slate-200 bg-slate-50/40 p-5 ${className}`}
+      className={[
+        "border-b border-[var(--app-border)] bg-[var(--app-card-soft)] p-5",
+        className,
+      ].join(" ")}
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="w-full xl:max-w-md">
           {typeof search === "string" && onSearchChange && (
-            <SearchBar
+            <TableSearch
               value={search}
               onChange={onSearchChange}
               placeholder={searchPlaceholder}
@@ -66,19 +64,13 @@ export default function TableToolbar({
           {actions}
 
           {onRefresh && (
-            <SecondaryButton
-              onClick={onRefresh}
-              icon={<RefreshCcw size={18} />}
-            >
+            <SecondaryButton onClick={onRefresh} icon={<RefreshCcw size={18} />}>
               تحديث
             </SecondaryButton>
           )}
 
           {onPrint && (
-            <SecondaryButton
-              onClick={onPrint}
-              icon={<Printer size={18} />}
-            >
+            <SecondaryButton onClick={onPrint} icon={<Printer size={18} />}>
               طباعة
             </SecondaryButton>
           )}
@@ -94,10 +86,7 @@ export default function TableToolbar({
           )}
 
           {onAdd && (
-            <PrimaryButton
-              onClick={onAdd}
-              icon={<Plus size={18} />}
-            >
+            <PrimaryButton onClick={onAdd} icon={<Plus size={18} />}>
               {addLabel}
             </PrimaryButton>
           )}
@@ -105,7 +94,7 @@ export default function TableToolbar({
       </div>
 
       {filters && (
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="mt-4 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4">
           {filters}
         </div>
       )}

@@ -33,13 +33,16 @@ export default function PageSection({
 }: PageSectionProps) {
   return (
     <section
-      className={`rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+      className={[
+        "rounded-[24px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm",
+        className,
+      ].join(" ")}
     >
       {(title || description || actions || icon || badge) && (
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             {icon && (
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-teal-soft)] text-[var(--app-teal)]">
                 {icon}
               </div>
             )}
@@ -47,7 +50,7 @@ export default function PageSection({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 {title && (
-                  <h2 className="text-lg font-black text-slate-950">
+                  <h2 className="text-lg font-black text-[var(--app-text)]">
                     {title}
                   </h2>
                 )}
@@ -55,25 +58,25 @@ export default function PageSection({
               </div>
 
               {description && (
-                <p className="mt-1 text-sm leading-6 text-slate-500">
+                <p className="mt-1 text-sm leading-6 text-[var(--app-text-muted)]">
                   {description}
                 </p>
               )}
             </div>
           </div>
 
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
 
       {loading ? (
-        <div className="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm font-bold text-slate-500">
+        <div className="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] text-sm font-bold text-[var(--app-text-muted)]">
           {loadingText}
         </div>
       ) : empty ? (
-        <div className="flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center">
-          <p className="text-sm font-black text-slate-700">{emptyTitle}</p>
-          <p className="mt-1 max-w-md text-xs leading-6 text-slate-500">
+        <div className="flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-center">
+          <p className="text-sm font-black text-[var(--app-text)]">{emptyTitle}</p>
+          <p className="mt-1 max-w-md text-xs leading-6 text-[var(--app-text-muted)]">
             {emptyDescription}
           </p>
         </div>

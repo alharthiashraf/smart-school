@@ -30,48 +30,35 @@ export default function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl">
-
-        <div className="border-b p-6">
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-2xl">
+        <div className="border-b border-[var(--app-border)] p-6">
           <div className="flex items-center gap-3">
-
             {icon && (
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0da9a6]/10 text-[#0da9a6]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--app-teal-soft)] text-[var(--app-teal)]">
                 {icon}
               </div>
             )}
 
             <div>
-              <h2 className="text-xl font-black text-[#15445a]">
+              <h2 className="text-xl font-black text-[var(--app-text)]">
                 {title}
               </h2>
 
-              <p className="mt-1 text-sm leading-7 text-slate-500">
+              <p className="mt-1 text-sm leading-7 text-[var(--app-text-muted)]">
                 {message}
               </p>
             </div>
-
           </div>
-
         </div>
 
         <div className="flex justify-end gap-3 p-6">
+          <SecondaryButton onClick={onCancel}>{cancelText}</SecondaryButton>
 
-          <SecondaryButton onClick={onCancel}>
-            {cancelText}
-          </SecondaryButton>
-
-          <PrimaryButton
-            disabled={loading}
-            onClick={onConfirm}
-          >
+          <PrimaryButton disabled={loading} onClick={onConfirm}>
             {loading ? "جارٍ التنفيذ..." : confirmText}
           </PrimaryButton>
-
         </div>
-
       </div>
     </div>
   );
