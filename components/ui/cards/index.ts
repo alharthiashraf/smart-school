@@ -1,3 +1,5 @@
+export { default as BaseCard } from "./BaseCard";
+
 export { default as ExecutiveCard } from "./ExecutiveCard";
 export type { Tone as ExecutiveCardTone } from "./ExecutiveCard";
 

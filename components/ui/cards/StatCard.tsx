@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import BaseCard from "./BaseCard";
 
 type Tone = "primary" | "teal" | "green" | "blue" | "gold" | "red" | "slate";
 
@@ -18,13 +19,13 @@ export type StatCardProps = {
 };
 
 const toneClasses: Record<Tone, string> = {
-  primary: "bg-[#15445A]/10 text-[#15445A]",
-  teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-  green: "bg-[#07A869]/10 text-[#07A869]",
-  blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-  gold: "bg-[#C1B489]/20 text-[#15445A]",
-  red: "bg-red-50 text-red-700",
-  slate: "bg-slate-100 text-slate-700",
+  primary: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+  teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+  blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+  gold: "bg-[var(--app-accent-soft)] text-[var(--app-text)]",
+  red: "bg-red-500/10 text-red-600 dark:text-red-300",
+  slate: "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
 };
 
 export default function StatCard({
@@ -40,27 +41,32 @@ export default function StatCard({
   onClick,
   className = "",
 }: StatCardProps) {
-  const TrendIcon = trend === undefined ? Minus : trend >= 0 ? ArrowUpRight : ArrowDownRight;
+  const TrendIcon =
+    trend === undefined ? Minus : trend >= 0 ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <article
+    <BaseCard
+      as="article"
+      padding="sm"
+      hoverable={Boolean(onClick)}
       onClick={onClick}
-      className={[
-        "rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm transition-all duration-200",
-        onClick ? "cursor-pointer hover:-translate-y-1 hover:shadow-md" : "",
-        className,
-      ].join(" ")}
+      className={className}
     >
       <div className="flex items-start justify-between gap-3">
         {icon && (
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${toneClasses[tone]}`}>
+          <div
+            className={[
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+              toneClasses[tone],
+            ].join(" ")}
+          >
             {icon}
           </div>
         )}
 
         <div className="flex flex-wrap items-center justify-end gap-2">
           {badge && (
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">
+            <span className="rounded-full bg-[var(--app-card-soft)] px-2.5 py-1 text-[11px] font-black text-[var(--app-text-muted)]">
               {badge}
             </span>
           )}
@@ -69,7 +75,9 @@ export default function StatCard({
             <span
               className={[
                 "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black",
-                trend >= 0 ? "bg-[#07A869]/10 text-[#07A869]" : "bg-red-50 text-red-700",
+                trend >= 0
+                  ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
+                  : "bg-red-500/10 text-red-600 dark:text-red-300",
               ].join(" ")}
             >
               <TrendIcon className="h-3.5 w-3.5" />
@@ -80,30 +88,30 @@ export default function StatCard({
       </div>
 
       <div className="mt-4">
-        <p className="text-xs font-black tracking-wide text-slate-500">
+        <p className="text-xs font-black tracking-wide text-[var(--app-text-muted)]">
           {title}
         </p>
 
         {loading ? (
-          <div className="mt-2 h-8 w-24 animate-pulse rounded-xl bg-slate-200" />
+          <div className="mt-2 h-8 w-24 animate-pulse rounded-xl bg-[var(--app-card-soft)]" />
         ) : (
-          <h3 className="mt-2 text-3xl font-black tracking-tight text-[#15445A]">
+          <h3 className="mt-2 text-3xl font-black tracking-tight text-[var(--app-text)]">
             {value}
           </h3>
         )}
 
         {subtitle && (
-          <p className="mt-2 text-xs leading-6 text-slate-500">
+          <p className="mt-2 text-xs leading-6 text-[var(--app-text-muted)]">
             {subtitle}
           </p>
         )}
       </div>
 
       {footer && (
-        <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        <div className="mt-4 border-t border-[var(--app-border)] pt-3 text-xs text-[var(--app-text-muted)]">
           {footer}
         </div>
       )}
-    </article>
+    </BaseCard>
   );
 }

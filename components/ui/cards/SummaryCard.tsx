@@ -1,7 +1,22 @@
 import type { ReactNode } from "react";
-import { AlertCircle, CheckCircle2, Info, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  Loader2,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
+import BaseCard from "./BaseCard";
 
-type SummaryTone = "primary" | "teal" | "green" | "blue" | "gold" | "red" | "slate";
+type SummaryTone =
+  | "primary"
+  | "teal"
+  | "green"
+  | "blue"
+  | "gold"
+  | "red"
+  | "slate";
 
 type SummaryItem = {
   label: string;
@@ -22,41 +37,44 @@ type SummaryCardProps = {
   className?: string;
 };
 
-const toneClasses: Record<SummaryTone, { icon: string; badge: string; dot: string }> = {
+const toneClasses: Record<
+  SummaryTone,
+  { icon: string; badge: string; dot: string }
+> = {
   primary: {
-    icon: "bg-[#15445A]/10 text-[#15445A]",
-    badge: "bg-[#15445A]/10 text-[#15445A]",
-    dot: "bg-[#15445A]",
+    icon: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+    badge: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+    dot: "bg-[var(--app-primary)]",
   },
   teal: {
-    icon: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-    badge: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-    dot: "bg-[#0DA9A6]",
+    icon: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    badge: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    dot: "bg-[var(--app-teal)]",
   },
   green: {
-    icon: "bg-[#07A869]/10 text-[#07A869]",
-    badge: "bg-[#07A869]/10 text-[#07A869]",
-    dot: "bg-[#07A869]",
+    icon: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    badge: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    dot: "bg-[var(--app-green)]",
   },
   blue: {
-    icon: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    badge: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    dot: "bg-[#3D7EB9]",
+    icon: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    badge: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    dot: "bg-[var(--app-blue)]",
   },
   gold: {
-    icon: "bg-[#C1B489]/20 text-[#15445A]",
-    badge: "bg-[#C1B489]/20 text-[#15445A]",
-    dot: "bg-[#C1B489]",
+    icon: "bg-[var(--app-accent-soft)] text-[var(--app-text)]",
+    badge: "bg-[var(--app-accent-soft)] text-[var(--app-text)]",
+    dot: "bg-[var(--app-accent)]",
   },
   red: {
-    icon: "bg-red-50 text-red-700",
-    badge: "bg-red-50 text-red-700",
-    dot: "bg-red-600",
+    icon: "bg-red-500/10 text-red-600 dark:text-red-300",
+    badge: "bg-red-500/10 text-red-600 dark:text-red-300",
+    dot: "bg-red-600 dark:bg-red-400",
   },
   slate: {
-    icon: "bg-slate-100 text-slate-700",
-    badge: "bg-slate-100 text-slate-700",
-    dot: "bg-slate-500",
+    icon: "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+    badge: "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+    dot: "bg-[var(--app-text-muted)]",
   },
 };
 
@@ -83,13 +101,7 @@ export default function SummaryCard({
   className = "",
 }: SummaryCardProps) {
   return (
-    <section
-      dir="rtl"
-      className={[
-        "rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md",
-        className,
-      ].join(" ")}
-    >
+    <BaseCard as="section" padding="md" className={className}>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex items-start gap-3">
           <div
@@ -103,7 +115,9 @@ export default function SummaryCard({
 
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+              <h2 className="text-xl font-black text-[var(--app-text)]">
+                {title}
+              </h2>
 
               <span
                 className={[
@@ -116,7 +130,7 @@ export default function SummaryCard({
             </div>
 
             {description && (
-              <p className="mt-1 max-w-3xl text-sm leading-7 text-slate-500">
+              <p className="mt-1 max-w-3xl text-sm leading-7 text-[var(--app-text-muted)]">
                 {description}
               </p>
             )}
@@ -128,9 +142,9 @@ export default function SummaryCard({
 
       <div className="mt-5">
         {loading ? (
-          <div className="flex min-h-[120px] items-center justify-center rounded-3xl bg-slate-50">
-            <div className="flex items-center gap-3 text-sm font-bold text-slate-500">
-              <Loader2 className="h-5 w-5 animate-spin text-[#0DA9A6]" />
+          <div className="flex min-h-[120px] items-center justify-center rounded-3xl bg-[var(--app-card-soft)]">
+            <div className="flex items-center gap-3 text-sm font-bold text-[var(--app-text-muted)]">
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--app-teal)]" />
               جاري إعداد الملخص...
             </div>
           </div>
@@ -146,7 +160,7 @@ export default function SummaryCard({
                   return (
                     <div
                       key={`${label}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3"
+                      className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--app-card-soft)] px-4 py-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         {isString || !item.icon ? (
@@ -157,16 +171,18 @@ export default function SummaryCard({
                             ].join(" ")}
                           />
                         ) : (
-                          <span className="shrink-0 text-[#0DA9A6]">{item.icon}</span>
+                          <span className="shrink-0 text-[var(--app-teal)]">
+                            {item.icon}
+                          </span>
                         )}
 
-                        <p className="truncate text-sm font-bold text-slate-600">
+                        <p className="truncate text-sm font-bold text-[var(--app-text-muted)]">
                           {label}
                         </p>
                       </div>
 
                       {value !== undefined && (
-                        <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-[#15445A] shadow-sm">
+                        <span className="shrink-0 rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text)] shadow-sm">
                           {value}
                         </span>
                       )}
@@ -176,16 +192,20 @@ export default function SummaryCard({
               </div>
             )}
 
-            {children && <div className={items && items.length > 0 ? "mt-5" : ""}>{children}</div>}
+            {children && (
+              <div className={items && items.length > 0 ? "mt-5" : ""}>
+                {children}
+              </div>
+            )}
           </>
         )}
       </div>
 
       {footer && (
-        <div className="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-500">
+        <div className="mt-5 border-t border-[var(--app-border)] pt-4 text-sm text-[var(--app-text-muted)]">
           {footer}
         </div>
       )}
-    </section>
+    </BaseCard>
   );
 }

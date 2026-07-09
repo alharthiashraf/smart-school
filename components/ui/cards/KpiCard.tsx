@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import BaseCard from "./BaseCard";
 
 type Tone = "primary" | "teal" | "green" | "blue" | "gold" | "red";
 
@@ -15,13 +16,13 @@ export type KpiCardProps = {
   className?: string;
 };
 
-const tones: Record<Tone,string> = {
-  primary:"bg-[#15445A]/10 text-[#15445A]",
-  teal:"bg-[#0DA9A6]/10 text-[#0DA9A6]",
-  green:"bg-[#07A869]/10 text-[#07A869]",
-  blue:"bg-[#3D7EB9]/10 text-[#3D7EB9]",
-  gold:"bg-[#C1B489]/20 text-[#15445A]",
-  red:"bg-red-50 text-red-700",
+const tones: Record<Tone, string> = {
+  primary: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+  teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+  blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+  gold: "bg-[var(--app-accent-soft)] text-[var(--app-text)]",
+  red: "bg-red-500/10 text-red-600 dark:text-red-300",
 };
 
 export default function KpiCard({
@@ -30,48 +31,63 @@ export default function KpiCard({
   icon,
   trend,
   caption,
-  tone="teal",
-  loading=false,
+  tone = "teal",
+  loading = false,
   onClick,
-  className=""
-}:KpiCardProps){
-  const TrendIcon = trend == null ? Minus : trend >= 0 ? ArrowUpRight : ArrowDownRight;
+  className = "",
+}: KpiCardProps) {
+  const TrendIcon =
+    trend == null ? Minus : trend >= 0 ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div
+    <BaseCard
+      padding="sm"
+      hoverable={Boolean(onClick)}
       onClick={onClick}
-      className={[
-        "rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm transition-all",
-        onClick ? "cursor-pointer hover:-translate-y-1 hover:shadow-md" : "",
-        className,
-      ].join(" ")}
+      className={className}
     >
       <div className="flex items-center justify-between">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tones[tone]}`}>
+        <div
+          className={[
+            "flex h-10 w-10 items-center justify-center rounded-2xl",
+            tones[tone],
+          ].join(" ")}
+        >
           {icon}
         </div>
 
         {trend != null && (
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${
-            trend >= 0 ? "bg-[#07A869]/10 text-[#07A869]" : "bg-red-50 text-red-700"
-          }`}>
+          <span
+            className={[
+              "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black",
+              trend >= 0
+                ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
+                : "bg-red-500/10 text-red-600 dark:text-red-300",
+            ].join(" ")}
+          >
             <TrendIcon className="h-3.5 w-3.5" />
             {Math.abs(trend)}%
           </span>
         )}
       </div>
 
-      <p className="mt-4 text-sm font-bold text-slate-500">{title}</p>
+      <p className="mt-4 text-sm font-bold text-[var(--app-text-muted)]">
+        {title}
+      </p>
 
       {loading ? (
-        <div className="mt-2 h-8 w-20 animate-pulse rounded-lg bg-slate-200" />
+        <div className="mt-2 h-8 w-20 animate-pulse rounded-lg bg-[var(--app-card-soft)]" />
       ) : (
-        <h3 className="mt-2 text-3xl font-black text-[#15445A]">{value}</h3>
+        <h3 className="mt-2 text-3xl font-black text-[var(--app-text)]">
+          {value}
+        </h3>
       )}
 
       {caption && (
-        <p className="mt-2 text-xs leading-6 text-slate-500">{caption}</p>
+        <p className="mt-2 text-xs leading-6 text-[var(--app-text-muted)]">
+          {caption}
+        </p>
       )}
-    </div>
+    </BaseCard>
   );
 }
