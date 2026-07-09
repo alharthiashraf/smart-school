@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   useCallback,
   useEffect,
@@ -48,8 +49,6 @@ import {
   SidebarFooter,
 } from "./sidebar";
 
-type AppTheme = "smart-light" | "smart-dark";
-
 type SidebarItemType = {
   label: string;
   href: string;
@@ -72,7 +71,6 @@ type SidebarSectionType = {
 const COLLAPSED_KEY = "smart-school-v1-sidebar-collapsed";
 const OPEN_SECTIONS_KEY = "smart-school-v1-sidebar-open-sections";
 const FAVORITES_KEY = "smart-school-v1-sidebar-favorites";
-const THEME_KEY = "smart-school-v1-theme";
 
 const ALL_ROLES: SchoolRole[] = [
   "super_admin",
@@ -134,15 +132,6 @@ const ROLE_NAME_MAP: Record<SchoolRole, string> = {
   student: "طالب",
   parent: "ولي أمر",
 };
-
-const THEMES: Array<{
-  key: AppTheme;
-  label: string;
-  icon: ElementType;
-}> = [
-  { key: "smart-light", label: "الوضع الفاتح", icon: Sun },
-  { key: "smart-dark", label: "الوضع الداكن", icon: Moon },
-];
 
 const SECTIONS: SidebarSectionType[] = [
   {
@@ -475,12 +464,10 @@ function matchesSearch(item: SidebarItemType, query: string) {
   return text.includes(q);
 }
 
-function isAppTheme(value: string | null): value is AppTheme {
-  return value === "smart-light" || value === "smart-dark";
-}
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
 
   const {
     currentSchool,
@@ -496,8 +483,6 @@ export default function AppSidebar() {
   const [sectionSearch, setSectionSearch] = useState("");
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [theme, setTheme] = useState<AppTheme>("smart-light");
-  const [themeReady, setThemeReady] = useState(false);
 
   const expanded = !collapsed || mobileOpen;
   const roleName = currentRole ? ROLE_NAME_MAP[currentRole] : "مستخدم";
@@ -539,26 +524,16 @@ export default function AppSidebar() {
       .filter(Boolean) as SidebarItemType[];
   }, [favorites, allAllowedItems]);
 
-  const activeTheme = useMemo(
-    () => THEMES.find((item) => item.key === theme) ?? THEMES[0],
-    [theme],
-  );
-
-  const ActiveThemeIcon = activeTheme.icon;
+  const isDarkTheme = theme === "smart-dark";
+  const ActiveThemeIcon = isDarkTheme ? Sun : Moon;
   const hasSearchResults = allowedSections.length > 0;
 
   useEffect(() => {
     const savedCollapsed = window.localStorage.getItem(COLLAPSED_KEY);
-    const savedTheme = window.localStorage.getItem(THEME_KEY);
 
     setCollapsed(savedCollapsed === "true");
     setOpenSections(readJSON<Record<string, boolean>>(OPEN_SECTIONS_KEY, {}));
     setFavorites(readJSON<string[]>(FAVORITES_KEY, []));
-
-    const nextTheme = isAppTheme(savedTheme) ? savedTheme : "smart-light";
-    setTheme(nextTheme);
-    document.documentElement.setAttribute("data-theme", nextTheme);
-    setThemeReady(true);
   }, []);
 
   useEffect(() => {
@@ -572,13 +547,6 @@ export default function AppSidebar() {
   useEffect(() => {
     writeJSON(FAVORITES_KEY, favorites);
   }, [favorites]);
-
-  useEffect(() => {
-    if (!themeReady) return;
-
-    document.documentElement.setAttribute("data-theme", theme);
-    window.localStorage.setItem(THEME_KEY, theme);
-  }, [theme, themeReady]);
 
   useEffect(() => {
     if (!activeHref) return;
@@ -623,15 +591,9 @@ export default function AppSidebar() {
     });
   }, []);
 
-  const handleThemeChange = useCallback((nextTheme: AppTheme) => {
-    setTheme(nextTheme);
-  }, []);
-
   const cycleTheme = useCallback(() => {
-    const currentIndex = THEMES.findIndex((item) => item.key === theme);
-    const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
-    handleThemeChange(nextTheme.key);
-  }, [theme, handleThemeChange]);
+    setTheme(isDarkTheme ? "smart-light" : "smart-dark");
+  }, [isDarkTheme, setTheme]);
 
   const sidebarBackground =
     "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.22),transparent_28%),var(--sidebar-bg)]";
