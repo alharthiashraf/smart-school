@@ -4,11 +4,14 @@ import "./globals.css";
 import ShellGate from "@/components/layout/ShellGate";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SchoolProvider } from "@/contexts/SchoolContext";
-import ThemeProvider from "@/providers/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "منصة المدرسة الذكية",
-  description: "منصة مدرسية ذكية متعددة المدارس والصلاحيات",
+  title: {
+    default: "منصة المدرسة الذكية",
+    template: "%s | منصة المدرسة الذكية",
+  },
+  description:
+    "منصة مدرسية ذكية لإدارة الطلاب والمعلمين والحضور والدرجات والجداول والتقارير والصلاحيات.",
 };
 
 export default function RootLayout({
@@ -18,17 +21,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <body
-        suppressHydrationWarning
-        className="min-h-screen bg-background text-foreground antialiased"
-      >
-        <ThemeProvider>
-          <AuthProvider>
-            <SchoolProvider>
-              <ShellGate>{children}</ShellGate>
-            </SchoolProvider>
-          </AuthProvider>
-        </ThemeProvider>
+      <body suppressHydrationWarning>
+        <AuthProvider>
+          <SchoolProvider>
+            <ShellGate>{children}</ShellGate>
+          </SchoolProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -5,8 +5,11 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
 import {
+  AlertTriangle,
+  BarChart3,
   Building2,
   CheckCircle2,
   ChevronLeft,
@@ -69,6 +72,26 @@ type ClassroomView = ClassroomRow & {
   displayCapacity: number;
   statusLabel: "نشط" | "غير نشط";
 };
+
+type ClassroomAnalytics = {
+  averageCapacity: number;
+  withoutStage: number;
+  withoutGrade: number;
+  withoutSection: number;
+  lowCapacity: number;
+  highCapacity: number;
+  stageDistribution: Array<{ name: string; count: number }>;
+  gradeDistribution: Array<{ name: string; count: number }>;
+  trackDistribution: Array<{ name: string; count: number }>;
+};
+
+type ClassroomInsight = {
+  title: string;
+  description: string;
+  tone: "green" | "gold" | "red" | "blue" | "teal";
+  icon: ReactNode;
+};
+
 
 type ClassroomForm = {
   stage_id: string;
@@ -148,6 +171,44 @@ function uniqueValues(values: Array<string | null | undefined>) {
     new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b, "ar"));
 }
+
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: ClassroomInsight["tone"]) {
+  const tones: Record<ClassroomInsight["tone"], string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+  return tones[tone];
+}
+
+function chartTone(tone: ClassroomInsight["tone"]) {
+  const tones: Record<ClassroomInsight["tone"], string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+  return tones[tone];
+}
+
+function buildClassroomTimeline(classroom: ClassroomView | null) {
+  if (!classroom) return [];
+  return [
+    `تاريخ الإضافة: ${formatDate(classroom.created_at)}`,
+    `الحالة الحالية: ${classroom.statusLabel}`,
+    `المرحلة المرتبطة: ${classroom.displayStage}`,
+    `السعة المحددة: ${classroom.displayCapacity}`,
+  ];
+}
+
 
 export default function ClassroomsPage() {
   const {
@@ -299,6 +360,12 @@ export default function ClassroomsPage() {
     const keyword = search.trim().toLowerCase();
 
     return rows.filter((classroom) => {
+      const extraKeywords = [
+        !classroom.stage_id ? "بدون مرحلة" : "",
+        classroom.displayCapacity >= 40 ? "سعة مرتفعة ممتلئة" : "",
+        classroom.displayCapacity > 0 && classroom.displayCapacity < 20 ? "سعة منخفضة" : "",
+      ];
+
       const text = [
         classroom.displayName,
         classroom.displayGrade,
@@ -306,6 +373,7 @@ export default function ClassroomsPage() {
         classroom.displaySection,
         classroom.displayStage,
         classroom.statusLabel,
+        ...extraKeywords,
       ]
         .join(" ")
         .toLowerCase();
@@ -359,6 +427,61 @@ export default function ClassroomsPage() {
       stages: new Set(rows.map((row) => row.stage_id).filter(Boolean)).size,
     };
   }, [rows, filteredRows.length]);
+
+  const analytics = useMemo<ClassroomAnalytics>(() => {
+    const countValues = (values: string[]) => {
+      const map = new Map<string, number>();
+      values.forEach((value) => {
+        const name = value || "غير محدد";
+        map.set(name, (map.get(name) || 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+    };
+
+    const totalCapacity = rows.reduce((sum, row) => sum + row.displayCapacity, 0);
+
+    return {
+      averageCapacity: rows.length ? Math.round(totalCapacity / rows.length) : 0,
+      withoutStage: rows.filter((row) => !row.stage_id).length,
+      withoutGrade: rows.filter((row) => !row.grade_name || row.displayGrade === "غير محدد").length,
+      withoutSection: rows.filter((row) => !row.section || row.displaySection === "-").length,
+      lowCapacity: rows.filter((row) => row.displayCapacity > 0 && row.displayCapacity < 20).length,
+      highCapacity: rows.filter((row) => row.displayCapacity >= 40).length,
+      stageDistribution: countValues(rows.map((row) => row.displayStage)),
+      gradeDistribution: countValues(rows.map((row) => row.displayGrade)),
+      trackDistribution: countValues(rows.map((row) => row.displayTrack)),
+    };
+  }, [rows]);
+
+  const insights = useMemo<ClassroomInsight[]>(() => {
+    const items: ClassroomInsight[] = [];
+    if (stats.inactive > 0) items.push({ title: "فصول غير نشطة", description: `يوجد ${stats.inactive} فصل غير نشط ويحتاج إلى مراجعة.`, tone: "red", icon: <XCircle className="h-5 w-5" /> });
+    if (analytics.withoutStage > 0) items.push({ title: "فصول بدون مرحلة", description: `${analytics.withoutStage} فصل غير مرتبط بمرحلة دراسية.`, tone: "gold", icon: <AlertTriangle className="h-5 w-5" /> });
+    if (analytics.withoutSection > 0) items.push({ title: "شعب غير مكتملة", description: `${analytics.withoutSection} فصل لا يحتوي على شعبة واضحة.`, tone: "blue", icon: <Building2 className="h-5 w-5" /> });
+    if (analytics.highCapacity > 0) items.push({ title: "سعة مرتفعة", description: `${analytics.highCapacity} فصل سعته 40 طالبًا أو أكثر.`, tone: "teal", icon: <UsersRound className="h-5 w-5" /> });
+    if (items.length === 0) items.push({ title: "حالة الفصول مستقرة", description: "لا توجد مؤشرات حرجة في الربط أو السعة أو الحالة.", tone: "green", icon: <CheckCircle2 className="h-5 w-5" /> });
+    return items.slice(0, 4);
+  }, [analytics, stats.inactive]);
+
+  function runSmartSearch(command: string) {
+    const value = command.trim();
+    setSearch("");
+    setStageFilter("all");
+    setGradeFilter("all");
+    setTrackFilter("all");
+    setStatusFilter("all");
+
+    if (value.includes("غير نشطة")) { setStatusFilter("inactive"); return; }
+    if (value.includes("بدون مرحلة")) { setSearch("بدون مرحلة"); return; }
+    if (value.includes("ممتلئة") || value.includes("سعة مرتفعة")) { setSearch("سعة مرتفعة"); return; }
+
+    const matchingGrade = grades.find((grade) => value.includes(grade));
+    if (matchingGrade) { setGradeFilter(matchingGrade); return; }
+
+    setSearch(value.replace("فصول ", "").trim());
+  }
 
   function openCreateForm() {
     setEditingClassroom(null);
@@ -693,6 +816,31 @@ export default function ClassroomsPage() {
           ]}
           footer="تستخدم الفصول في توزيع الطلاب والجداول والحضور والدرجات؛ لذلك يفضل ضبط المرحلة والصف والشعبة قبل اعتمادها."
         />
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <ClassroomAnalyticsPanel analytics={analytics} totalClassrooms={stats.total} totalCapacity={stats.totalCapacity} activeClassrooms={stats.active} />
+          <ClassroomInsightsPanel insights={insights} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <ClassroomChartsPanel total={stats.total} active={stats.active} inactive={stats.inactive} averageCapacity={analytics.averageCapacity} lowCapacity={analytics.lowCapacity} highCapacity={analytics.highCapacity} />
+          <ClassroomHealthPanel total={stats.total} withStage={stats.total - analytics.withoutStage} withGrade={stats.total - analytics.withoutGrade} withSection={stats.total - analytics.withoutSection} active={stats.active} />
+          <ClassroomImportPanel />
+        </section>
+
+        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+          <div className="mb-4">
+            <h2 className="text-xl font-black text-[var(--app-text)]">البحث الذكي</h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">جرّب: فصول الأول الثانوي، فصول غير نشطة، فصول ممتلئة، فصول بدون مرحلة.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {["فصول الأول الثانوي", "فصول غير نشطة", "فصول ممتلئة", "فصول بدون مرحلة"].map((command) => (
+              <button key={command} type="button" onClick={() => runSmartSearch(command)} className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]">
+                {command}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {formOpen && (
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
@@ -1181,6 +1329,14 @@ function ClassroomSideCard({
         </p>
       </div>
 
+      <div className="mt-5 space-y-3">
+        <ClassroomDrawerSection title="Overview" items={[`المرحلة: ${selectedClassroom.displayStage}`, `الصف: ${selectedClassroom.displayGrade}`, `المسار: ${selectedClassroom.displayTrack}`, `الشعبة: ${selectedClassroom.displaySection}`]} />
+        <ClassroomDrawerSection title="Students & Capacity" items={[`السعة المحددة: ${selectedClassroom.displayCapacity}`, "عدد الطلاب الفعلي: جاهز للربط من جدول الطلاب.", selectedClassroom.displayCapacity >= 40 ? "توصية: راجع كثافة الفصل." : "السعة ضمن النطاق التشغيلي المعتاد."]} />
+        <ClassroomDrawerSection title="Schedule & Teachers" items={["الجداول: جاهزة للربط من جدول الجداول.", "المعلمون: جاهزون للربط من إسناد المواد.", "الحضور والدرجات: يعتمدان على صحة ربط الفصل."]} />
+        <ClassroomDrawerSection title="Timeline" items={buildClassroomTimeline(selectedClassroom)} />
+        <ClassroomDrawerSection title="AI Recommendations" items={[!selectedClassroom.stage_id ? "اربط الفصل بمرحلة دراسية." : "ربط المرحلة مكتمل.", selectedClassroom.displaySection === "-" ? "أضف اسم الشعبة." : "بيانات الشعبة مكتملة.", selectedClassroom.is_active === false ? "راجع سبب تعطيل الفصل." : "الفصل نشط وجاهز للتشغيل."]} />
+      </div>
+
       <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
         <p className="text-xs font-black text-slate-400">تاريخ الإضافة</p>
         <p className="mt-2 font-black text-[#15445A]">
@@ -1208,3 +1364,45 @@ function LoadingBox({ text }: { text: string }) {
     </div>
   );
 }
+
+
+function ClassroomAnalyticsPanel({ analytics, totalClassrooms, totalCapacity, activeClassrooms }: { analytics: ClassroomAnalytics; totalClassrooms: number; totalCapacity: number; activeClassrooms: number; }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Classroom Analytics</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">تحليل توزيع المراحل والصفوف والمسارات والسعة.</p></div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ClassroomMetric label="إجمالي الفصول" value={totalClassrooms} icon={<Building2 size={18} />} tone="blue" />
+        <ClassroomMetric label="الفصول النشطة" value={activeClassrooms} icon={<CheckCircle2 size={18} />} tone="green" />
+        <ClassroomMetric label="متوسط السعة" value={analytics.averageCapacity} icon={<UsersRound size={18} />} tone="gold" />
+        <ClassroomMetric label="إجمالي السعة" value={totalCapacity} icon={<BarChart3 size={18} />} tone="teal" />
+      </div>
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <ClassroomMiniList title="توزيع المراحل" items={analytics.stageDistribution.slice(0,6).map((item)=>`${item.name} — ${item.count}`)} />
+        <ClassroomMiniList title="توزيع الصفوف" items={analytics.gradeDistribution.slice(0,6).map((item)=>`${item.name} — ${item.count}`)} />
+        <ClassroomMiniList title="توزيع المسارات" items={analytics.trackDistribution.slice(0,6).map((item)=>`${item.name} — ${item.count}`)} />
+      </div>
+    </section>
+  );
+}
+
+function ClassroomInsightsPanel({ insights }: { insights: ClassroomInsight[] }) {
+  return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Smart Insights</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">توصيات تشغيلية مرتبطة بالسعة والربط والحالة.</p></div><div className="space-y-3">{insights.map((item)=><div key={item.title} className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>{item.icon}</div><div><p className="text-sm font-black text-[var(--app-text)]">{item.title}</p><p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p></div></div>)}</div></section>;
+}
+
+function ClassroomChartsPanel({ total, active, inactive, averageCapacity, lowCapacity, highCapacity }: { total:number; active:number; inactive:number; averageCapacity:number; lowCapacity:number; highCapacity:number; }) {
+  return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Charts</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">قراءة بصرية سريعة لحالة الفصول والسعة.</p></div><div className="space-y-4"><ClassroomProgress label="نشطة" value={active} total={Math.max(1,total)} tone="green"/><ClassroomProgress label="غير نشطة" value={inactive} total={Math.max(1,total)} tone="red"/><ClassroomProgress label="سعة منخفضة" value={lowCapacity} total={Math.max(1,total)} tone="gold"/><ClassroomProgress label="سعة مرتفعة" value={highCapacity} total={Math.max(1,total)} tone="blue"/><div className="rounded-2xl bg-[var(--app-card-soft)] p-3"><div className="mb-2 flex justify-between text-xs font-bold text-[var(--app-text-muted)]"><span>متوسط السعة</span><span>{averageCapacity}</span></div><div className="h-3 overflow-hidden rounded-full bg-[var(--app-card)]"><div className="h-full rounded-full bg-[var(--app-teal)]" style={{width:`${Math.min(100,Math.max(4,percentage(averageCapacity,40)))}%`}}/></div></div></div></section>;
+}
+
+function ClassroomHealthPanel({ total, withStage, withGrade, withSection, active }: { total:number; withStage:number; withGrade:number; withSection:number; active:number; }) {
+  return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Classroom Health</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">نسبة اكتمال البيانات والجاهزية التشغيلية.</p></div><div className="space-y-4"><ClassroomProgress label="ربط المرحلة" value={withStage} total={Math.max(1,total)} tone="green"/><ClassroomProgress label="اكتمال الصف" value={withGrade} total={Math.max(1,total)} tone="blue"/><ClassroomProgress label="اكتمال الشعبة" value={withSection} total={Math.max(1,total)} tone="teal"/><ClassroomProgress label="جاهزية التشغيل" value={active} total={Math.max(1,total)} tone="gold"/></div></section>;
+}
+
+function ClassroomImportPanel(){ return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Import Classrooms</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">مساحة جاهزة لاستيراد الفصول من Excel أو نور أو CSV.</p></div><div className="rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 text-center"><Download className="mx-auto h-8 w-8 text-[var(--app-teal)]"/><p className="mt-3 text-sm font-black text-[var(--app-text)]">جاهز للربط مع مستورد الفصول</p><p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">يمكن ربط هذه البطاقة لاحقًا بمستورد بيانات نور أو ملف Excel.</p></div></section>; }
+
+function ClassroomMetric({label,value,icon,tone}:{label:string;value:string|number;icon:ReactNode;tone:ClassroomInsight["tone"]}){ return <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4"><div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>{icon}</div><p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p><p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p></div>; }
+
+function ClassroomMiniList({title,items}:{title:string;items:string[]}){ return <div className="rounded-3xl bg-[var(--app-card-soft)] p-4"><h3 className="mb-3 text-sm font-black text-[var(--app-text)]">{title}</h3><div className="space-y-2">{items.length===0?<p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات كافية.</p>:items.map((item)=><div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">{item}</div>)}</div></div>; }
+
+function ClassroomProgress({label,value,total,tone}:{label:string;value:number;total:number;tone:ClassroomInsight["tone"]}){ const width=Math.max(4,Math.round((value/total)*100)); return <div><div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]"><span>{label}</span><span>{value}</span></div><div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]"><div className={`h-full rounded-full ${chartTone(tone)}`} style={{width:`${width}%`}}/></div></div>; }
+
+function ClassroomDrawerSection({title,items}:{title:string;items:string[]}){ return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="mb-2 text-sm font-black text-[#15445A]">{title}</p><div className="space-y-1">{items.map((item)=><p key={item} className="text-xs leading-6 text-slate-500">{item}</p>)}</div></div>; }
