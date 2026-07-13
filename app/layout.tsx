@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   },
   description:
     "منصة مدرسية ذكية لإدارة الطلاب والمعلمين والحضور والدرجات والجداول والتقارير والصلاحيات.",
+
+  other: {
+    "domain-verification":
+      "c73ffc47d67500d4beb490e572f4a46e2d67d2b82a9a96b3ae47bc8c24c779af",
+  },
 };
 
 export default function RootLayout({
