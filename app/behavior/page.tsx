@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
@@ -14,14 +14,22 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
+  BrainCircuit,
   CheckCircle2,
+  ChartNoAxesCombined,
   Clock,
   Eye,
   Plus,
   RefreshCcw,
   Search,
+  Sparkles,
   ShieldAlert,
+  Target,
+  TrendingDown,
+  UserRoundSearch,
   Trash2,
   Loader2,
   X,
@@ -64,6 +72,39 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
+
+type BehaviorInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type BehaviorInsight = {
+  title: string;
+  description: string;
+  tone: BehaviorInsightTone;
+  icon: ReactNode;
+};
+
+type BehaviorHealth = {
+  closureRate: number;
+  followUpRate: number;
+  highSeverityRate: number;
+  documentationRate: number;
+  averageDeduction: number;
+};
+
+type StudentBehaviorRisk = {
+  studentId: string;
+  studentName: string;
+  violations: number;
+  deducted: number;
+  highSeverity: number;
+  score: number;
+  label: "مستقر" | "متابعة" | "خطر";
+};
+
+type DistributionItem = {
+  name: string;
+  count: number;
+};
+
 
 const VIOLATION_OPTIONS = [
   { title: "التأخر الصباحي", degree: 1, points: 1 },
@@ -185,6 +226,63 @@ const VIOLATION_OPTIONS = [
   { title: "التنمر بجميع أنواعه", degree: 4, points: 10 },
 ];
 
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: BehaviorInsightTone) {
+  const tones: Record<BehaviorInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: BehaviorInsightTone) {
+  const tones: Record<BehaviorInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildBehaviorRecommendations(item: Violation) {
+  const recommendations: string[] = [];
+
+  if (item.violation_degree >= 4) {
+    recommendations.push("تتطلب المخالفة تصعيدًا إداريًا وخطة متابعة موثقة.");
+  } else if (item.violation_degree === 3) {
+    recommendations.push("يوصى بإحالة الحالة للمرشد الطلابي ومتابعة ولي الأمر.");
+  } else if (item.violation_degree === 2) {
+    recommendations.push("يوصى بإجراء تربوي واضح ومتابعة تكرار السلوك.");
+  } else {
+    recommendations.push("يمكن معالجة الحالة بتوجيه تربوي ومتابعة قصيرة.");
+  }
+
+  if (!item.action_taken) {
+    recommendations.push("أضف الإجراء المتخذ لرفع جودة التوثيق.");
+  }
+
+  if (!item.notes) {
+    recommendations.push("أضف ملاحظات توضح سياق المخالفة.");
+  }
+
+  if ((item.status || "مفتوحة") === "مفتوحة") {
+    recommendations.push("الحالة ما زالت مفتوحة وتحتاج قرار متابعة.");
+  }
+
+  return recommendations;
+}
+
 export default function BehaviorPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
@@ -206,6 +304,8 @@ export default function BehaviorPage() {
   const [notes, setNotes] = useState("");
 
   const [toast, setToast] = useState<Toast | null>(null);
+  const [selectedViolationDetails, setSelectedViolationDetails] =
+    useState<Violation | null>(null);
 
   const selectedOption = useMemo(() => {
     return VIOLATION_OPTIONS.find((item) => item.title === selectedViolation);
@@ -335,6 +435,180 @@ export default function BehaviorPage() {
   const highViolations = violations.filter(
     (item) => Number(item.violation_degree || 0) >= 3,
   ).length;
+
+  const health = useMemo<BehaviorHealth>(() => {
+    const documented = violations.filter(
+      (item) => Boolean(item.action_taken) && Boolean(item.notes),
+    ).length;
+
+    return {
+      closureRate: percentage(closedViolations, totalViolations),
+      followUpRate: percentage(followViolations, totalViolations),
+      highSeverityRate: percentage(highViolations, totalViolations),
+      documentationRate: percentage(documented, totalViolations),
+      averageDeduction: totalViolations
+        ? Math.round((totalDeducted / totalViolations) * 10) / 10
+        : 0,
+    };
+  }, [
+    closedViolations,
+    followViolations,
+    highViolations,
+    totalDeducted,
+    totalViolations,
+    violations,
+  ]);
+
+  const distributions = useMemo(() => {
+    const count = (values: string[]): DistributionItem[] => {
+      const map = new Map<string, number>();
+
+      values.forEach((value) => {
+        const key = value || "غير محدد";
+        map.set(key, (map.get(key) || 0) + 1);
+      });
+
+      return Array.from(map.entries())
+        .map(([name, countValue]) => ({ name, count: countValue }))
+        .sort((a, b) => b.count - a.count);
+    };
+
+    return {
+      degrees: count(
+        violations.map((item) => `الدرجة ${item.violation_degree}`),
+      ),
+      statuses: count(
+        violations.map((item) => item.status || "مفتوحة"),
+      ),
+      titles: count(
+        violations.map((item) => item.violation_title),
+      ),
+    };
+  }, [violations]);
+
+  const studentRisks = useMemo<StudentBehaviorRisk[]>(() => {
+    const map = new Map<string, StudentBehaviorRisk>();
+
+    violations.forEach((item) => {
+      const studentId = item.student_id;
+      const current = map.get(studentId) || {
+        studentId,
+        studentName: item.students?.full_name || "غير محدد",
+        violations: 0,
+        deducted: 0,
+        highSeverity: 0,
+        score: 0,
+        label: "مستقر" as const,
+      };
+
+      current.violations += 1;
+      current.deducted += Number(item.points_deducted || 0);
+      if (Number(item.violation_degree || 0) >= 3) current.highSeverity += 1;
+
+      current.score =
+        current.deducted * 2 +
+        current.highSeverity * 20 +
+        current.violations * 5;
+
+      current.label =
+        current.score >= 60
+          ? "خطر"
+          : current.score >= 25
+            ? "متابعة"
+            : "مستقر";
+
+      map.set(studentId, current);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.score - a.score);
+  }, [violations]);
+
+  const smartInsights = useMemo<BehaviorInsight[]>(() => {
+    const items: BehaviorInsight[] = [];
+
+    if (highViolations > 0) {
+      items.push({
+        title: "مخالفات مرتفعة الخطورة",
+        description: `يوجد ${highViolations} مخالفة من الدرجة الثالثة أو الرابعة.`,
+        tone: "red",
+        icon: <TrendingDown className="h-5 w-5" />,
+      });
+    }
+
+    if (openViolations > 0) {
+      items.push({
+        title: "حالات مفتوحة",
+        description: `${openViolations} مخالفة ما زالت مفتوحة وتحتاج إجراء.`,
+        tone: "gold",
+        icon: <Clock className="h-5 w-5" />,
+      });
+    }
+
+    if (health.documentationRate < 100 && totalViolations > 0) {
+      items.push({
+        title: "توثيق غير مكتمل",
+        description: `اكتمال الإجراء والملاحظات يبلغ ${health.documentationRate}% فقط.`,
+        tone: "blue",
+        icon: <Target className="h-5 w-5" />,
+      });
+    }
+
+    if (studentRisks[0]?.label === "خطر") {
+      items.push({
+        title: "طالب عالي الخطورة",
+        description: `${studentRisks[0].studentName} يحتاج خطة تدخل ومتابعة.`,
+        tone: "teal",
+        icon: <UserRoundSearch className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الوضع السلوكي مستقر",
+        description: "لا توجد مؤشرات حرجة في المخالفات الحالية.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [
+    health.documentationRate,
+    highViolations,
+    openViolations,
+    studentRisks,
+    totalViolations,
+  ]);
+
+  function runSmartSearch(command: string) {
+    const value = command.trim();
+
+    setSearch("");
+    setDegreeFilter("all");
+    setStatusFilter("all");
+
+    if (value.includes("الدرجة الرابعة")) {
+      setDegreeFilter("4");
+      return;
+    }
+
+    if (value.includes("مفتوحة")) {
+      setStatusFilter("مفتوحة");
+      return;
+    }
+
+    if (value.includes("تحت المتابعة")) {
+      setStatusFilter("تحت المتابعة");
+      return;
+    }
+
+    if (value.includes("مغلقة")) {
+      setStatusFilter("مغلقة");
+      return;
+    }
+
+    setSearch(value.replace("مخالفات", "").trim());
+  }
 
   async function addViolation() {
     if (!studentId || !selectedOption) {
@@ -498,6 +772,62 @@ export default function BehaviorPage() {
             />
           </section>
 
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <BehaviorExecutiveAnalytics
+              health={health}
+              totals={{
+                totalViolations,
+                openViolations,
+                followViolations,
+                closedViolations,
+                totalDeducted,
+                highViolations,
+              }}
+              topViolation={distributions.titles[0]}
+            />
+
+            <BehaviorSmartInsights insights={smartInsights} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <BehaviorHealthPanel health={health} />
+
+            <BehaviorRiskPanel
+              risks={studentRisks}
+              totalStudents={students.length}
+            />
+
+            <BehaviorDistributionPanel
+              degrees={distributions.degrees}
+              statuses={distributions.statuses}
+            />
+          </section>
+
+          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+            <div className="mb-4">
+              <h2 className="text-xl font-black text-[var(--app-text)]">
+                البحث الذكي في السلوك
+              </h2>
+              <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                جرّب: مخالفات الدرجة الرابعة، مخالفات مفتوحة، تحت المتابعة، مخالفات مغلقة.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {["مخالفات الدرجة الرابعة", "مخالفات مفتوحة", "تحت المتابعة", "مخالفات مغلقة"].map((command) => (
+                <button
+                  key={command}
+                  type="button"
+                  onClick={() => runSmartSearch(command)}
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                >
+                  {command}
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 grid gap-3 md:grid-cols-4">
               <div className="md:col-span-2">
@@ -568,7 +898,8 @@ export default function BehaviorPage() {
                     {filteredViolations.map((item) => (
                       <tr
                         key={item.id}
-                        className="border-b last:border-0 hover:bg-slate-50"
+                        onClick={() => setSelectedViolationDetails(item)}
+                        className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
                       >
                         <td className="p-3">
                           <div className="font-black text-[#15445A]">
@@ -617,6 +948,7 @@ export default function BehaviorPage() {
                         <td className="p-3">
                           <select
                             value={item.status || "مفتوحة"}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               updateViolationStatus(item.id, e.target.value)
                             }
@@ -632,7 +964,10 @@ export default function BehaviorPage() {
 
                         <td className="p-3">
                           <button
-                            onClick={() => deleteViolation(item.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void deleteViolation(item.id);
+                            }}
                             className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -656,6 +991,14 @@ export default function BehaviorPage() {
               </p>
             </div>
           </section>
+
+
+          {selectedViolationDetails && (
+            <BehaviorViolationDrawer
+              item={selectedViolationDetails}
+              onClose={() => setSelectedViolationDetails(null)}
+            />
+          )}
 
           {showForm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -840,6 +1183,380 @@ function ToastBox({ toast }: { toast: Toast }) {
       />
 
       <span>{toast.message}</span>
+    </div>
+  );
+}
+
+
+function BehaviorExecutiveAnalytics({
+  health,
+  totals,
+  topViolation,
+}: {
+  health: BehaviorHealth;
+  totals: {
+    totalViolations: number;
+    openViolations: number;
+    followViolations: number;
+    closedViolations: number;
+    totalDeducted: number;
+    highViolations: number;
+  };
+  topViolation?: DistributionItem;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لحالة السلوك وجودة الإغلاق والتوثيق.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <BehaviorMetric label="نسبة الإغلاق" value={`${health.closureRate}%`} icon={<CheckCircle2 size={18} />} tone="green" />
+        <BehaviorMetric label="نسبة المتابعة" value={`${health.followUpRate}%`} icon={<Eye size={18} />} tone="blue" />
+        <BehaviorMetric label="عالية الخطورة" value={`${health.highSeverityRate}%`} icon={<AlertTriangle size={18} />} tone="red" />
+        <BehaviorMetric label="اكتمال التوثيق" value={`${health.documentationRate}%`} icon={<Target size={18} />} tone="teal" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <BehaviorInfoLine label="متوسط الحسم" value={health.averageDeduction} />
+        <BehaviorInfoLine label="أكثر مخالفة" value={topViolation?.name || "-"} />
+        <BehaviorInfoLine label="إجمالي الحسم" value={totals.totalDeducted} />
+        <BehaviorInfoLine label="إجمالي المخالفات" value={totals.totalViolations} />
+      </div>
+    </section>
+  );
+}
+
+function BehaviorSmartInsights({
+  insights,
+}: {
+  insights: BehaviorInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Behavior Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات تشغيلية مبنية على المخالفات الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BehaviorHealthPanel({
+  health,
+}: {
+  health: BehaviorHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Behavior Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات الإغلاق والمتابعة والتوثيق.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <BehaviorProgress label="الإغلاق" value={health.closureRate} total={100} tone="green" suffix="%" />
+        <BehaviorProgress label="تحت المتابعة" value={health.followUpRate} total={100} tone="blue" suffix="%" />
+        <BehaviorProgress label="مرتفعة الخطورة" value={health.highSeverityRate} total={100} tone="red" suffix="%" />
+        <BehaviorProgress label="اكتمال التوثيق" value={health.documentationRate} total={100} tone="teal" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function BehaviorRiskPanel({
+  risks,
+  totalStudents,
+}: {
+  risks: StudentBehaviorRisk[];
+  totalStudents: number;
+}) {
+  const danger = risks.filter((item) => item.label === "خطر").length;
+  const watch = risks.filter((item) => item.label === "متابعة").length;
+  const stable = Math.max(0, totalStudents - danger - watch);
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Behavior Risk Engine</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        تصنيف الطلاب حسب تكرار المخالفات وحدتها.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <BehaviorProgress label="خطر" value={danger} total={Math.max(1, totalStudents)} tone="red" />
+        <BehaviorProgress label="متابعة" value={watch} total={Math.max(1, totalStudents)} tone="gold" />
+        <BehaviorProgress label="مستقر" value={stable} total={Math.max(1, totalStudents)} tone="green" />
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {risks.slice(0, 4).map((item) => (
+          <div key={item.studentId} className="rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+            <p className="text-sm font-black text-[var(--app-text)]">{item.studentName}</p>
+            <p className="mt-1 text-xs text-[var(--app-text-muted)]">
+              {item.violations} مخالفات · حسم {item.deducted} · {item.label}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BehaviorDistributionPanel({
+  degrees,
+  statuses,
+}: {
+  degrees: DistributionItem[];
+  statuses: DistributionItem[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <ChartNoAxesCombined size={20} />
+        Behavior Distribution
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        توزيع المخالفات حسب الدرجة والحالة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <BehaviorMiniList
+          title="حسب الدرجة"
+          items={degrees.slice(0, 5).map((item) => `${item.name} — ${item.count}`)}
+        />
+        <BehaviorMiniList
+          title="حسب الحالة"
+          items={statuses.slice(0, 5).map((item) => `${item.name} — ${item.count}`)}
+        />
+      </div>
+    </section>
+  );
+}
+
+function BehaviorViolationDrawer({
+  item,
+  onClose,
+}: {
+  item: Violation;
+  onClose: () => void;
+}) {
+  const recommendations = buildBehaviorRecommendations(item);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Behavior Drawer V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+              {item.students?.full_name || "غير محدد"}
+            </h2>
+          </div>
+
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <BehaviorDrawerMetric label="المخالفة" value={item.violation_title} />
+          <BehaviorDrawerMetric label="الدرجة" value={`الدرجة ${item.violation_degree}`} />
+          <BehaviorDrawerMetric label="الحسم" value={String(item.points_deducted)} />
+          <BehaviorDrawerMetric label="الحالة" value={item.status || "مفتوحة"} />
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <BehaviorDrawerSection
+            title="Overview"
+            items={[
+              `الطالب: ${item.students?.full_name || "غير محدد"}`,
+              `الصف: ${item.students?.grade_level || "-"}`,
+              `الفصل: ${item.students?.classroom || "-"}`,
+              `التاريخ: ${item.violation_date || "-"}`,
+            ]}
+          />
+
+          <BehaviorDrawerSection
+            title="Action & Notes"
+            items={[
+              `الإجراء: ${item.action_taken || "لم يحدد"}`,
+              `الملاحظات: ${item.notes || "لا توجد"}`,
+              `المبلّغ: ${item.reported_by_name || "غير محدد"}`,
+              `الدور: ${item.reported_by_role || "غير محدد"}`,
+            ]}
+          />
+
+          <BehaviorDrawerSection
+            title="AI Recommendations"
+            items={recommendations}
+          />
+
+          <BehaviorDrawerSection
+            title="Timeline"
+            items={[
+              `تاريخ المخالفة: ${item.violation_date || "-"}`,
+              `تاريخ التسجيل: ${item.created_at || "-"}`,
+              `الحالة الحالية: ${item.status || "مفتوحة"}`,
+            ]}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function BehaviorMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: BehaviorInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function BehaviorInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function BehaviorProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: BehaviorInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function BehaviorMiniList({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-3xl bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
+      <div className="space-y-2">
+        {items.length === 0 ? (
+          <p className="text-xs text-[var(--app-text-muted)]">لا توجد بيانات.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
+              {item}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BehaviorDrawerMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function BehaviorDrawerSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">
+            {item}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

@@ -8,8 +8,12 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
+  BrainCircuit,
   CalendarDays,
+  ChartNoAxesCombined,
   CheckCircle2,
   ClipboardCheck,
   Clock,
@@ -19,7 +23,10 @@ import {
   RefreshCcw,
   RotateCcw,
   Save,
+  Sparkles,
   Stethoscope,
+  Target,
+  TrendingDown,
   UserRound,
   Users,
   XCircle,
@@ -146,6 +153,31 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
+
+type AttendanceInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type AttendanceInsight = {
+  title: string;
+  description: string;
+  tone: AttendanceInsightTone;
+  icon: ReactNode;
+};
+
+type AttendanceHealth = {
+  attendanceRate: number;
+  absenceRate: number;
+  lateRate: number;
+  followUpRate: number;
+  dataCompletion: number;
+};
+
+type StudentAttendanceRisk = {
+  student: StudentRow;
+  status: AttendanceStatus;
+  score: number;
+  label: "مستقر" | "متابعة" | "خطر";
+};
+
 
 const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 
@@ -288,6 +320,65 @@ function normalizeRecordStatus(record: AttendanceRecord): AttendanceStatus {
   return "present";
 }
 
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: AttendanceInsightTone) {
+  const tones: Record<AttendanceInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: AttendanceInsightTone) {
+  const tones: Record<AttendanceInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildAttendanceRecommendations(
+  student: StudentRow,
+  status: AttendanceStatus,
+) {
+  const recommendations: string[] = [];
+
+  if (status === "absent") {
+    recommendations.push("التواصل مع ولي الأمر وتوثيق سبب الغياب.");
+  }
+
+  if (status === "late") {
+    recommendations.push("متابعة نمط التأخر في الأيام القادمة.");
+  }
+
+  if (status === "excused") {
+    recommendations.push("التحقق من توثيق الاستئذان واعتماده.");
+  }
+
+  if (status === "clinic") {
+    recommendations.push("متابعة الزيارة الصحية ونتيجة التحويل للعيادة.");
+  }
+
+  if (status === "present") {
+    recommendations.push("الحالة مستقرة ولا توجد متابعة عاجلة.");
+  }
+
+  return recommendations;
+}
+
+
 export default function AttendancePage() {
   const {
     currentSchool,
@@ -334,6 +425,7 @@ export default function AttendancePage() {
 
   const [blockReason, setBlockReason] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
 
   const dayName = getArabicDay(attendanceDate);
   const isAllowedDay = DAYS.includes(dayName);
@@ -646,6 +738,125 @@ export default function AttendancePage() {
 
   const followUpCount = summary.absent + summary.excused;
   const selectedTeacher = teachers.find((teacher) => teacher.id === teacherId);
+
+  const health = useMemo<AttendanceHealth>(() => {
+    const total = Math.max(1, students.length);
+    const assignedStatuses = Object.keys(statuses).length;
+
+    return {
+      attendanceRate,
+      absenceRate: percentage(summary.absent, total),
+      lateRate: percentage(summary.late, total),
+      followUpRate: percentage(followUpCount + summary.clinic, total),
+      dataCompletion: percentage(assignedStatuses, students.length),
+    };
+  }, [attendanceRate, followUpCount, statuses, students.length, summary]);
+
+  const risks = useMemo<StudentAttendanceRisk[]>(() => {
+    return students
+      .map((student) => {
+        const status = statuses[student.id] || "present";
+        const score =
+          status === "absent"
+            ? 100
+            : status === "clinic"
+              ? 75
+              : status === "excused"
+                ? 60
+                : status === "late"
+                  ? 45
+                  : 0;
+
+        return {
+          student,
+          status,
+          score,
+          label: score >= 75 ? "خطر" : score >= 45 ? "متابعة" : "مستقر",
+        } satisfies StudentAttendanceRisk;
+      })
+      .sort((a, b) => b.score - a.score);
+  }, [students, statuses]);
+
+  const smartInsights = useMemo<AttendanceInsight[]>(() => {
+    const items: AttendanceInsight[] = [];
+
+    if (summary.absent > 0) {
+      items.push({
+        title: "طلاب غائبون",
+        description: `يوجد ${summary.absent} طالب غائب ويحتاجون إلى متابعة.`,
+        tone: "red",
+        icon: <TrendingDown className="h-5 w-5" />,
+      });
+    }
+
+    if (summary.late > 0) {
+      items.push({
+        title: "حالات تأخر",
+        description: `تم تسجيل ${summary.late} حالة تأخر في الحصة الحالية.`,
+        tone: "gold",
+        icon: <Clock className="h-5 w-5" />,
+      });
+    }
+
+    if (summary.clinic > 0) {
+      items.push({
+        title: "تحويلات صحية",
+        description: `${summary.clinic} طالب تم تحويلهم للعيادة.`,
+        tone: "teal",
+        icon: <Stethoscope className="h-5 w-5" />,
+      });
+    }
+
+    if (attendanceRate < 85 && students.length > 0) {
+      items.push({
+        title: "نسبة حضور تحتاج متابعة",
+        description: `نسبة الحضور الحالية ${attendanceRate}% وهي أقل من المستوى المستهدف.`,
+        tone: "blue",
+        icon: <Target className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الحضور مستقر",
+        description: "لا توجد مؤشرات حرجة في الحصة الحالية.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [attendanceRate, students.length, summary]);
+
+  function runSmartSearch(command: string) {
+    const value = normalizeText(command);
+
+    setSearch("");
+    setStatusFilter("all");
+
+    if (value.includes("غائب")) {
+      setStatusFilter("absent");
+      return;
+    }
+
+    if (value.includes("متأخر")) {
+      setStatusFilter("late");
+      return;
+    }
+
+    if (value.includes("عياده")) {
+      setStatusFilter("clinic");
+      return;
+    }
+
+    if (value.includes("مستأذن")) {
+      setStatusFilter("excused");
+      return;
+    }
+
+    setSearch(command.replace("طلاب", "").trim());
+  }
+
 
   function setStudentStatus(studentId: string, status: AttendanceStatus) {
     setStatuses((current) => ({
@@ -1117,6 +1328,53 @@ export default function AttendancePage() {
               footer="يمكن حفظ الحضور بعد مراجعة الحالات، وأي طالب محدد بتحويل للعيادة سيتم إنشاء زيارة صحية له تلقائيًا."
             />
 
+
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <AttendanceExecutiveAnalytics
+                health={health}
+                summary={summary}
+                studentsCount={students.length}
+                selectedLesson={selectedLesson}
+              />
+
+              <AttendanceSmartInsights insights={smartInsights} />
+            </section>
+
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              <AttendanceHealthPanel health={health} />
+
+              <AttendanceRiskPanel
+                risks={risks}
+                total={students.length}
+              />
+
+              <AttendanceDistributionPanel summary={summary} />
+            </section>
+
+            <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+              <div className="mb-4">
+                <h2 className="text-xl font-black text-[var(--app-text)]">
+                  البحث الذكي في الحضور
+                </h2>
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                  جرّب: الطلاب الغائبون، الطلاب المتأخرون، المحولون للعيادة، الطلاب المستأذنون.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {["الطلاب الغائبون", "الطلاب المتأخرون", "المحولون للعيادة", "الطلاب المستأذنون"].map((command) => (
+                  <button
+                    key={command}
+                    type="button"
+                    onClick={() => runSmartSearch(command)}
+                    className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                  >
+                    {command}
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <Section
               title="قائمة الطلاب"
               description={`${selectedLesson.classroomName}${selectedLesson.sectionName !== "-" ? ` - ${selectedLesson.sectionName}` : ""} — الحصة ${selectedLesson.period_number}`}
@@ -1194,8 +1452,9 @@ export default function AttendancePage() {
                   return (
                     <div
                       key={student.id}
+                      onClick={() => setSelectedStudent(student)}
                       className={[
-                        "flex flex-col gap-3 rounded-[22px] border p-4 transition hover:-translate-y-0.5 hover:shadow-sm lg:flex-row lg:items-center lg:justify-between",
+                        "flex cursor-pointer flex-col gap-3 rounded-[22px] border p-4 transition hover:-translate-y-0.5 hover:shadow-sm lg:flex-row lg:items-center lg:justify-between",
                         currentStatus === "present"
                           ? "border-[#07A869]/15 bg-[#07A869]/5"
                           : currentStatus === "absent"
@@ -1236,9 +1495,10 @@ export default function AttendancePage() {
                             <button
                               key={status}
                               type="button"
-                              onClick={() =>
-                                setStudentStatus(student.id, status)
-                              }
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setStudentStatus(student.id, status);
+                              }}
                               className={[
                                 "rounded-xl border px-3 py-2 text-xs font-bold transition",
                                 currentStatus === status
@@ -1256,6 +1516,15 @@ export default function AttendancePage() {
                 })}
               </div>
             </Section>
+
+
+            {selectedStudent && (
+              <AttendanceStudentDrawer
+                student={selectedStudent}
+                status={statuses[selectedStudent.id] || "present"}
+                onClose={() => setSelectedStudent(null)}
+              />
+            )}
 
             <PrintSection
               selectedLesson={selectedLesson}
@@ -1390,5 +1659,359 @@ function PrintSection({
         </div>
       </div>
     </section>
+  );
+}
+
+
+function AttendanceExecutiveAnalytics({
+  health,
+  summary,
+  studentsCount,
+  selectedLesson,
+}: {
+  health: AttendanceHealth;
+  summary: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    clinic: number;
+  };
+  studentsCount: number;
+  selectedLesson: LessonView;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لحالة الحضور والمتابعة داخل الحصة.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AttendanceMetric label="نسبة الحضور" value={`${health.attendanceRate}%`} icon={<CheckCircle2 size={18} />} tone="green" />
+        <AttendanceMetric label="نسبة الغياب" value={`${health.absenceRate}%`} icon={<XCircle size={18} />} tone="red" />
+        <AttendanceMetric label="نسبة التأخر" value={`${health.lateRate}%`} icon={<Clock size={18} />} tone="gold" />
+        <AttendanceMetric label="اكتمال البيانات" value={`${health.dataCompletion}%`} icon={<ClipboardCheck size={18} />} tone="teal" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <AttendanceInfoLine
+          label="الحصة الحالية"
+          value={`${selectedLesson.subjectName} · الحصة ${selectedLesson.period_number}`}
+        />
+        <AttendanceInfoLine label="إجمالي الطلاب" value={studentsCount} />
+        <AttendanceInfoLine label="حاضرون" value={summary.present} />
+        <AttendanceInfoLine label="بحاجة متابعة" value={summary.absent + summary.excused + summary.clinic} />
+      </div>
+    </section>
+  );
+}
+
+function AttendanceSmartInsights({
+  insights,
+}: {
+  insights: AttendanceInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Smart Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات فورية مبنية على حالات الحضور الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AttendanceHealthPanel({
+  health,
+}: {
+  health: AttendanceHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Attendance Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات جودة الحضور والمتابعة واكتمال الرصد.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AttendanceProgress label="الحضور" value={health.attendanceRate} total={100} tone="green" suffix="%" />
+        <AttendanceProgress label="الغياب" value={health.absenceRate} total={100} tone="red" suffix="%" />
+        <AttendanceProgress label="التأخر" value={health.lateRate} total={100} tone="gold" suffix="%" />
+        <AttendanceProgress label="المتابعة" value={health.followUpRate} total={100} tone="blue" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function AttendanceRiskPanel({
+  risks,
+  total,
+}: {
+  risks: StudentAttendanceRisk[];
+  total: number;
+}) {
+  const danger = risks.filter((item) => item.label === "خطر").length;
+  const watch = risks.filter((item) => item.label === "متابعة").length;
+  const stable = risks.filter((item) => item.label === "مستقر").length;
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Attendance Risk Engine</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        تصنيف حالات الطلاب حسب أولوية المتابعة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AttendanceProgress label="خطر" value={danger} total={Math.max(1, total)} tone="red" />
+        <AttendanceProgress label="متابعة" value={watch} total={Math.max(1, total)} tone="gold" />
+        <AttendanceProgress label="مستقر" value={stable} total={Math.max(1, total)} tone="green" />
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {risks.slice(0, 4).map((item) => (
+          <div key={item.student.id} className="rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+            <p className="text-sm font-black text-[var(--app-text)]">
+              {getStudentName(item.student)}
+            </p>
+            <p className="mt-1 text-xs text-[var(--app-text-muted)]">
+              {STATUS_LABELS[item.status]} · {item.label}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AttendanceDistributionPanel({
+  summary,
+}: {
+  summary: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    clinic: number;
+  };
+}) {
+  const total = Math.max(
+    1,
+    summary.present + summary.absent + summary.late + summary.excused + summary.clinic,
+  );
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <ChartNoAxesCombined size={20} />
+        Attendance Distribution
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        توزيع حالات الحضور في الحصة الحالية.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AttendanceProgress label="حاضر" value={summary.present} total={total} tone="green" />
+        <AttendanceProgress label="غائب" value={summary.absent} total={total} tone="red" />
+        <AttendanceProgress label="متأخر" value={summary.late} total={total} tone="gold" />
+        <AttendanceProgress label="مستأذن" value={summary.excused} total={total} tone="blue" />
+        <AttendanceProgress label="عيادة" value={summary.clinic} total={total} tone="teal" />
+      </div>
+    </section>
+  );
+}
+
+function AttendanceStudentDrawer({
+  student,
+  status,
+  onClose,
+}: {
+  student: StudentRow;
+  status: AttendanceStatus;
+  onClose: () => void;
+}) {
+  const recommendations = buildAttendanceRecommendations(student, status);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Attendance Drawer V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+              {getStudentName(student)}
+            </h2>
+          </div>
+
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <AttendanceDrawerMetric label="الحالة" value={STATUS_LABELS[status]} />
+          <AttendanceDrawerMetric label="رقم الطالب" value={student.student_number || "-"} />
+          <AttendanceDrawerMetric label="الفصل" value={getStudentClass(student) || "-"} />
+          <AttendanceDrawerMetric label="الشعبة" value={student.section || "-"} />
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <AttendanceDrawerSection
+            title="Overview"
+            items={[
+              `الاسم: ${getStudentName(student)}`,
+              `الهوية: ${student.national_id || "-"}`,
+              `الحالة الحالية: ${STATUS_LABELS[status]}`,
+            ]}
+          />
+
+          <AttendanceDrawerSection
+            title="AI Recommendations"
+            items={recommendations}
+          />
+
+          <AttendanceDrawerSection
+            title="Timeline"
+            items={[
+              "تم تحديث حالة الطالب في الحصة الحالية.",
+              "تم احتساب مستوى المخاطر تلقائيًا.",
+              status === "clinic"
+                ? "تم تجهيز التحويل للعيادة عند الحفظ."
+                : "لا يوجد تحويل صحي في الحالة الحالية.",
+            ]}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function AttendanceMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: AttendanceInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function AttendanceInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function AttendanceProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: AttendanceInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function AttendanceDrawerMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 text-lg font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function AttendanceDrawerSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">
+            {item}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }

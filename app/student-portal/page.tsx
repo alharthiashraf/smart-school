@@ -22,17 +22,25 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
+  BrainCircuit,
   Award,
   Bell,
   BookOpenCheck,
   CalendarDays,
+  ChartNoAxesCombined,
   CheckCircle2,
+  Clock3,
   GraduationCap,
+  HeartPulse,
   RefreshCcw,
   Search,
   ShieldAlert,
   Sparkles,
+  Target,
+  TrendingUp,
   Trophy,
   User,
 } from "lucide-react";
@@ -147,6 +155,30 @@ type QuickLink = {
   icon: React.ElementType;
   color: "blue" | "green" | "amber" | "red" | "slate";
 };
+
+type StudentInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type StudentInsight = {
+  title: string;
+  description: string;
+  tone: StudentInsightTone;
+  icon: ReactNode;
+};
+
+type StudentHealth = {
+  academicScore: number;
+  attendanceScore: number;
+  behaviorScore: number;
+  engagementScore: number;
+  successScore: number;
+  riskLevel: "مستقر" | "متابعة" | "خطر";
+};
+
+type DistributionItem = {
+  name: string;
+  value: number;
+};
+
 
 const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "student"];
 
@@ -367,6 +399,78 @@ function isAchievementEvent(item: TimelineRow) {
     text.includes("شهادة")
   );
 }
+
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: StudentInsightTone) {
+  const tones: Record<StudentInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: StudentInsightTone) {
+  const tones: Record<StudentInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildStudyRecommendations(
+  health: StudentHealth,
+  stats: {
+    absent: number;
+    late: number;
+    averageGrade: number;
+    behaviorCount: number;
+    achievements: number;
+    openReferrals: number;
+  },
+) {
+  const recommendations: string[] = [];
+
+  if (health.academicScore < 70) {
+    recommendations.push("خصص وقتًا يوميًا للمراجعة وابدأ بالمواد الأقل نتيجة.");
+  }
+
+  if (health.attendanceScore < 85 || stats.absent >= 3) {
+    recommendations.push("رفع الانتظام والحضور سيحسن أداءك الأكاديمي بشكل مباشر.");
+  }
+
+  if (stats.late >= 3) {
+    recommendations.push("جهّز حقيبتك ونومك مبكرًا لتقليل حالات التأخر.");
+  }
+
+  if (health.behaviorScore < 85 || stats.behaviorCount > 0) {
+    recommendations.push("راجع السجلات السلوكية واستفد من دعم المرشد الطلابي.");
+  }
+
+  if (stats.openReferrals > 0) {
+    recommendations.push("تابع الإحالة المفتوحة مع الجهة المختصة حتى الإغلاق.");
+  }
+
+  if (stats.achievements === 0) {
+    recommendations.push("شارك في نشاط أو مسابقة هذا الفصل لبناء ملف إنجاز قوي.");
+  }
+
+  return recommendations.length
+    ? recommendations
+    : ["أداؤك مستقر؛ حافظ على نفس المستوى وحدد هدفًا أعلى للفترة القادمة."];
+}
+
 
 export default function StudentPortalPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
@@ -723,6 +827,165 @@ export default function StudentPortalPage() {
     return items;
   }, [stats]);
 
+  const health = useMemo<StudentHealth>(() => {
+    const academicScore = stats.averageGrade || 0;
+    const attendanceScore =
+      stats.attendanceRecords > 0 ? stats.attendanceRate : 0;
+    const behaviorScore = Math.max(
+      0,
+      100 - stats.behaviorCount * 8 - stats.openReferrals * 10,
+    );
+    const engagementScore = Math.min(
+      100,
+      stats.achievements * 15 +
+        Math.min(25, stats.scheduleCount * 3) +
+        Math.max(0, 25 - stats.unreadNotifications * 2),
+    );
+
+    const weightedValues = [
+      { value: academicScore, weight: 0.4 },
+      { value: attendanceScore, weight: 0.3 },
+      { value: behaviorScore, weight: 0.2 },
+      { value: engagementScore, weight: 0.1 },
+    ];
+
+    const successScore = Math.round(
+      weightedValues.reduce(
+        (sum, item) => sum + item.value * item.weight,
+        0,
+      ),
+    );
+
+    return {
+      academicScore,
+      attendanceScore,
+      behaviorScore,
+      engagementScore,
+      successScore,
+      riskLevel:
+        successScore >= 80
+          ? "مستقر"
+          : successScore >= 60
+            ? "متابعة"
+            : "خطر",
+    };
+  }, [stats]);
+
+  const subjectDistribution = useMemo<DistributionItem[]>(() => {
+    return grades
+      .map((item) => ({
+        name: item.subject_name || item.subject || "مادة",
+        value: gradePercentage(item),
+      }))
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [grades]);
+
+  const timelineFeed = useMemo(() => {
+    const items = [
+      ...timeline.map((item) => ({
+        id: `timeline-${item.id}`,
+        title: item.event_title || item.event_type || "حدث",
+        description: item.event_description || "حدث مسجل في ملف الطالب.",
+        date: item.event_time || item.created_at,
+        tone: "blue" as StudentInsightTone,
+      })),
+      ...notifications.map((item) => ({
+        id: `notification-${item.id}`,
+        title: item.title || "تنبيه",
+        description: item.message || "تنبيه جديد.",
+        date: item.created_at,
+        tone: item.is_read === false
+          ? ("gold" as StudentInsightTone)
+          : ("teal" as StudentInsightTone),
+      })),
+      ...attendance.slice(0, 8).map((item) => ({
+        id: `attendance-${item.id}`,
+        title: `الحضور: ${normalizeAttendanceStatus(
+          item.attendance_status || item.status,
+        )}`,
+        description: item.notes || "تم تحديث سجل الحضور.",
+        date: item.attendance_date || item.created_at,
+        tone: isAbsent(item.attendance_status || item.status)
+          ? ("red" as StudentInsightTone)
+          : ("green" as StudentInsightTone),
+      })),
+    ];
+
+    return items
+      .sort((a, b) => {
+        const aTime = a.date ? new Date(a.date).getTime() : 0;
+        const bTime = b.date ? new Date(b.date).getTime() : 0;
+        return bTime - aTime;
+      })
+      .slice(0, 10);
+  }, [attendance, notifications, timeline]);
+
+  const enterpriseInsights = useMemo<StudentInsight[]>(() => {
+    const items: StudentInsight[] = [];
+
+    if (health.riskLevel === "خطر") {
+      items.push({
+        title: "مؤشر النجاح يحتاج تدخلًا",
+        description: `مؤشر النجاح الحالي ${health.successScore}% ويحتاج خطة تحسين واضحة.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.averageGrade > 0 && stats.averageGrade < 70) {
+      items.push({
+        title: "الأداء الأكاديمي يحتاج دعمًا",
+        description: `متوسط الدرجات الحالي ${stats.averageGrade}%.`,
+        tone: "gold",
+        icon: <TrendingUp className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.attendanceRecords > 0 && stats.attendanceRate < 85) {
+      items.push({
+        title: "الانتظام يؤثر على الأداء",
+        description: `نسبة الحضور الحالية ${stats.attendanceRate}% وتحتاج إلى تحسن.`,
+        tone: "blue",
+        icon: <CalendarDays className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.achievements > 0) {
+      items.push({
+        title: "ملف إنجاز نشط",
+        description: `لديك ${stats.achievements} إنجازات أو مشاركات مسجلة.`,
+        tone: "teal",
+        icon: <Trophy className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "أداؤك مستقر",
+        description: "لا توجد مؤشرات حرجة حاليًا؛ استمر في التقدم.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [health, stats]);
+
+  const studyRecommendations = useMemo(
+    () =>
+      buildStudyRecommendations(health, {
+        absent: stats.absent,
+        late: stats.late,
+        averageGrade: stats.averageGrade,
+        behaviorCount: stats.behaviorCount,
+        achievements: stats.achievements,
+        openReferrals: stats.openReferrals,
+      }),
+    [health, stats],
+  );
+
   const todayAttendance = useMemo(() => {
     return attendance.find((item) => item.attendance_date === today) || null;
   }, [attendance, today]);
@@ -901,6 +1164,28 @@ export default function StudentPortalPage() {
                 footer="تعتمد هذه المؤشرات على البيانات المسجلة في المنصة، وتزداد دقتها مع اكتمال الحضور والدرجات والجدول."
               />
 
+
+              <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                <StudentSuccessAnalytics
+                  health={health}
+                  stats={stats}
+                  className={classLabel(student)}
+                />
+
+                <StudentSmartInsights insights={enterpriseInsights} />
+              </section>
+
+              <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <StudentHealthPanel health={health} />
+
+                <StudentAcademicProgress
+                  subjects={subjectDistribution}
+                  average={stats.averageGrade}
+                />
+
+                <StudentStudyPlan recommendations={studyRecommendations} />
+              </section>
+
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.85fr_1.15fr]">
                 <Panel title="بطاقة الطالب" icon={<User size={24} />}>
                   <div className="space-y-3">
@@ -964,6 +1249,17 @@ export default function StudentPortalPage() {
                     />
                   </div>
                 </Panel>
+              </section>
+
+
+              <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+                <StudentTodayHub
+                  schedule={nextScheduleItems}
+                  attendance={todayAttendance}
+                  unreadNotifications={stats.unreadNotifications}
+                />
+
+                <StudentUnifiedTimeline items={timelineFeed} />
               </section>
 
               <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1323,4 +1619,364 @@ function EmptyBox({ text }: { text: string }) {
 
 function LoadingBox() {
   return <PageLoader text="جاري تحميل بوابة الطالب..." />;
+}
+
+
+function StudentSuccessAnalytics({
+  health,
+  stats,
+  className,
+}: {
+  health: StudentHealth;
+  stats: {
+    attendanceRecords: number;
+    attendanceRate: number;
+    absent: number;
+    late: number;
+    averageGrade: number;
+    behaviorCount: number;
+    healthCount: number;
+    openReferrals: number;
+    achievements: number;
+    scheduleCount: number;
+    unreadNotifications: number;
+  };
+  className: string;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Student Success Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          مؤشر شامل يجمع التحصيل والحضور والسلوك والمشاركة.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StudentPortalMetric label="مؤشر النجاح" value={`${health.successScore}%`} icon={<Target size={18} />} tone={health.riskLevel === "مستقر" ? "green" : health.riskLevel === "متابعة" ? "gold" : "red"} />
+        <StudentPortalMetric label="الأكاديمي" value={`${health.academicScore}%`} icon={<Award size={18} />} tone="blue" />
+        <StudentPortalMetric label="الانتظام" value={`${health.attendanceScore}%`} icon={<CalendarDays size={18} />} tone="teal" />
+        <StudentPortalMetric label="السلوك" value={`${health.behaviorScore}%`} icon={<ShieldAlert size={18} />} tone="green" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <StudentPortalInfoLine label="التصنيف الحالي" value={health.riskLevel} />
+        <StudentPortalInfoLine label="الصف والفصل" value={className} />
+        <StudentPortalInfoLine label="الإنجازات" value={stats.achievements} />
+        <StudentPortalInfoLine label="الإحالات المفتوحة" value={stats.openReferrals} />
+      </div>
+    </section>
+  );
+}
+
+function StudentSmartInsights({
+  insights,
+}: {
+  insights: StudentInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Student Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          ملاحظات شخصية مبنية على بياناتك الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StudentHealthPanel({
+  health,
+}: {
+  health: StudentHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <HeartPulse size={20} />
+        Student Health
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        توازن المؤشرات الأكاديمية والسلوكية.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <StudentPortalProgress label="الأكاديمي" value={health.academicScore} total={100} tone="blue" suffix="%" />
+        <StudentPortalProgress label="الحضور" value={health.attendanceScore} total={100} tone="green" suffix="%" />
+        <StudentPortalProgress label="السلوك" value={health.behaviorScore} total={100} tone="teal" suffix="%" />
+        <StudentPortalProgress label="المشاركة" value={health.engagementScore} total={100} tone="gold" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function StudentAcademicProgress({
+  subjects,
+  average,
+}: {
+  subjects: DistributionItem[];
+  average: number;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <ChartNoAxesCombined size={20} />
+        Academic Progress
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مقارنة أحدث نتائج المواد بمتوسطك العام.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        {subjects.length === 0 ? (
+          <p className="text-sm text-[var(--app-text-muted)]">
+            لا توجد درجات كافية لعرض التحليل.
+          </p>
+        ) : (
+          subjects.map((item) => (
+            <StudentPortalProgress
+              key={item.name}
+              label={item.name}
+              value={item.value}
+              total={100}
+              tone={item.value >= average ? "green" : item.value >= 60 ? "gold" : "red"}
+              suffix="%"
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StudentStudyPlan({
+  recommendations,
+}: {
+  recommendations: string[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <TrendingUp size={20} />
+        Smart Study Plan
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        خطوات عملية مقترحة للفترة القادمة.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {recommendations.map((item, index) => (
+          <div
+            key={`${index}-${item}`}
+            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+              {index + 1}
+            </span>
+            <p className="text-sm leading-7 text-[var(--app-text)]">{item}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StudentTodayHub({
+  schedule,
+  attendance,
+  unreadNotifications,
+}: {
+  schedule: ScheduleRow[];
+  attendance: AttendanceRow | null;
+  unreadNotifications: number;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Clock3 size={20} />
+        Today Hub
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        ما يهمك اليوم في مكان واحد.
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <StudentPortalInfoLine
+          label="حالة الحضور"
+          value={normalizeAttendanceStatus(
+            attendance?.attendance_status || attendance?.status,
+          )}
+        />
+        <StudentPortalInfoLine
+          label="حصص اليوم"
+          value={schedule.length}
+        />
+        <StudentPortalInfoLine
+          label="تنبيهات غير مقروءة"
+          value={unreadNotifications}
+        />
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {schedule.slice(0, 4).map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-4 py-3"
+          >
+            <div>
+              <p className="font-black text-[var(--app-text)]">
+                {item.subject || item.subject_name || "مادة"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--app-text-muted)]">
+                الحصة {item.period_number || "—"} · القاعة {item.room || "—"}
+              </p>
+            </div>
+            <CalendarDays size={18} className="text-[var(--app-teal)]" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StudentUnifiedTimeline({
+  items,
+}: {
+  items: Array<{
+    id: string;
+    title: string;
+    description: string;
+    date?: string | null;
+    tone: StudentInsightTone;
+  }>;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Activity size={20} />
+        Unified Timeline
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        أحدث الأحداث والتنبيهات والتحديثات.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {items.length === 0 ? (
+          <p className="text-sm text-[var(--app-text-muted)]">
+            لا توجد أحداث حديثة.
+          </p>
+        ) : (
+          items.map((item) => (
+            <div
+              key={item.id}
+              className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+            >
+              <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${progressTone(item.tone)}`} />
+              <div>
+                <p className="text-sm font-black text-[var(--app-text)]">
+                  {item.title}
+                </p>
+                <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                  {item.description}
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-[var(--app-text-muted)]">
+                  {formatDate(item.date)}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StudentPortalMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: StudentInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function StudentPortalInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function StudentPortalProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: StudentInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
 }

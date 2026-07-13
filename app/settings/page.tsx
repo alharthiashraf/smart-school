@@ -21,13 +21,17 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
+  Activity,
   AlertCircle,
   Bell,
+  BrainCircuit,
   BookOpenCheck,
   Building2,
   CheckCircle2,
+  DatabaseBackup,
   CircleAlert,
   FileSpreadsheet,
+  Gauge,
   Image,
   Loader2,
   Palette,
@@ -36,7 +40,9 @@ import {
   Save,
   School,
   Settings,
+  Sparkles,
   ShieldCheck,
+  Target,
   Trash2,
   UploadCloud,
   Users,
@@ -136,6 +142,33 @@ type QueryResult<T> = {
 type QueryLike<T> = PromiseLike<QueryResult<T>>;
 
 type ImportPreview = Record<string, unknown>;
+
+type SettingsInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type SettingsInsight = {
+  title: string;
+  description: string;
+  tone: SettingsInsightTone;
+  icon: ReactNode;
+};
+
+type SettingsHealth = {
+  profileScore: number;
+  academicScore: number;
+  identityScore: number;
+  permissionsScore: number;
+  notificationsScore: number;
+  dataScore: number;
+  overallScore: number;
+  level: "جاهز" | "متابعة" | "ضعيف";
+};
+
+type SettingsAuditItem = {
+  label: string;
+  status: "ok" | "warning" | "error";
+  description: string;
+};
+
 
 const EMPTY_SETTINGS: SchoolSettings = {
   school_name: "",
@@ -266,6 +299,36 @@ function classTitle(item: ClassRow) {
   return item.classroom_name || item.class_name || item.name || "فصل بدون اسم";
 }
 
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: SettingsInsightTone) {
+  const tones: Record<SettingsInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: SettingsInsightTone) {
+  const tones: Record<SettingsInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+
 export default function SettingsPage() {
   const { currentSchool, loading: schoolLoading, refreshSchools } = useSchool();
 
@@ -296,6 +359,7 @@ export default function SettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [selectedInsight, setSelectedInsight] = useState<SettingsInsight | null>(null);
 
   const schoolId = currentSchool?.id || null;
 
@@ -855,6 +919,207 @@ export default function SettingsPage() {
       100,
   );
 
+  const settingsHealth = useMemo<SettingsHealth>(() => {
+    const profileSignals = [
+      settings.school_name,
+      settings.school_code,
+      settings.city,
+      settings.education_department,
+      settings.principal_name,
+      settings.email,
+    ].filter(Boolean).length;
+
+    const identitySignals = [
+      settings.logo_url,
+      settings.platform_name,
+      settings.primary_color,
+      settings.secondary_color,
+    ].filter(Boolean).length;
+
+    const academicSignals = [
+      settings.academic_year,
+      settings.semester,
+      settings.semester_system,
+      settings.year_start_date,
+      settings.year_end_date,
+    ].filter(Boolean).length;
+
+    const permissionSignals = [
+      settings.allow_teacher_edit_grades,
+      settings.allow_teacher_attendance,
+      settings.allow_vice_behavior_edit,
+      settings.allow_admin_student_edit,
+    ].filter(Boolean).length;
+
+    const notificationSignals = [
+      settings.enable_notifications,
+      settings.notify_absence,
+      settings.notify_late,
+      settings.notify_weak_grades,
+      settings.notify_waiting_periods,
+    ].filter(Boolean).length;
+
+    const dataSignals = [
+      stats.students > 0,
+      stats.teachers > 0,
+      stats.users > 0,
+      stats.subjects > 0,
+      stats.classes > 0,
+    ].filter(Boolean).length;
+
+    const profileScore = percentage(profileSignals, 6);
+    const identityScore = percentage(identitySignals, 4);
+    const academicScore = percentage(academicSignals, 5);
+    const permissionsScore = percentage(permissionSignals, 4);
+    const notificationsScore = percentage(notificationSignals, 5);
+    const dataScore = percentage(dataSignals, 5);
+
+    const overallScore = Math.round(
+      profileScore * 0.2 +
+        identityScore * 0.15 +
+        academicScore * 0.2 +
+        permissionsScore * 0.15 +
+        notificationsScore * 0.1 +
+        dataScore * 0.2,
+    );
+
+    return {
+      profileScore,
+      academicScore,
+      identityScore,
+      permissionsScore,
+      notificationsScore,
+      dataScore,
+      overallScore,
+      level:
+        overallScore >= 85
+          ? "جاهز"
+          : overallScore >= 60
+            ? "متابعة"
+            : "ضعيف",
+    };
+  }, [settings, stats]);
+
+  const auditItems = useMemo<SettingsAuditItem[]>(() => {
+    return [
+      {
+        label: "بيانات المدرسة",
+        status:
+          settings.school_name && settings.school_code && settings.city
+            ? "ok"
+            : "warning",
+        description:
+          settings.school_name && settings.school_code && settings.city
+            ? "البيانات الأساسية مكتملة."
+            : "بعض بيانات المدرسة الأساسية غير مكتملة.",
+      },
+      {
+        label: "الهوية",
+        status: settings.logo_url ? "ok" : "warning",
+        description: settings.logo_url
+          ? "الشعار والهوية جاهزان."
+          : "لم يتم رفع شعار المدرسة.",
+      },
+      {
+        label: "العام الدراسي",
+        status:
+          settings.academic_year &&
+          settings.semester &&
+          settings.semester_system
+            ? "ok"
+            : "error",
+        description:
+          settings.academic_year &&
+          settings.semester &&
+          settings.semester_system
+            ? "الإعداد الأكاديمي مكتمل."
+            : "إعدادات العام أو الفصل الدراسي ناقصة.",
+      },
+      {
+        label: "البيانات التشغيلية",
+        status:
+          stats.students > 0 &&
+          stats.teachers > 0 &&
+          stats.subjects > 0 &&
+          stats.classes > 0
+            ? "ok"
+            : "warning",
+        description:
+          stats.students > 0 &&
+          stats.teachers > 0 &&
+          stats.subjects > 0 &&
+          stats.classes > 0
+            ? "البيانات التشغيلية الأساسية متوفرة."
+            : "بعض البيانات التشغيلية غير متوفرة.",
+      },
+    ];
+  }, [settings, stats]);
+
+  const smartInsights = useMemo<SettingsInsight[]>(() => {
+    const items: SettingsInsight[] = [];
+
+    if (settingsHealth.level === "ضعيف") {
+      items.push({
+        title: "جاهزية الإعدادات منخفضة",
+        description: `المؤشر العام ${settingsHealth.overallScore}% ويحتاج استكمال الإعدادات الأساسية.`,
+        tone: "red",
+        icon: <AlertCircle className="h-5 w-5" />,
+      });
+    }
+
+    if (!settings.logo_url) {
+      items.push({
+        title: "الهوية غير مكتملة",
+        description: "ارفع شعار المدرسة لتحسين التقارير والواجهات.",
+        tone: "gold",
+        icon: <Image className="h-5 w-5" />,
+      });
+    }
+
+    if (!settings.year_start_date || !settings.year_end_date) {
+      items.push({
+        title: "تواريخ العام الدراسي ناقصة",
+        description: "حدد تاريخ بداية ونهاية العام لرفع جودة التقارير.",
+        tone: "blue",
+        icon: <Building2 className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.users === 0) {
+      items.push({
+        title: "لا يوجد مستخدمون",
+        description: "أضف أعضاء المدرسة وحدد أدوارهم قبل الإطلاق.",
+        tone: "teal",
+        icon: <Users className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الإعدادات مستقرة",
+        description: "لا توجد ملاحظات حرجة في إعدادات المدرسة الحالية.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [settings, settingsHealth, stats.users]);
+
+  const backupSummary = useMemo(
+    () => ({
+      coreTables: 5,
+      availableData:
+        stats.students +
+        stats.teachers +
+        stats.users +
+        stats.subjects +
+        stats.classes,
+      readiness: settingsHealth.dataScore,
+    }),
+    [settingsHealth.dataScore, stats],
+  );
+
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={ADMIN_ROLES}>
@@ -1000,6 +1265,26 @@ export default function SettingsPage() {
               </div>
             }
           />
+
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <SettingsExecutiveAnalytics
+              health={settingsHealth}
+              readinessPercent={readinessPercent}
+              stats={stats}
+            />
+
+            <SettingsSmartInsights
+              insights={smartInsights}
+              onSelect={setSelectedInsight}
+            />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <SettingsHealthPanel health={settingsHealth} />
+            <SettingsAuditPanel items={auditItems} />
+            <SettingsBackupPanel summary={backupSummary} />
+          </section>
 
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-10">
             {TABS.map((tab) => (
@@ -1379,6 +1664,14 @@ export default function SettingsPage() {
               </button>
             </div>
           </section>
+
+          {selectedInsight && (
+            <SettingsInsightDrawer
+              insight={selectedInsight}
+              health={settingsHealth}
+              onClose={() => setSelectedInsight(null)}
+            />
+          )}
         </PageContainer>
       </AppShell>
     </RoleGuard>
@@ -1654,6 +1947,297 @@ function ToastBox({ toast }: { toast: Toast }) {
         {isSuccess ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
       </span>
       <span>{toast.message}</span>
+    </div>
+  );
+}
+
+
+function SettingsExecutiveAnalytics({
+  health,
+  readinessPercent,
+  stats,
+}: {
+  health: SettingsHealth;
+  readinessPercent: number;
+  stats: SettingsStats;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Settings Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لجاهزية إعدادات المدرسة والمنصة.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SettingsMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} />} tone={health.level === "جاهز" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <SettingsMetric label="جاهزية النظام" value={`${readinessPercent}%`} icon={<CheckCircle2 size={18} />} tone="green" />
+        <SettingsMetric label="جودة البيانات" value={`${health.dataScore}%`} icon={<DatabaseBackup size={18} />} tone="blue" />
+        <SettingsMetric label="الصلاحيات" value={`${health.permissionsScore}%`} icon={<ShieldCheck size={18} />} tone="teal" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <SettingsInfoLine label="المستخدمون" value={stats.users} />
+        <SettingsInfoLine label="الطلاب والمعلمون" value={`${stats.students} / ${stats.teachers}`} />
+        <SettingsInfoLine label="المواد والفصول" value={`${stats.subjects} / ${stats.classes}`} />
+        <SettingsInfoLine label="الحالة" value={health.level} />
+      </div>
+    </section>
+  );
+}
+
+function SettingsSmartInsights({
+  insights,
+  onSelect,
+}: {
+  insights: SettingsInsight[];
+  onSelect: (item: SettingsInsight) => void;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Settings Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات ذكية لتحسين الإعدادات قبل الإطلاق.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <button
+            key={item.title}
+            type="button"
+            onClick={() => onSelect(item)}
+            className="flex w-full gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SettingsHealthPanel({ health }: { health: SettingsHealth }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Settings Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات اكتمال وضبط إعدادات المنصة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <SettingsProgress label="بيانات المدرسة" value={health.profileScore} tone="blue" />
+        <SettingsProgress label="العام الدراسي" value={health.academicScore} tone="green" />
+        <SettingsProgress label="الهوية" value={health.identityScore} tone="gold" />
+        <SettingsProgress label="الصلاحيات" value={health.permissionsScore} tone="teal" />
+        <SettingsProgress label="الإشعارات" value={health.notificationsScore} tone="blue" />
+      </div>
+    </section>
+  );
+}
+
+function SettingsAuditPanel({ items }: { items: SettingsAuditItem[] }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Activity size={20} />
+        Configuration Audit
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        فحص سريع لاكتمال الإعدادات الأساسية.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-black text-[var(--app-text)]">{item.label}</p>
+              {item.status === "ok" ? (
+                <CheckCircle2 className="text-[var(--app-green)]" size={18} />
+              ) : item.status === "warning" ? (
+                <CircleAlert className="text-[var(--app-accent)]" size={18} />
+              ) : (
+                <XCircle className="text-[var(--app-destructive)]" size={18} />
+              )}
+            </div>
+            <p className="mt-2 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SettingsBackupPanel({
+  summary,
+}: {
+  summary: { coreTables: number; availableData: number; readiness: number };
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <DatabaseBackup size={20} />
+        Backup & Data Readiness
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        ملخص جاهزية البيانات للنسخ الاحتياطي.
+      </p>
+
+      <div className="mt-5 grid gap-3">
+        <SettingsInfoLine label="الجداول الأساسية" value={summary.coreTables} />
+        <SettingsInfoLine label="إجمالي السجلات" value={summary.availableData} />
+        <SettingsInfoLine label="جاهزية البيانات" value={`${summary.readiness}%`} />
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-6 text-amber-800">
+        النسخ الاحتياطي الحقيقي يحتاج وظيفة Supabase أو Edge Function مخصصة. هذه اللوحة تعرض الجاهزية فقط ولا تنفذ نسخة احتياطية تلقائيًا.
+      </div>
+    </section>
+  );
+}
+
+function SettingsInsightDrawer({
+  insight,
+  health,
+  onClose,
+}: {
+  insight: SettingsInsight;
+  health: SettingsHealth;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Settings Insight</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{insight.title}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+            {insight.description}
+          </div>
+
+          <SettingsDrawerSection
+            title="الحالة الحالية"
+            items={[
+              `المؤشر العام: ${health.overallScore}%`,
+              `بيانات المدرسة: ${health.profileScore}%`,
+              `العام الدراسي: ${health.academicScore}%`,
+              `الهوية: ${health.identityScore}%`,
+              `الصلاحيات: ${health.permissionsScore}%`,
+            ]}
+          />
+
+          <SettingsDrawerSection
+            title="الإجراء المقترح"
+            items={[
+              insight.tone === "red"
+                ? "استكمل الإعدادات الحرجة قبل الإطلاق."
+                : insight.tone === "gold"
+                  ? "راجع العناصر الناقصة ثم أعد فحص الجاهزية."
+                  : "استمر في المراجعة الدورية للإعدادات.",
+            ]}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function SettingsMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: SettingsInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function SettingsInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function SettingsProgress({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: SettingsInsightTone;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${Math.max(4, Math.min(100, value))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function SettingsDrawerSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+        ))}
+      </div>
     </div>
   );
 }

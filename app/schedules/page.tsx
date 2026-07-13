@@ -4,26 +4,34 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useState
+  useState,
+  type ReactNode,
 } from "react";
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
   BookOpen,
   Bot,
+  BrainCircuit,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Download,
   FileText,
+  Gauge,
   GripVertical,
   Plus,
   Printer,
   RefreshCcw,
   Save,
   School,
+  Sparkles,
   Trash2,
   Upload,
   UserRound,
+  UsersRound,
+  XCircle,
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
@@ -138,6 +146,38 @@ type Conflict = {
   periodNumber: number;
 };
 
+type ScheduleInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type ScheduleInsight = {
+  title: string;
+  description: string;
+  tone: ScheduleInsightTone;
+  icon: ReactNode;
+};
+
+type ScheduleHealth = {
+  completionRate: number;
+  conflictRate: number;
+  balanceScore: number;
+  roomCoverage: number;
+  emptySlots: number;
+};
+
+type WorkloadItem = {
+  id: string;
+  name: string;
+  lessons: number;
+  days: number;
+  averagePerDay: number;
+};
+
+type UtilizationItem = {
+  id: string;
+  name: string;
+  lessons: number;
+};
+
+
 const DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس"];
 const PERIODS = [1, 2, 3, 4, 5, 6, 7];
 
@@ -246,6 +286,61 @@ function normalizeSchedule(row: ScheduleRow): ScheduleView {
   };
 }
 
+
+function percent(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: ScheduleInsightTone) {
+  const tones: Record<ScheduleInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: ScheduleInsightTone) {
+  const tones: Record<ScheduleInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildScheduleRecommendations(
+  row: ScheduleView,
+  teacherLessons: number,
+) {
+  const recommendations: string[] = [];
+
+  if (teacherLessons >= 24) {
+    recommendations.push("حمل المعلم مرتفع؛ يفضل مراجعة توزيع الحصص.");
+  }
+
+  if (row.roomName === "غير محدد") {
+    recommendations.push("يفضل تحديد القاعة قبل نشر الجدول.");
+  }
+
+  if (row.timeRange === "غير محدد") {
+    recommendations.push("يفضل تحديد وقت البداية والنهاية.");
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push("الحصة مكتملة ولا توجد ملاحظات تشغيلية حرجة.");
+  }
+
+  return recommendations;
+}
+
 function detectConflicts(rows: ScheduleView[]): Conflict[] {
   const conflicts: Conflict[] = [];
 
@@ -349,6 +444,7 @@ export default function SchedulesPage() {
 
   const [formOpen, setFormOpen] = useState(true);
   const [form, setForm] = useState<ScheduleForm>(emptyForm);
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleView | null>(null);
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
@@ -599,6 +695,207 @@ export default function SchedulesPage() {
       ),
     [activeAssignments, scheduledAssignmentIds],
   );
+
+  const workload = useMemo<WorkloadItem[]>(() => {
+    const map = new Map<string, { name: string; lessons: number; days: Set<string> }>();
+
+    rows.forEach((row) => {
+      if (!row.teacherId) return;
+
+      const current = map.get(row.teacherId) || {
+        name: row.teacherName,
+        lessons: 0,
+        days: new Set<string>(),
+      };
+
+      current.lessons += 1;
+      current.days.add(row.day_name);
+      map.set(row.teacherId, current);
+    });
+
+    return Array.from(map.entries())
+      .map(([id, item]) => ({
+        id,
+        name: item.name,
+        lessons: item.lessons,
+        days: item.days.size,
+        averagePerDay: item.days.size
+          ? Math.round((item.lessons / item.days.size) * 10) / 10
+          : 0,
+      }))
+      .sort((a, b) => b.lessons - a.lessons);
+  }, [rows]);
+
+  const classroomUtilization = useMemo<UtilizationItem[]>(() => {
+    const map = new Map<string, UtilizationItem>();
+
+    rows.forEach((row) => {
+      if (!row.classroomId) return;
+      const current = map.get(row.classroomId) || {
+        id: row.classroomId,
+        name: row.classroomName,
+        lessons: 0,
+      };
+      current.lessons += 1;
+      map.set(row.classroomId, current);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.lessons - a.lessons);
+  }, [rows]);
+
+  const roomUtilization = useMemo<UtilizationItem[]>(() => {
+    const map = new Map<string, UtilizationItem>();
+
+    rows.forEach((row) => {
+      const room = row.roomName;
+      if (!room || room === "غير محدد") return;
+
+      const current = map.get(room) || {
+        id: room,
+        name: room,
+        lessons: 0,
+      };
+      current.lessons += 1;
+      map.set(room, current);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.lessons - a.lessons);
+  }, [rows]);
+
+  const dayDistribution = useMemo(
+    () =>
+      DAYS.map((day) => ({
+        day,
+        count: rows.filter((row) => row.day_name === day).length,
+      })),
+    [rows],
+  );
+
+  const periodDistribution = useMemo(
+    () =>
+      PERIODS.map((period) => ({
+        period,
+        count: rows.filter((row) => row.period_number === period).length,
+      })),
+    [rows],
+  );
+
+  const health = useMemo<ScheduleHealth>(() => {
+    const totalSlots = DAYS.length * PERIODS.length;
+    const usedSlots = new Set(
+      rows.map((row) => `${row.day_name}-${row.period_number}`),
+    ).size;
+
+    const dayCounts = dayDistribution.map((item) => item.count);
+    const maxDay = Math.max(0, ...dayCounts);
+    const minDay = Math.min(...dayCounts);
+    const balanceScore =
+      maxDay === 0 ? 0 : Math.max(0, 100 - Math.round(((maxDay - minDay) / maxDay) * 100));
+
+    const withRoom = rows.filter((row) => row.roomName !== "غير محدد").length;
+
+    return {
+      completionRate: percent(
+        activeAssignments.length - unscheduledAssignments.length,
+        activeAssignments.length,
+      ),
+      conflictRate: percent(conflicts.length, Math.max(1, rows.length)),
+      balanceScore,
+      roomCoverage: percent(withRoom, rows.length),
+      emptySlots: Math.max(0, totalSlots - usedSlots),
+    };
+  }, [
+    activeAssignments.length,
+    conflicts.length,
+    dayDistribution,
+    rows,
+    unscheduledAssignments.length,
+  ]);
+
+  const smartInsights = useMemo<ScheduleInsight[]>(() => {
+    const items: ScheduleInsight[] = [];
+    const heavyTeachers = workload.filter((item) => item.lessons >= 24);
+    const roomsMissing = rows.filter((row) => row.roomName === "غير محدد").length;
+    const busiestDay = [...dayDistribution].sort((a, b) => b.count - a.count)[0];
+    const quietestDay = [...dayDistribution].sort((a, b) => a.count - b.count)[0];
+
+    if (heavyTeachers.length > 0) {
+      items.push({
+        title: "حمل مرتفع لبعض المعلمين",
+        description: `يوجد ${heavyTeachers.length} معلم لديهم 24 حصة أو أكثر.`,
+        tone: "red",
+        icon: <UsersRound className="h-5 w-5" />,
+      });
+    }
+
+    if (conflicts.length > 0) {
+      items.push({
+        title: "تعارضات تحتاج معالجة",
+        description: `تم اكتشاف ${conflicts.length} تعارضًا في الجدول الحالي.`,
+        tone: "gold",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (roomsMissing > 0) {
+      items.push({
+        title: "حصص بدون قاعات",
+        description: `${roomsMissing} حصة لا تحتوي على قاعة محددة.`,
+        tone: "blue",
+        icon: <School className="h-5 w-5" />,
+      });
+    }
+
+    if (busiestDay && quietestDay) {
+      items.push({
+        title: "توازن الأيام",
+        description: `${busiestDay.day} هو الأكثر ازدحامًا، و${quietestDay.day} هو الأقل.`,
+        tone: "teal",
+        icon: <Activity className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الجدول مستقر",
+        description: "لا توجد مؤشرات حرجة في التوزيع الحالي.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [conflicts.length, dayDistribution, rows, workload]);
+
+  function runSmartSearch(command: string) {
+    const value = normalizeText(command);
+
+    setSearch("");
+    setDayFilter("all");
+    setTeacherFilter("all");
+    setClassroomFilter("all");
+
+    const matchingDay = DAYS.find((day) => value.includes(normalizeText(day)));
+    if (matchingDay) {
+      setDayFilter(matchingDay);
+      return;
+    }
+
+    const matchingPeriod = PERIODS.find((period) =>
+      value.includes(String(period)),
+    );
+    if (matchingPeriod) {
+      setSearch(`الحصة ${matchingPeriod}`);
+      return;
+    }
+
+    if (value.includes("بدون قاعه") || value.includes("القاعات الفارغه")) {
+      setSearch("غير محدد");
+      return;
+    }
+
+    setSearch(command.replace("حصص", "").trim());
+  }
 
   function resetForm() {
     setForm({
@@ -1139,6 +1436,55 @@ export default function SchedulesPage() {
           footer="يفضل معالجة التعارضات قبل اعتماد الجدول ونشره للمعلمين والطلاب."
         />
 
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <ScheduleExecutiveAnalytics
+            stats={stats}
+            health={health}
+            workload={workload}
+            roomUtilization={roomUtilization}
+          />
+
+          <ScheduleSmartInsights insights={smartInsights} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <ScheduleHealthPanel health={health} />
+          <ScheduleHeatMap
+            days={dayDistribution}
+            periods={periodDistribution}
+          />
+          <ScheduleUtilizationPanel
+            workload={workload}
+            classrooms={classroomUtilization}
+            rooms={roomUtilization}
+          />
+        </section>
+
+        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+          <div className="mb-4">
+            <h2 className="text-xl font-black text-[var(--app-text)]">
+              البحث الذكي في الجداول
+            </h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+              جرّب: حصص الرياضيات، الثلاثاء، الحصة 3، القاعات الفارغة.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {["حصص الرياضيات", "الثلاثاء", "الحصة 3", "القاعات الفارغة"].map((command) => (
+              <button
+                key={command}
+                type="button"
+                onClick={() => runSmartSearch(command)}
+                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+              >
+                {command}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {conflicts.length > 0 && (
           <Section title="تقرير التعارضات" description="تعارضات تحتاج مراجعة قبل اعتماد الجدول." icon={<AlertTriangle size={20} />} className="border-red-100 bg-red-50">
             <div className="grid gap-3 md:grid-cols-2">
@@ -1324,6 +1670,7 @@ export default function SchedulesPage() {
             canManage={canManage}
             onMove={moveSchedule}
             onRemove={removeSchedule}
+            onSelect={setSelectedSchedule}
           />
         ) : (
           <ScheduleTable
@@ -1333,6 +1680,15 @@ export default function SchedulesPage() {
             setPage={setPage}
             onRemove={removeSchedule}
             canManage={canManage}
+            onSelect={setSelectedSchedule}
+          />
+        )}
+
+        {selectedSchedule && (
+          <ScheduleDrawer
+            row={selectedSchedule}
+            workload={workload.find((item) => item.id === selectedSchedule.teacherId)}
+            onClose={() => setSelectedSchedule(null)}
           />
         )}
       </div>
@@ -1345,11 +1701,13 @@ function WeeklySchedule({
   canManage,
   onMove,
   onRemove,
+  onSelect,
 }: {
   rows: ScheduleView[];
   canManage: boolean;
   onMove: (id: string, dayName: string, periodNumber: number) => void;
   onRemove: (id: string) => void;
+  onSelect: (row: ScheduleView) => void;
 }) {
   const bySlot = useMemo(() => {
     const map = new Map<string, ScheduleView[]>();
@@ -1413,7 +1771,8 @@ function WeeklySchedule({
                           onDragStart={(event) =>
                             event.dataTransfer.setData("schedule-id", item.id)
                           }
-                          className="mb-2 rounded-[18px] border border-slate-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#0DA9A6]/30 hover:shadow-md"
+                          onClick={() => onSelect(item)}
+                          className="mb-2 cursor-pointer rounded-[18px] border border-slate-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#0DA9A6]/30 hover:shadow-md"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -1462,6 +1821,7 @@ function ScheduleTable({
   setPage,
   onRemove,
   canManage,
+  onSelect,
 }: {
   rows: ScheduleView[];
   page: number;
@@ -1469,6 +1829,7 @@ function ScheduleTable({
   setPage: (value: number | ((current: number) => number)) => void;
   onRemove: (id: string) => void;
   canManage: boolean;
+  onSelect: (row: ScheduleView) => void;
 }) {
   return (
     <Section
@@ -1497,7 +1858,8 @@ function ScheduleTable({
             {rows.map((row) => (
               <tr
                 key={row.id}
-                className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
+                onClick={() => onSelect(row)}
+                className="cursor-pointer border-b border-slate-50 text-sm transition hover:bg-slate-50"
               >
                 <td className="px-4 py-3">
                   <div className="font-black text-[#15445A]">
@@ -1613,6 +1975,348 @@ function LoadingBox({ text }: { text: string }) {
     <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
       <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
       {text}
+    </div>
+  );
+}
+
+
+function ScheduleExecutiveAnalytics({
+  stats,
+  health,
+  workload,
+  roomUtilization,
+}: {
+  stats: {
+    total: number;
+    filtered: number;
+    active: number;
+    teachers: number;
+    subjects: number;
+    classrooms: number;
+    conflicts: number;
+  };
+  health: ScheduleHealth;
+  workload: WorkloadItem[];
+  roomUtilization: UtilizationItem[];
+}) {
+  const busiestTeacher = workload[0];
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لاكتمال الجدول والإشغال والحمل.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ScheduleMetric label="اكتمال الجدولة" value={`${health.completionRate}%`} icon={<Gauge size={18} />} tone="green" />
+        <ScheduleMetric label="الخانات الفارغة" value={health.emptySlots} icon={<CalendarDays size={18} />} tone="blue" />
+        <ScheduleMetric label="القاعات المستخدمة" value={roomUtilization.length} icon={<School size={18} />} tone="teal" />
+        <ScheduleMetric label="التعارضات" value={stats.conflicts} icon={<AlertTriangle size={18} />} tone={stats.conflicts > 0 ? "red" : "green"} />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <ScheduleInfoLine
+          label="أعلى حمل تدريسي"
+          value={busiestTeacher ? `${busiestTeacher.name} · ${busiestTeacher.lessons} حصة` : "-"}
+        />
+        <ScheduleInfoLine label="إجمالي الحصص" value={stats.total} />
+      </div>
+    </section>
+  );
+}
+
+function ScheduleSmartInsights({ insights }: { insights: ScheduleInsight[] }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Smart Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات تشغيلية مبنية على توزيع الجدول الحالي.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleHealthPanel({ health }: { health: ScheduleHealth }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Schedule Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات اكتمال وجودة وتوازن الجدول.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <ScheduleProgress label="اكتمال الجدولة" value={health.completionRate} total={100} tone="green" suffix="%" />
+        <ScheduleProgress label="توازن الأيام" value={health.balanceScore} total={100} tone="blue" suffix="%" />
+        <ScheduleProgress label="تغطية القاعات" value={health.roomCoverage} total={100} tone="teal" suffix="%" />
+        <ScheduleProgress label="نسبة التعارض" value={health.conflictRate} total={100} tone="red" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function ScheduleHeatMap({
+  days,
+  periods,
+}: {
+  days: Array<{ day: string; count: number }>;
+  periods: Array<{ period: number; count: number }>;
+}) {
+  const maxDay = Math.max(1, ...days.map((item) => item.count));
+  const maxPeriod = Math.max(1, ...periods.map((item) => item.count));
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Heat Map</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        كثافة الحصص حسب الأيام والحصص.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {days.map((item) => (
+          <ScheduleProgress
+            key={item.day}
+            label={item.day}
+            value={item.count}
+            total={maxDay}
+            tone="blue"
+          />
+        ))}
+      </div>
+
+      <div className="mt-5 grid grid-cols-7 gap-2">
+        {periods.map((item) => (
+          <div key={item.period} className="rounded-2xl bg-[var(--app-card-soft)] p-3 text-center">
+            <p className="text-xs font-bold text-[var(--app-text-muted)]">{item.period}</p>
+            <p className="mt-1 text-lg font-black text-[var(--app-text)]">{item.count}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleUtilizationPanel({
+  workload,
+  classrooms,
+  rooms,
+}: {
+  workload: WorkloadItem[];
+  classrooms: UtilizationItem[];
+  rooms: UtilizationItem[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Utilization</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        استخدام المعلمين والفصول والقاعات.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <ScheduleMiniList
+          title="Teacher Workload"
+          items={workload.slice(0, 4).map((item) => `${item.name} — ${item.lessons} حصة`)}
+        />
+        <ScheduleMiniList
+          title="Classroom Utilization"
+          items={classrooms.slice(0, 4).map((item) => `${item.name} — ${item.lessons} حصة`)}
+        />
+        <ScheduleMiniList
+          title="Room Utilization"
+          items={rooms.slice(0, 4).map((item) => `${item.name} — ${item.lessons} حصة`)}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ScheduleDrawer({
+  row,
+  workload,
+  onClose,
+}: {
+  row: ScheduleView;
+  workload?: WorkloadItem;
+  onClose: () => void;
+}) {
+  const recommendations = buildScheduleRecommendations(row, workload?.lessons ?? 0);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Schedule Drawer V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{row.subjectName}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <DrawerMetric label="اليوم" value={row.day_name} />
+          <DrawerMetric label="الحصة" value={row.periodLabel} />
+          <DrawerMetric label="المعلم" value={row.teacherName} />
+          <DrawerMetric label="الفصل" value={row.classroomName} />
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <DrawerSection
+            title="Overview"
+            items={[
+              `المادة: ${row.subjectName}`,
+              `القاعة: ${row.roomName}`,
+              `الوقت: ${row.timeRange}`,
+              `الحالة: ${row.statusLabel}`,
+            ]}
+          />
+          <DrawerSection
+            title="Teacher Workload"
+            items={[
+              `إجمالي الحصص: ${workload?.lessons ?? 0}`,
+              `عدد الأيام: ${workload?.days ?? 0}`,
+              `متوسط الحصص اليومية: ${workload?.averagePerDay ?? 0}`,
+            ]}
+          />
+          <DrawerSection title="AI Recommendations" items={recommendations} />
+          <DrawerSection
+            title="Timeline"
+            items={[
+              `تاريخ الإضافة: ${formatDate(row.created_at)}`,
+              "تم احتساب التعارضات والحمل تلقائيًا.",
+              "تمت مقارنة الحصة مع الجدول الأسبوعي الحالي.",
+            ]}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function ScheduleMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: ScheduleInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function ScheduleInfoLine({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function ScheduleProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: ScheduleInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percent(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function ScheduleMiniList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-3xl bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
+      <div className="space-y-2">
+        {items.length === 0 ? (
+          <p className="text-xs text-[var(--app-text-muted)]">لا توجد بيانات.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
+              {item}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DrawerMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 text-lg font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function DrawerSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+        ))}
+      </div>
     </div>
   );
 }

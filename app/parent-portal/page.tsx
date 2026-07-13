@@ -21,16 +21,23 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
+  BrainCircuit,
   Award,
   Bell,
   CalendarDays,
+  ChartNoAxesCombined,
   CheckCircle2,
   GraduationCap,
   HeartPulse,
+  MessagesSquare,
   RefreshCcw,
   ShieldAlert,
   Sparkles,
+  Target,
+  TrendingUp,
   User,
   Users,
 } from "lucide-react";
@@ -130,6 +137,35 @@ type SchoolUserRow = {
 
 type QueryResult<T> = { data: T | null; error: unknown };
 type QueryLike<T> = PromiseLike<QueryResult<T>>;
+
+type ParentInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type ParentInsight = {
+  title: string;
+  description: string;
+  tone: ParentInsightTone;
+  icon: ReactNode;
+};
+
+type ParentHealth = {
+  academicScore: number;
+  attendanceScore: number;
+  behaviorScore: number;
+  followUpScore: number;
+  overallScore: number;
+  level: "مستقر" | "متابعة" | "عاجل";
+};
+
+type ChildComparisonItem = {
+  studentId: string;
+  studentName: string;
+  attendanceRate: number;
+  averageGrade: number;
+  behaviorCount: number;
+  openReferrals: number;
+  overallScore: number;
+};
+
 
 const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "parent"];
 
@@ -287,6 +323,73 @@ function isAdminRole(role?: string | null) {
   ].includes(String(role || "").trim());
 }
 
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: ParentInsightTone) {
+  const tones: Record<ParentInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: ParentInsightTone) {
+  const tones: Record<ParentInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildParentRecommendations(
+  health: ParentHealth,
+  stats: {
+    absent: number;
+    late: number;
+    averageGrade: number;
+    behaviorCount: number;
+    openReferrals: number;
+  },
+) {
+  const items: string[] = [];
+
+  if (health.academicScore < 70) {
+    items.push("راجع المواد الأقل نتيجة وحدد خطة مراجعة أسبوعية مع ابنك.");
+  }
+
+  if (health.attendanceScore < 85 || stats.absent >= 3) {
+    items.push("تابع الانتظام يوميًا وتواصل مع المدرسة عند تكرر الغياب.");
+  }
+
+  if (stats.late >= 3) {
+    items.push("نظّم وقت النوم والاستعداد الصباحي لتقليل التأخر.");
+  }
+
+  if (health.behaviorScore < 85 || stats.behaviorCount > 0) {
+    items.push("راجع السجلات السلوكية ونسّق مع المرشد الطلابي.");
+  }
+
+  if (stats.openReferrals > 0) {
+    items.push("تابع الإحالات المفتوحة حتى إغلاقها وتوثيق النتائج.");
+  }
+
+  return items.length
+    ? items
+    : ["وضع الطالب مستقر؛ استمر في المتابعة والتحفيز الدوري."];
+}
+
+
 export default function ParentPortalPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
@@ -303,6 +406,7 @@ export default function ParentPortalPage() {
   const [loading, setLoading] = useState(true);
   const [studentDataLoading, setStudentDataLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [childrenComparison, setChildrenComparison] = useState<ChildComparisonItem[]>([]);
 
   const selectedStudent = useMemo(() => {
     return (
@@ -472,6 +576,7 @@ export default function ParentPortalPage() {
       if (studentIds.length === 0) {
         setStudents([]);
         setSelectedStudentId("");
+        setChildrenComparison([]);
         resetStudentData();
       } else {
         const loadedStudents = await safeQuery<StudentProfile[]>(
@@ -488,12 +593,111 @@ export default function ParentPortalPage() {
         setStudents(loadedStudents);
 
         if (loadedStudents.length > 0) {
+          const comparisonRows = await Promise.all(
+            loadedStudents.map(async (child) => {
+              const [childAttendance, childGrades, childBehavior, childReferrals] =
+                await Promise.all([
+                  safeQuery<AttendanceRow[]>(
+                    supabase
+                      .from("student_attendance_records")
+                      .select("id, attendance_status, status")
+                      .eq("school_id", currentSchool.id)
+                      .eq("student_id", child.id)
+                      .limit(30),
+                    [],
+                    "children-attendance",
+                  ),
+                  safeQuery<GradeRow[]>(
+                    supabase
+                      .from("grades")
+                      .select("id, score, max_score, total_score, percentage")
+                      .eq("school_id", currentSchool.id)
+                      .eq("student_id", child.id)
+                      .limit(20),
+                    [],
+                    "children-grades",
+                  ),
+                  safeQuery<BehaviorRow[]>(
+                    supabase
+                      .from("student_behavior")
+                      .select("id")
+                      .eq("school_id", currentSchool.id)
+                      .eq("student_id", child.id)
+                      .limit(20),
+                    [],
+                    "children-behavior",
+                  ),
+                  safeQuery<ReferralRow[]>(
+                    supabase
+                      .from("student_referrals")
+                      .select("id, status")
+                      .eq("school_id", currentSchool.id)
+                      .eq("student_id", child.id)
+                      .limit(20),
+                    [],
+                    "children-referrals",
+                  ),
+                ]);
+
+              const attendanceRecords = childAttendance.filter((item) =>
+                ["حاضر", "present", "غائب", "absent", "متأخر", "late"].includes(
+                  String(item.attendance_status || item.status || ""),
+                ),
+              );
+
+              const presentCount = attendanceRecords.filter((item) =>
+                isPresent(item.attendance_status || item.status),
+              ).length;
+
+              const attendanceRate = attendanceRecords.length
+                ? percentage(presentCount, attendanceRecords.length)
+                : 0;
+
+              const numericGrades = childGrades
+                .map(gradeValue)
+                .filter((value) => value > 0);
+
+              const averageGrade = numericGrades.length
+                ? Math.round(
+                    numericGrades.reduce((sum, value) => sum + value, 0) /
+                      numericGrades.length,
+                  )
+                : 0;
+
+              const openReferrals = childReferrals.filter((item) =>
+                isOpenReferral(item.status),
+              ).length;
+
+              const behaviorScore = Math.max(0, 100 - childBehavior.length * 8);
+              const referralScore = Math.max(0, 100 - openReferrals * 15);
+              const overallScore = Math.round(
+                averageGrade * 0.4 +
+                  attendanceRate * 0.35 +
+                  behaviorScore * 0.15 +
+                  referralScore * 0.1,
+              );
+
+              return {
+                studentId: child.id,
+                studentName: studentName(child),
+                attendanceRate,
+                averageGrade,
+                behaviorCount: childBehavior.length,
+                openReferrals,
+                overallScore,
+              } satisfies ChildComparisonItem;
+            }),
+          );
+
+          setChildrenComparison(comparisonRows);
+
           setSelectedStudentId((current) => {
             const stillExists = loadedStudents.some((student) => student.id === current);
             return stillExists ? current : loadedStudents[0].id;
           });
         } else {
           setSelectedStudentId("");
+          setChildrenComparison([]);
           resetStudentData();
         }
       }
@@ -609,6 +813,163 @@ export default function ParentPortalPage() {
   const todayAttendance = useMemo(() => {
     return attendance.find((item) => item.attendance_date === todayDate()) || null;
   }, [attendance]);
+
+  const health = useMemo<ParentHealth>(() => {
+    const academicScore = stats.averageGrade || 0;
+    const attendanceScore =
+      stats.attendanceRecords > 0 ? stats.attendanceRate : 0;
+    const behaviorScore = Math.max(
+      0,
+      100 - stats.behaviorCount * 8 - stats.openReferrals * 10,
+    );
+    const followUpScore = Math.max(
+      0,
+      100 -
+        stats.absent * 8 -
+        stats.late * 4 -
+        stats.openReferrals * 12 -
+        (stats.averageGrade > 0 && stats.averageGrade < 70 ? 15 : 0),
+    );
+
+    const overallScore = Math.round(
+      academicScore * 0.4 +
+        attendanceScore * 0.3 +
+        behaviorScore * 0.2 +
+        followUpScore * 0.1,
+    );
+
+    return {
+      academicScore,
+      attendanceScore,
+      behaviorScore,
+      followUpScore,
+      overallScore,
+      level:
+        overallScore >= 80
+          ? "مستقر"
+          : overallScore >= 60
+            ? "متابعة"
+            : "عاجل",
+    };
+  }, [stats]);
+
+  const subjectDistribution = useMemo(
+    () =>
+      grades
+        .map((item) => ({
+          name: item.subject_name || item.subject || "مادة",
+          value: gradeValue(item),
+        }))
+        .filter((item) => item.value > 0)
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6),
+    [grades],
+  );
+
+  const parentInsights = useMemo<ParentInsight[]>(() => {
+    const items: ParentInsight[] = [];
+
+    if (health.level === "عاجل") {
+      items.push({
+        title: "متابعة عاجلة مطلوبة",
+        description: `المؤشر العام الحالي ${health.overallScore}% ويحتاج تدخلًا منظمًا.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.averageGrade > 0 && stats.averageGrade < 70) {
+      items.push({
+        title: "تحصيل دراسي منخفض",
+        description: `متوسط الدرجات الحالي ${stats.averageGrade}%.`,
+        tone: "gold",
+        icon: <Award className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.attendanceRecords > 0 && stats.attendanceRate < 85) {
+      items.push({
+        title: "الحضور يحتاج تحسينًا",
+        description: `نسبة الحضور الحالية ${stats.attendanceRate}%.`,
+        tone: "blue",
+        icon: <CalendarDays className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.openReferrals > 0) {
+      items.push({
+        title: "إحالات قيد المتابعة",
+        description: `يوجد ${stats.openReferrals} إحالة مفتوحة.`,
+        tone: "teal",
+        icon: <HeartPulse className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الوضع مستقر",
+        description: "لا توجد مؤشرات حرجة حاليًا، واستمرار المتابعة كافٍ.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [health, stats]);
+
+  const parentRecommendations = useMemo(
+    () =>
+      buildParentRecommendations(health, {
+        absent: stats.absent,
+        late: stats.late,
+        averageGrade: stats.averageGrade,
+        behaviorCount: stats.behaviorCount,
+        openReferrals: stats.openReferrals,
+      }),
+    [health, stats],
+  );
+
+  const parentTimeline = useMemo(() => {
+    const items = [
+      ...notifications.map((item) => ({
+        id: `notification-${item.id}`,
+        title: item.title || "تنبيه",
+        description: item.message || "تنبيه جديد.",
+        date: item.created_at,
+        tone: item.is_read === false
+          ? ("gold" as ParentInsightTone)
+          : ("teal" as ParentInsightTone),
+      })),
+      ...attendance.slice(0, 8).map((item) => ({
+        id: `attendance-${item.id}`,
+        title: `الحضور: ${normalizeAttendanceStatus(
+          item.attendance_status || item.status,
+        )}`,
+        description: item.notes || "تم تحديث سجل الحضور.",
+        date: item.attendance_date,
+        tone: isAbsent(item.attendance_status || item.status)
+          ? ("red" as ParentInsightTone)
+          : ("green" as ParentInsightTone),
+      })),
+      ...referrals.slice(0, 6).map((item) => ({
+        id: `referral-${item.id}`,
+        title: item.reason || "إحالة",
+        description: item.status || "قيد المتابعة",
+        date: item.referred_at || item.created_at,
+        tone: isOpenReferral(item.status)
+          ? ("red" as ParentInsightTone)
+          : ("green" as ParentInsightTone),
+      })),
+    ];
+
+    return items
+      .sort((a, b) => {
+        const aTime = a.date ? new Date(a.date).getTime() : 0;
+        const bTime = b.date ? new Date(b.date).getTime() : 0;
+        return bTime - aTime;
+      })
+      .slice(0, 10);
+  }, [attendance, notifications, referrals]);
 
   if (schoolLoading || loading) {
     return (
@@ -807,6 +1168,36 @@ export default function ParentPortalPage() {
                 </div>
               </section>
 
+
+              <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                <ParentExecutiveAnalytics
+                  health={health}
+                  stats={stats}
+                  studentNameValue={studentName(selectedStudent)}
+                />
+
+                <ParentSmartInsights insights={parentInsights} />
+              </section>
+
+              <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <ParentHealthPanel health={health} />
+
+                <ParentAcademicProgress
+                  subjects={subjectDistribution}
+                  average={stats.averageGrade}
+                />
+
+                <ParentActionPlan recommendations={parentRecommendations} />
+              </section>
+
+              {childrenComparison.length > 1 && (
+                <ChildrenComparisonPanel
+                  items={childrenComparison}
+                  selectedStudentId={selectedStudent.id}
+                  onSelect={setSelectedStudentId}
+                />
+              )}
+
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.85fr_1.15fr]">
                 <Panel title="بطاقة الطالب" icon={<User size={24} />}>
                   <div className="space-y-3">
@@ -881,6 +1272,17 @@ export default function ParentPortalPage() {
                     />
                   </div>
                 </Panel>
+              </section>
+
+
+              <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+                <ParentCommunicationHub
+                  unreadNotifications={stats.unreadNotifications}
+                  openReferrals={stats.openReferrals}
+                  selectedStudentId={selectedStudent.id}
+                />
+
+                <ParentUnifiedTimeline items={parentTimeline} />
               </section>
 
               <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1209,5 +1611,394 @@ function EmptyBox({ text }: { text: string }) {
       title="لا توجد بيانات"
       description={text}
     />
+  );
+}
+
+
+function ParentExecutiveAnalytics({
+  health,
+  stats,
+  studentNameValue,
+}: {
+  health: ParentHealth;
+  stats: {
+    attendanceRate: number;
+    attendanceRecords: number;
+    present: number;
+    absent: number;
+    late: number;
+    averageGrade: number;
+    behaviorCount: number;
+    openReferrals: number;
+    unreadNotifications: number;
+    followUpScore: number;
+    followUpLabel: string;
+  };
+  studentNameValue: string;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Parent Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية شاملة لأداء الطالب واحتياجات المتابعة.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ParentMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Target size={18} />} tone={health.level === "مستقر" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <ParentMetric label="الأكاديمي" value={`${health.academicScore}%`} icon={<Award size={18} />} tone="blue" />
+        <ParentMetric label="الحضور" value={`${health.attendanceScore}%`} icon={<CalendarDays size={18} />} tone="teal" />
+        <ParentMetric label="السلوك" value={`${health.behaviorScore}%`} icon={<ShieldAlert size={18} />} tone="green" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <ParentInfoLine label="الطالب" value={studentNameValue} />
+        <ParentInfoLine label="التصنيف" value={health.level} />
+        <ParentInfoLine label="الغياب / التأخر" value={`${stats.absent} / ${stats.late}`} />
+        <ParentInfoLine label="الإحالات المفتوحة" value={stats.openReferrals} />
+      </div>
+    </section>
+  );
+}
+
+function ParentSmartInsights({
+  insights,
+}: {
+  insights: ParentInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Parent Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات ذكية تساعد ولي الأمر في المتابعة اليومية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ParentHealthPanel({
+  health,
+}: {
+  health: ParentHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Activity size={20} />
+        Parent Monitoring Health
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        توازن الأداء والحضور والسلوك والمتابعة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <ParentProgress label="الأكاديمي" value={health.academicScore} total={100} tone="blue" suffix="%" />
+        <ParentProgress label="الحضور" value={health.attendanceScore} total={100} tone="green" suffix="%" />
+        <ParentProgress label="السلوك" value={health.behaviorScore} total={100} tone="teal" suffix="%" />
+        <ParentProgress label="المتابعة" value={health.followUpScore} total={100} tone="gold" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function ParentAcademicProgress({
+  subjects,
+  average,
+}: {
+  subjects: Array<{ name: string; value: number }>;
+  average: number;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <ChartNoAxesCombined size={20} />
+        Academic Progress
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مقارنة نتائج المواد بمتوسط الطالب.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        {subjects.length === 0 ? (
+          <p className="text-sm text-[var(--app-text-muted)]">
+            لا توجد درجات كافية للتحليل.
+          </p>
+        ) : (
+          subjects.map((item) => (
+            <ParentProgress
+              key={item.name}
+              label={item.name}
+              value={item.value}
+              total={100}
+              tone={item.value >= average ? "green" : item.value >= 60 ? "gold" : "red"}
+              suffix="%"
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ParentActionPlan({
+  recommendations,
+}: {
+  recommendations: string[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <TrendingUp size={20} />
+        Parent Action Plan
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        خطوات عملية مقترحة لولي الأمر.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {recommendations.map((item, index) => (
+          <div
+            key={`${index}-${item}`}
+            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+              {index + 1}
+            </span>
+            <p className="text-sm leading-7 text-[var(--app-text)]">{item}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ChildrenComparisonPanel({
+  items,
+  selectedStudentId,
+  onSelect,
+}: {
+  items: ChildComparisonItem[];
+  selectedStudentId: string;
+  onSelect: (studentId: string) => void;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BarChart3 size={20} />
+          مقارنة الأبناء
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          مقارنة سريعة للحضور والتحصيل والمتابعة.
+        </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => (
+          <button
+            key={item.studentId}
+            type="button"
+            onClick={() => onSelect(item.studentId)}
+            className={`rounded-3xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${
+              selectedStudentId === item.studentId
+                ? "border-[var(--app-teal)] bg-[var(--app-teal-soft)]"
+                : "border-[var(--app-border)] bg-[var(--app-card-soft)]"
+            }`}
+          >
+            <p className="font-black text-[var(--app-text)]">{item.studentName}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <ParentInfoLine label="الحضور" value={`${item.attendanceRate}%`} />
+              <ParentInfoLine label="الدرجات" value={`${item.averageGrade}%`} />
+              <ParentInfoLine label="السلوك" value={item.behaviorCount} />
+              <ParentInfoLine label="المؤشر" value={`${item.overallScore}%`} />
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ParentCommunicationHub({
+  unreadNotifications,
+  openReferrals,
+  selectedStudentId,
+}: {
+  unreadNotifications: number;
+  openReferrals: number;
+  selectedStudentId: string;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <MessagesSquare size={20} />
+        Communication Hub
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        بوابة سريعة للتنبيهات والإحالات وملف الطالب.
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <Link href="/notifications" className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
+          <Bell className="mx-auto text-[var(--app-teal)]" size={22} />
+          <p className="mt-2 text-sm font-black text-[var(--app-text)]">التنبيهات</p>
+          <p className="mt-1 text-xs text-[var(--app-text-muted)]">{unreadNotifications} غير مقروءة</p>
+        </Link>
+
+        <Link href="/student-referrals" className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
+          <HeartPulse className="mx-auto text-[var(--app-teal)]" size={22} />
+          <p className="mt-2 text-sm font-black text-[var(--app-text)]">الإحالات</p>
+          <p className="mt-1 text-xs text-[var(--app-text-muted)]">{openReferrals} مفتوحة</p>
+        </Link>
+
+        <Link href={`/students/${selectedStudentId}`} className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
+          <GraduationCap className="mx-auto text-[var(--app-teal)]" size={22} />
+          <p className="mt-2 text-sm font-black text-[var(--app-text)]">ملف الطالب</p>
+          <p className="mt-1 text-xs text-[var(--app-text-muted)]">عرض شامل</p>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function ParentUnifiedTimeline({
+  items,
+}: {
+  items: Array<{
+    id: string;
+    title: string;
+    description: string;
+    date?: string | null;
+    tone: ParentInsightTone;
+  }>;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Activity size={20} />
+        Unified Timeline
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        أحدث التنبيهات والحضور والإحالات.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {items.length === 0 ? (
+          <p className="text-sm text-[var(--app-text-muted)]">
+            لا توجد أحداث حديثة.
+          </p>
+        ) : (
+          items.map((item) => (
+            <div
+              key={item.id}
+              className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+            >
+              <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${progressTone(item.tone)}`} />
+              <div>
+                <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+                <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                  {item.description}
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-[var(--app-text-muted)]">
+                  {formatDate(item.date)}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ParentMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: ParentInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function ParentInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function ParentProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: ParentInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
   );
 }

@@ -20,7 +20,10 @@ import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
+  Activity,
+  AlertTriangle,
   BarChart3,
+  BrainCircuit,
   BookOpen,
   CalendarCheck,
   CheckCircle2,
@@ -30,6 +33,7 @@ import {
   FileBarChart,
   FileSpreadsheet,
   FileText,
+  Gauge,
   GraduationCap,
   LineChart as LineChartIcon,
   PieChart as PieChartIcon,
@@ -39,6 +43,8 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Target,
+  TrendingDown,
   TrendingUp,
   Users,
   UserCog,
@@ -119,6 +125,34 @@ type Stats = {
   schedules: number;
   teacherSubjects: number;
 };
+
+type ReportInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type ReportInsight = {
+  title: string;
+  description: string;
+  tone: ReportInsightTone;
+  icon: ReactNode;
+};
+
+type ReportHealth = {
+  dataReadiness: number;
+  reportingCoverage: number;
+  attendanceQuality: number;
+  academicQuality: number;
+  operationalQuality: number;
+  overallScore: number;
+  level: "جاهز" | "متابعة" | "ضعيف";
+};
+
+type ReportQueueItem = {
+  id: string;
+  title: string;
+  group: ReportGroupKey;
+  format: "PDF" | "Excel";
+  status: "جاهز" | "بانتظار التصدير";
+};
+
 
 const REPORT_ROLES: SchoolRole[] = [
   "super_admin",
@@ -234,6 +268,69 @@ async function safeRead(table: string, limit = 1000, schoolId?: string) {
   }
 }
 
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: ReportInsightTone) {
+  const tones: Record<ReportInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: ReportInsightTone) {
+  const tones: Record<ReportInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildReportRecommendations(
+  health: ReportHealth,
+  stats: Stats,
+  gradeWeak: number,
+  conductLow: number,
+) {
+  const recommendations: string[] = [];
+
+  if (stats.students === 0 || stats.teachers === 0) {
+    recommendations.push("استكمل بيانات الطلاب والمعلمين قبل إصدار التقارير التنفيذية.");
+  }
+
+  if (health.attendanceQuality < 80) {
+    recommendations.push("راجع اكتمال سجلات الحضور لرفع موثوقية التقارير.");
+  }
+
+  if (health.academicQuality < 80 || gradeWeak > 0) {
+    recommendations.push("راجع سجلات الدرجات والطلاب المتعثرين قبل اعتماد التقرير الأكاديمي.");
+  }
+
+  if (conductLow > 0) {
+    recommendations.push("أضف ملخصًا تنفيذيًا لحالات السلوك التي تحتاج متابعة.");
+  }
+
+  if (stats.teacherSubjects === 0 || stats.schedules === 0) {
+    recommendations.push("استكمل الإسنادات والجداول لرفع جودة التقارير التشغيلية.");
+  }
+
+  return recommendations.length
+    ? recommendations
+    : ["بيانات التقارير جاهزة؛ يمكنك إصدار التقرير التنفيذي واعتماده."];
+}
+
+
 
 export default function ReportsPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
@@ -258,6 +355,8 @@ export default function ReportsPage() {
   const [selectedGrade, setSelectedGrade] = useState("all");
   const [selectedClassroom, setSelectedClassroom] = useState("all");
   const [lastUpdate, setLastUpdate] = useState("غير متوفر");
+  const [reportQueue, setReportQueue] = useState<ReportQueueItem[]>([]);
+  const [previewReport, setPreviewReport] = useState<ReportCard | null>(null);
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
@@ -384,6 +483,150 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       low: values.filter((value) => value < 80).length,
     };
   }, [conduct]);
+
+  const health = useMemo<ReportHealth>(() => {
+    const masterDataReady = [
+      stats.students > 0,
+      stats.teachers > 0,
+      stats.classrooms > 0,
+      stats.subjects > 0,
+    ].filter(Boolean).length;
+
+    const operationalReady = [
+      stats.attendance > 0,
+      stats.schedules > 0,
+      stats.teacherSubjects > 0,
+    ].filter(Boolean).length;
+
+    const academicReady = [
+      stats.grades > 0,
+      stats.conduct > 0,
+    ].filter(Boolean).length;
+
+    const dataReadiness = percentage(masterDataReady, 4);
+    const operationalQuality = percentage(operationalReady, 3);
+    const academicQuality = percentage(academicReady, 2);
+    const attendanceQuality =
+      stats.attendance > 0
+        ? Math.min(100, Math.max(0, attendanceStats.rate))
+        : 0;
+
+    const reportingCoverage = percentage(
+      [
+        stats.students,
+        stats.teachers,
+        stats.classrooms,
+        stats.subjects,
+        stats.attendance,
+        stats.grades,
+        stats.conduct,
+        stats.schedules,
+        stats.teacherSubjects,
+      ].filter((value) => value > 0).length,
+      9,
+    );
+
+    const overallScore = Math.round(
+      dataReadiness * 0.3 +
+        reportingCoverage * 0.25 +
+        attendanceQuality * 0.15 +
+        academicQuality * 0.15 +
+        operationalQuality * 0.15,
+    );
+
+    return {
+      dataReadiness,
+      reportingCoverage,
+      attendanceQuality,
+      academicQuality,
+      operationalQuality,
+      overallScore,
+      level:
+        overallScore >= 85
+          ? "جاهز"
+          : overallScore >= 60
+            ? "متابعة"
+            : "ضعيف",
+    };
+  }, [attendanceStats.rate, stats]);
+
+  const smartInsights = useMemo<ReportInsight[]>(() => {
+    const items: ReportInsight[] = [];
+
+    if (health.level === "ضعيف") {
+      items.push({
+        title: "جاهزية التقارير منخفضة",
+        description: `المؤشر العام الحالي ${health.overallScore}% ويحتاج استكمال البيانات.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (gradeStats.weak > 0) {
+      items.push({
+        title: "نتائج تحتاج متابعة",
+        description: `يوجد ${gradeStats.weak} سجل درجات أقل من 60%.`,
+        tone: "gold",
+        icon: <TrendingDown className="h-5 w-5" />,
+      });
+    }
+
+    if (attendanceStats.rate < 85 && attendanceStats.total > 0) {
+      items.push({
+        title: "الحضور أقل من المستهدف",
+        description: `نسبة الحضور الحالية ${attendanceStats.rate}%.`,
+        tone: "blue",
+        icon: <CalendarCheck className="h-5 w-5" />,
+      });
+    }
+
+    if (conductStats.low > 0) {
+      items.push({
+        title: "مؤشرات سلوك منخفضة",
+        description: `يوجد ${conductStats.low} سجلًا يحتاج متابعة.`,
+        tone: "teal",
+        icon: <ShieldCheck className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "مركز التقارير جاهز",
+        description: "البيانات الأساسية متوفرة ويمكن إصدار التقارير.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [attendanceStats, conductStats.low, gradeStats.weak, health]);
+
+  const reportRecommendations = useMemo(
+    () =>
+      buildReportRecommendations(
+        health,
+        stats,
+        gradeStats.weak,
+        conductStats.low,
+      ),
+    [conductStats.low, gradeStats.weak, health, stats],
+  );
+
+  const riskSummary = useMemo(() => {
+    return {
+      weakGrades: gradeStats.weak,
+      lowConduct: conductStats.low,
+      absences: attendanceStats.absent,
+      lateness: attendanceStats.late,
+      missingCoreData: [
+        stats.students === 0,
+        stats.teachers === 0,
+        stats.classrooms === 0,
+        stats.subjects === 0,
+      ].filter(Boolean).length,
+    };
+  }, [attendanceStats.absent, attendanceStats.late, conductStats.low, gradeStats.weak, stats]);
+
 
   const classroomNames = useMemo(() => {
     const values = classrooms
@@ -841,6 +1084,53 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
     };
   }
 
+
+  function addToQueue(report: ReportCard, format: "PDF" | "Excel") {
+  const newItem: ReportQueueItem = {
+    id: `${report.group}-${report.title}-${format}-${Date.now()}`,
+    title: report.title,
+    group: report.group,
+    format,
+    status: "بانتظار التصدير",
+  };
+
+  setReportQueue((current) => [newItem, ...current].slice(0, 8));
+
+  showToast(
+    "success",
+    `تمت إضافة ${report.title} إلى قائمة التصدير`
+  );
+}
+
+function runSmartSearch(command: string) {
+    const value = command.trim();
+
+    setSearch("");
+    setSelectedGroup("all");
+
+    if (value.includes("الطلاب")) {
+      setSelectedGroup("students");
+      return;
+    }
+
+    if (value.includes("الأكاديمية")) {
+      setSelectedGroup("academic");
+      return;
+    }
+
+    if (value.includes("التشغيلية")) {
+      setSelectedGroup("operations");
+      return;
+    }
+
+    if (value.includes("التنفيذية")) {
+      setSelectedGroup("executive");
+      return;
+    }
+
+    setSearch(value.replace("تقارير", "").trim());
+  }
+
   function exportPDF(type: ExportType) {
     const data = getExportData(type);
 
@@ -979,6 +1269,53 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
             ]}
             footer="تزيد جودة التقارير كلما اكتملت بيانات الطلاب والمعلمين والفصول والحضور والدرجات داخل المنصة."
           />
+
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <ReportsExecutiveAnalytics
+              health={health}
+              stats={stats}
+              attendanceRate={attendanceStats.rate}
+              gradeAverage={gradeStats.average}
+            />
+
+            <ReportsSmartInsights insights={smartInsights} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <ReportsHealthPanel health={health} />
+
+            <ReportsRiskPanel
+              risk={riskSummary}
+              totalStudents={stats.students}
+            />
+
+            <ReportsActionPlan recommendations={reportRecommendations} />
+          </section>
+
+          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+            <div className="mb-4">
+              <h2 className="text-xl font-black text-[var(--app-text)]">
+                البحث الذكي في مركز التقارير
+              </h2>
+              <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                جرّب: تقارير الطلاب، التقارير الأكاديمية، التقارير التشغيلية، التقارير التنفيذية.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {["تقارير الطلاب", "التقارير الأكاديمية", "التقارير التشغيلية", "التقارير التنفيذية"].map((command) => (
+                <button
+                  key={command}
+                  type="button"
+                  onClick={() => runSmartSearch(command)}
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                >
+                  {command}
+                </button>
+              ))}
+            </div>
+          </section>
 
           <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
             <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
@@ -1172,6 +1509,8 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
                     reports={reports}
                     onPDF={exportPDF}
                     onExcel={exportExcel}
+                    onPreview={setPreviewReport}
+                    onQueue={addToQueue}
                   />
                 );
               })}
@@ -1184,6 +1523,12 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
               description="جرّب تغيير كلمات البحث أو نوع التقرير أو تصفير الفلاتر."
             />
           )}
+
+
+          <ReportsQueue
+            items={reportQueue}
+            onClear={() => setReportQueue([])}
+          />
 
           <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1258,6 +1603,17 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
               </table>
             </div>
           </section>
+
+          {previewReport && (
+            <ReportPreviewDrawer
+              report={previewReport}
+              data={getExportData(previewReport.exportType)}
+              onClose={() => setPreviewReport(null)}
+              onPDF={exportPDF}
+              onExcel={exportExcel}
+            />
+          )}
+
         </main>
       </AppShell>
     </RoleGuard>
@@ -1332,11 +1688,15 @@ function ReportGroupCard({
   reports,
   onPDF,
   onExcel,
+  onPreview,
+  onQueue,
 }: {
   group: ReportGroup;
   reports: ReportCard[];
   onPDF: (type: ExportType) => void;
   onExcel: (type: ExportType) => void;
+  onPreview: (report: ReportCard) => void;
+  onQueue: (report: ReportCard, format: "PDF" | "Excel") => void;
 }) {
   return (
     <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
@@ -1364,6 +1724,8 @@ function ReportGroupCard({
             report={report}
             onPDF={onPDF}
             onExcel={onExcel}
+            onPreview={onPreview}
+            onQueue={onQueue}
           />
         ))}
       </div>
@@ -1375,10 +1737,14 @@ function ReportLinkCard({
   report,
   onPDF,
   onExcel,
+  onPreview,
+  onQueue,
 }: {
   report: ReportCard;
   onPDF: (type: ExportType) => void;
   onExcel: (type: ExportType) => void;
+  onPreview: (report: ReportCard) => void;
+  onQueue: (report: ReportCard, format: "PDF" | "Excel") => void;
 }) {
   const colors = {
     blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
@@ -1407,6 +1773,15 @@ function ReportLinkCard({
           <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">{report.description}</p>
 
           <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onPreview(report)}
+              className="inline-flex items-center gap-1 rounded-xl bg-[var(--app-blue-soft)] px-3 py-2 text-xs font-bold text-[var(--app-blue)] hover:opacity-80"
+            >
+              <Eye size={14} />
+              معاينة
+            </button>
+
             <Link
               href={report.href}
               className="inline-flex items-center gap-1 rounded-xl bg-[#15445A] px-3 py-2 text-xs font-bold text-white hover:bg-[#0DA9A6]"
@@ -1441,6 +1816,15 @@ function ReportLinkCard({
               <FileSpreadsheet size={14} />
               Excel
             </button>
+
+            <button
+              type="button"
+              onClick={() => onQueue(report, "PDF")}
+              className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200"
+            >
+              <Download size={14} />
+              قائمة التصدير
+            </button>
           </div>
         </div>
       </div>
@@ -1471,3 +1855,362 @@ function ProgressMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
+
+
+function ReportsExecutiveAnalytics({
+  health,
+  stats,
+  attendanceRate,
+  gradeAverage,
+}: {
+  health: ReportHealth;
+  stats: Stats;
+  attendanceRate: number;
+  gradeAverage: number;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Reports Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لجاهزية البيانات وجودة التقارير.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ReportsMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} />} tone={health.level === "جاهز" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <ReportsMetric label="جاهزية البيانات" value={`${health.dataReadiness}%`} icon={<CheckCircle2 size={18} />} tone="blue" />
+        <ReportsMetric label="تغطية التقارير" value={`${health.reportingCoverage}%`} icon={<FileBarChart size={18} />} tone="teal" />
+        <ReportsMetric label="الجودة التشغيلية" value={`${health.operationalQuality}%`} icon={<Activity size={18} />} tone="gold" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <ReportsInfoLine label="الحضور" value={`${attendanceRate}%`} />
+        <ReportsInfoLine label="متوسط الدرجات" value={gradeAverage ? `${gradeAverage}%` : "—"} />
+        <ReportsInfoLine label="الطلاب" value={stats.students} />
+        <ReportsInfoLine label="المعلمون" value={stats.teachers} />
+      </div>
+    </section>
+  );
+}
+
+function ReportsSmartInsights({
+  insights,
+}: {
+  insights: ReportInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Report Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          ملاحظات آلية قبل إصدار التقارير.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ReportsHealthPanel({
+  health,
+}: {
+  health: ReportHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Reports Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات الجاهزية والجودة والتغطية.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <ReportsProgress label="جاهزية البيانات" value={health.dataReadiness} total={100} tone="blue" suffix="%" />
+        <ReportsProgress label="تغطية التقارير" value={health.reportingCoverage} total={100} tone="teal" suffix="%" />
+        <ReportsProgress label="الجودة الأكاديمية" value={health.academicQuality} total={100} tone="green" suffix="%" />
+        <ReportsProgress label="الجودة التشغيلية" value={health.operationalQuality} total={100} tone="gold" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function ReportsRiskPanel({
+  risk,
+  totalStudents,
+}: {
+  risk: {
+    weakGrades: number;
+    lowConduct: number;
+    absences: number;
+    lateness: number;
+    missingCoreData: number;
+  };
+  totalStudents: number;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Report Risk Engine</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات تحتاج إبرازًا في التقارير التنفيذية.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <ReportsProgress label="درجات ضعيفة" value={risk.weakGrades} total={Math.max(1, totalStudents)} tone="red" />
+        <ReportsProgress label="سلوك منخفض" value={risk.lowConduct} total={Math.max(1, totalStudents)} tone="gold" />
+        <ReportsProgress label="غياب" value={risk.absences} total={Math.max(1, totalStudents)} tone="blue" />
+        <ReportsProgress label="تأخر" value={risk.lateness} total={Math.max(1, totalStudents)} tone="teal" />
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-[var(--app-card-soft)] p-4">
+        <p className="text-xs font-bold text-[var(--app-text-muted)]">بيانات أساسية ناقصة</p>
+        <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{risk.missingCoreData}</p>
+      </div>
+    </section>
+  );
+}
+
+function ReportsActionPlan({
+  recommendations,
+}: {
+  recommendations: string[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Target size={20} />
+        Report Action Plan
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        خطوات مقترحة قبل الاعتماد والتصدير.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {recommendations.map((item, index) => (
+          <div
+            key={`${index}-${item}`}
+            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+              {index + 1}
+            </span>
+            <p className="text-sm leading-7 text-[var(--app-text)]">{item}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ReportsQueue({
+  items,
+  onClear,
+}: {
+  items: ReportQueueItem[];
+  onClear: () => void;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black text-[var(--app-text)]">قائمة التصدير</h2>
+          <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+            تقارير تمت إضافتها للتصدير لاحقًا.
+          </p>
+        </div>
+
+        {items.length > 0 && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600"
+          >
+            مسح القائمة
+          </button>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <p className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-sm text-[var(--app-text-muted)]">
+          لم تتم إضافة تقارير بعد.
+        </p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <div key={item.id} className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+              <p className="font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs text-[var(--app-text-muted)]">
+                {groupLabel(item.group)} · {item.format}
+              </p>
+              <span className="mt-3 inline-flex rounded-full bg-[var(--app-accent-soft)] px-3 py-1 text-xs font-black text-[var(--app-accent)]">
+                {item.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ReportPreviewDrawer({
+  report,
+  data,
+  onClose,
+  onPDF,
+  onExcel,
+}: {
+  report: ReportCard;
+  data: ExportData;
+  onClose: () => void;
+  onPDF: (type: ExportType) => void;
+  onExcel: (type: ExportType) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-3xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Report Preview V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{report.title}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="mb-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onPDF(report.exportType)}
+            className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-700"
+          >
+            تصدير PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => onExcel(report.exportType)}
+            className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700"
+          >
+            تصدير Excel
+          </button>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-100">
+          <table className="w-full min-w-[700px] text-right text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                {data.headers.map((header) => (
+                  <th key={header} className="p-3">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {data.rows.slice(0, 20).map((row, index) => (
+                <tr key={index}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex} className="p-3 text-slate-600">
+                      {cell === null || cell === undefined || cell === "" ? "—" : String(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="mt-4 text-xs font-bold text-slate-400">
+          يتم عرض أول 20 صفًا فقط في المعاينة، بينما يشمل التصدير جميع البيانات.
+        </p>
+      </aside>
+    </div>
+  );
+}
+
+function ReportsMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: ReportInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function ReportsInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function ReportsProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: ReportInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}

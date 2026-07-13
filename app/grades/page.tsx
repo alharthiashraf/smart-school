@@ -10,13 +10,16 @@ import {
 } from "react";
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart3,
+  BrainCircuit,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
   History,
+  ListChecks,
   Lock,
   Printer,
   RefreshCcw,
@@ -24,6 +27,7 @@ import {
   ShieldCheck,
   Upload,
   UsersRound,
+  WandSparkles,
   XCircle,
   GraduationCap,
 } from "lucide-react";
@@ -96,6 +100,24 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
+
+type GradeInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type GradeSmartInsight = {
+  title: string;
+  description: string;
+  tone: GradeInsightTone;
+  icon: ReactNode;
+};
+
+type GradeQuality = {
+  completionRate: number;
+  missingRequired: number;
+  ungradedStudents: number;
+  dirtyEntries: number;
+  approvedRate: number;
+};
+
 
 function normalizeText(value: unknown) {
   return String(value || "")
@@ -201,6 +223,53 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function insightTone(tone: GradeInsightTone) {
+  const tones: Record<GradeInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+  return tones[tone];
+}
+
+function progressTone(tone: GradeInsightTone) {
+  const tones: Record<GradeInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+  return tones[tone];
+}
+
+function buildStudentRecommendations(entry: EditableEntry) {
+  const recommendations: string[] = [];
+
+  if (entry.percentage < 60) {
+    recommendations.push("إعداد خطة علاجية قصيرة ومراجعة عناصر التقييم منخفضة الأداء.");
+  } else if (entry.percentage < 75) {
+    recommendations.push("متابعة الطالب أسبوعيًا ورفع مستوى المشاركة والواجبات.");
+  } else if (entry.percentage >= 90) {
+    recommendations.push("ترشيح الطالب لبرامج الإثراء والتحفيز.");
+  }
+
+  if (entry.result_status === "غير مكتمل") {
+    recommendations.push("استكمال عناصر التقييم الإلزامية قبل اعتماد الرصد.");
+  }
+
+  if (entry.issues.length > 0) {
+    recommendations.push("مراجعة أخطاء التحقق الظاهرة في سجل الطالب.");
+  }
+
+  return recommendations.length
+    ? recommendations
+    : ["لا توجد توصيات حرجة حاليًا، استمر في المتابعة الدورية."];
+}
+
+
 export default function GradesPage() {
   const {
     currentSchool,
@@ -250,6 +319,7 @@ export default function GradesPage() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<Toast | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState("");
+  const [selectedEntry, setSelectedEntry] = useState<EditableEntry | null>(null);
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -690,6 +760,82 @@ export default function GradesPage() {
     [entries],
   );
 
+
+  const quality = useMemo<GradeQuality>(() => {
+    const total = Math.max(1, entries.length);
+    const completed = entries.filter(
+      (entry) => entry.result_status !== "غير مكتمل" && entry.issues.length === 0,
+    ).length;
+    const ungradedStudents = entries.filter(
+      (entry) => entry.total_score === 0 && Object.values(entry.values).every((value) => value === null || value === undefined),
+    ).length;
+    const missingRequired = entries.filter(
+      (entry) => entry.result_status === "غير مكتمل",
+    ).length;
+    const dirtyEntries = entries.filter((entry) => entry.dirty).length;
+    const approvedRate =
+      gradeBook?.status === "approved" || gradeBook?.status === "locked" ? 100 : 0;
+
+    return {
+      completionRate: Math.round((completed / total) * 100),
+      missingRequired,
+      ungradedStudents,
+      dirtyEntries,
+      approvedRate,
+    };
+  }, [entries, gradeBook?.status]);
+
+  const smartInsights = useMemo<GradeSmartInsight[]>(() => {
+    const items: GradeSmartInsight[] = [];
+
+    if (analytics.weak > 0) {
+      items.push({
+        title: "طلاب معرضون للتعثر",
+        description: `يوجد ${analytics.weak} طالب في نطاق الخطر ويحتاجون إلى تدخل أكاديمي.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (quality.missingRequired > 0) {
+      items.push({
+        title: "رصد غير مكتمل",
+        description: `${quality.missingRequired} طالب لديهم عناصر تقييم إلزامية غير مكتملة.`,
+        tone: "gold",
+        icon: <ListChecks className="h-5 w-5" />,
+      });
+    }
+
+    if (analytics.passRate < 70 && entries.length > 0) {
+      items.push({
+        title: "نسبة النجاح تحتاج متابعة",
+        description: `نسبة النجاح الحالية ${Math.round(analytics.passRate)}% وهي أقل من المستوى المستهدف.`,
+        tone: "blue",
+        icon: <BarChart3 className="h-5 w-5" />,
+      });
+    }
+
+    if (quality.dirtyEntries > 0) {
+      items.push({
+        title: "تعديلات غير محفوظة",
+        description: `يوجد ${quality.dirtyEntries} سجلًا بانتظار الحفظ أو الحفظ التلقائي.`,
+        tone: "teal",
+        icon: <Save className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الرصد مستقر",
+        description: "لا توجد مؤشرات حرجة في الرصد الحالي.",
+        tone: "green",
+        icon: <CheckCircle2 className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [analytics.passRate, analytics.weak, entries.length, quality]);
+
   const behaviorRows = useMemo(
     () => students.map((student) => {
       const score = getConductScore(student.id, "behavior");
@@ -915,6 +1061,25 @@ export default function GradesPage() {
           footer={lastSavedAt ? `آخر عملية حفظ: ${lastSavedAt}` : "لم يتم تنفيذ حفظ يدوي بعد. الحفظ التلقائي يعمل عند تعديل الدرجات."}
         />
 
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <GradeExecutiveAnalytics
+            analytics={analytics}
+            quality={quality}
+            status={statusLabel(gradeBook?.status)}
+          />
+          <GradeSmartInsights insights={smartInsights} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <GradeRiskPanel analytics={analytics} />
+          <GradeQualityPanel quality={quality} />
+          <GradeImportCenter
+            editEnabled={editEnabled}
+            onImport={importGrades}
+          />
+        </section>
+
         <Section
           title="اختيار المادة والفصل"
           description="حدد إسناد المعلم والمادة قبل بدء الرصد أو المراجعة."
@@ -978,6 +1143,30 @@ export default function GradesPage() {
               {canLock && isLocked && (
                 <ActionButton onClick={() => void updateGradeBookStatus("reopened")} disabled={saving} label="إعادة فتح الرصد" />
               )}
+              {canManage && !isLocked && entries.length > 0 && (
+                <ActionButton
+                  onClick={() => {
+                    const nextEntries = entries.map((entry) => ({
+                      ...entry,
+                      values: Object.fromEntries(
+                        components.map((component) => [component.key, component.max_score]),
+                      ) as GradeValueMap,
+                      ...calculateGrade(
+                        components,
+                        Object.fromEntries(
+                          components.map((component) => [component.key, component.max_score]),
+                        ) as GradeValueMap,
+                      ),
+                      dirty: true,
+                      issues: [],
+                    }));
+                    setEntries(nextEntries);
+                    void saveDirtyEntries(nextEntries);
+                  }}
+                  disabled={saving}
+                  label="إكمال الكل بالدرجة القصوى"
+                />
+              )}
             </div>
           </Section>
         )}
@@ -1008,7 +1197,7 @@ export default function GradesPage() {
           <EmptyState title="اختر إسناد المعلم" description="اختر إسناد المعلم بالمادة لعرض الطلاب والرصد." />
         ) : activeTab === "subjects" ? (
           <>
-            <GradesTable entries={pagedEntries} components={components} editEnabled={editEnabled} updateScore={updateScore} />
+            <GradesTable entries={pagedEntries} components={components} editEnabled={editEnabled} updateScore={updateScore} onSelect={setSelectedEntry} />
             {filteredEntries.length > 0 && <Pagination page={page} totalPages={totalPages} setPage={setPage} />}
           </>
         ) : activeTab === "behavior" ? (
@@ -1019,6 +1208,16 @@ export default function GradesPage() {
           <AnalyticsSection analytics={analytics} />
         ) : (
           <HistorySection events={conductEvents} students={students} />
+        )}
+
+
+        {selectedEntry && (
+          <StudentGradeDrawer
+            entry={selectedEntry}
+            behaviorScore={getConductScore(selectedEntry.student.id, "behavior")}
+            attendanceScore={getConductScore(selectedEntry.student.id, "attendance")}
+            onClose={() => setSelectedEntry(null)}
+          />
         )}
 
         <div className="fixed bottom-3 left-1/2 z-40 w-[calc(100%-2rem)] max-w-[900px] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 shadow-lg backdrop-blur print:hidden">
@@ -1037,11 +1236,13 @@ function GradesTable({
   components,
   editEnabled,
   updateScore,
+  onSelect,
 }: {
   entries: EditableEntry[];
   components: GradeComponent[];
   editEnabled: boolean;
   updateScore: (studentId: string, component: GradeComponent, rawValue: string) => void;
+  onSelect: (entry: EditableEntry) => void;
 }) {
   if (entries.length === 0) return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات طلاب مطابقة للتصفية الحالية." />;
 
@@ -1067,7 +1268,13 @@ function GradesTable({
           {entries.map((entry) => (
             <tr key={entry.student.id} className={entry.dirty ? "bg-amber-50/50" : "bg-white"}>
               <td className="min-w-[220px] px-4 py-3">
-                <div className="font-black text-[#15445A]">{studentName(entry.student)}</div>
+                <button
+                  type="button"
+                  onClick={() => onSelect(entry)}
+                  className="text-right font-black text-[#15445A] hover:text-[#0DA9A6]"
+                >
+                  {studentName(entry.student)}
+                </button>
                 <div className="mt-1 text-xs font-bold text-slate-400">
                   {entry.student.national_id || entry.student.student_number || "-"}
                 </div>
@@ -1501,6 +1708,315 @@ function Pagination({ page, totalPages, setPage }: { page: number; totalPages: n
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded-xl border p-2 disabled:opacity-40"><ChevronRight size={18} /></button>
         <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded-xl border p-2 disabled:opacity-40"><ChevronLeft size={18} /></button>
+      </div>
+    </div>
+  );
+}
+
+
+function GradeExecutiveAnalytics({
+  analytics,
+  quality,
+  status,
+}: {
+  analytics: ReturnType<typeof buildGradeAnalytics>;
+  quality: GradeQuality;
+  status: string;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لاكتمال الرصد وجودة النتائج والمخاطر.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <GradeMetric label="أعلى نتيجة" value={`${analytics.highest?.percentage ?? 0}%`} icon={<ShieldCheck size={18} />} tone="green" />
+        <GradeMetric label="أقل نتيجة" value={`${analytics.lowest?.percentage ?? 0}%`} icon={<AlertCircle size={18} />} tone="red" />
+        <GradeMetric label="اكتمال الرصد" value={`${quality.completionRate}%`} icon={<ListChecks size={18} />} tone="blue" />
+        <GradeMetric label="حالة الاعتماد" value={status} icon={<Lock size={18} />} tone="gold" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <GradeInsightBox
+          title="أعلى طالب"
+          value={analytics.highest?.student_name || "-"}
+          detail={`${analytics.highest?.percentage ?? 0}%`}
+        />
+        <GradeInsightBox
+          title="أقل طالب"
+          value={analytics.lowest?.student_name || "-"}
+          detail={`${analytics.lowest?.percentage ?? 0}%`}
+        />
+      </div>
+    </section>
+  );
+}
+
+function GradeSmartInsights({ insights }: { insights: GradeSmartInsight[] }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          Smart Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات آلية مبنية على نتائج الرصد الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GradeRiskPanel({ analytics }: { analytics: ReturnType<typeof buildGradeAnalytics> }) {
+  const total = Math.max(1, analytics.total);
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Grade Risk Engine</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        تصنيف الطلاب حسب مستوى المخاطر الأكاديمية.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <GradeProgress label="متفوق" value={analytics.risk.excellent} total={total} tone="green" />
+        <GradeProgress label="مستقر" value={analytics.risk.stable} total={total} tone="blue" />
+        <GradeProgress label="قيد المتابعة" value={analytics.risk.watch} total={total} tone="gold" />
+        <GradeProgress label="خطر" value={analytics.risk.risk} total={total} tone="red" />
+      </div>
+    </section>
+  );
+}
+
+function GradeQualityPanel({ quality }: { quality: GradeQuality }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Quality Indicators</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات جودة واكتمال الرصد الحالي.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        <QualityValue label="اكتمال الرصد" value={`${quality.completionRate}%`} />
+        <QualityValue label="طلاب غير مرصودين" value={quality.ungradedStudents} />
+        <QualityValue label="عناصر إلزامية ناقصة" value={quality.missingRequired} />
+        <QualityValue label="تعديلات غير محفوظة" value={quality.dirtyEntries} />
+      </div>
+    </section>
+  );
+}
+
+function GradeImportCenter({
+  editEnabled,
+  onImport,
+}: {
+  editEnabled: boolean;
+  onImport: (file: File | null) => Promise<void>;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Import Center</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        استيراد Excel وCSV، مع جاهزية الربط لاحقًا مع نور.
+      </p>
+
+      <label className={`mt-5 flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-6 text-center ${!editEnabled ? "pointer-events-none opacity-50" : ""}`}>
+        <Upload className="h-8 w-8 text-[var(--app-teal)]" />
+        <span className="mt-3 text-sm font-black text-[var(--app-text)]">
+          اختر ملف الدرجات
+        </span>
+        <span className="mt-1 text-xs text-[var(--app-text-muted)]">
+          XLSX · XLS · CSV
+        </span>
+        <input
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={(event) => {
+            void onImport(event.target.files?.[0] || null);
+            event.currentTarget.value = "";
+          }}
+        />
+      </label>
+    </section>
+  );
+}
+
+function StudentGradeDrawer({
+  entry,
+  behaviorScore,
+  attendanceScore,
+  onClose,
+}: {
+  entry: EditableEntry;
+  behaviorScore: number;
+  attendanceScore: number;
+  onClose: () => void;
+}) {
+  const recommendations = buildStudentRecommendations(entry);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Student Drawer V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+              {studentName(entry.student)}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <GradeDrawerMetric label="النسبة" value={`${entry.percentage}%`} />
+          <GradeDrawerMetric label="التقدير" value={entry.grade_label} />
+          <GradeDrawerMetric label="السلوك" value={`${behaviorScore}/100`} />
+          <GradeDrawerMetric label="المواظبة" value={`${attendanceScore}/100`} />
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <GradeDrawerSection
+            title="تفاصيل الدرجات"
+            items={Object.entries(entry.values).map(([key, value]) => `${key}: ${value ?? "-"}`)}
+          />
+          <GradeDrawerSection
+            title="حالة الرصد"
+            items={[
+              `المجموع: ${entry.total_score} / ${entry.max_score}`,
+              `الحالة: ${entry.result_status}`,
+              `أخطاء التحقق: ${entry.issues.length}`,
+            ]}
+          />
+          <GradeDrawerSection
+            title="AI Recommendations"
+            items={recommendations}
+          />
+          <GradeDrawerSection
+            title="Timeline"
+            items={[
+              entry.dirty ? "يوجد تعديل حديث غير محفوظ." : "لا توجد تعديلات معلقة.",
+              "تم احتساب النسبة والتقدير تلقائيًا.",
+              "تمت مقارنة الطالب بمؤشرات الرصد الحالي.",
+            ]}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function GradeMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: GradeInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function GradeInsightBox({ title, value, detail }: { title: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{title}</p>
+      <p className="mt-1 text-lg font-black text-[var(--app-text)]">{value}</p>
+      <p className="mt-1 text-xs text-[var(--app-text-muted)]">{detail}</p>
+    </div>
+  );
+}
+
+function GradeProgress({
+  label,
+  value,
+  total,
+  tone,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: GradeInsightTone;
+}) {
+  const width = Math.max(4, Math.round((value / total) * 100));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function QualityValue({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-4 py-3">
+      <span className="text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-lg font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function GradeDrawerMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 text-xl font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function GradeDrawerSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+        ))}
       </div>
     </div>
   );

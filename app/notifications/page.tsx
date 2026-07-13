@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
@@ -17,15 +17,23 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
+  Activity,
   AlertTriangle,
+  BarChart3,
+  BrainCircuit,
   Bell,
+  CalendarClock,
   CheckCircle2,
   ClipboardCheck,
+  Gauge,
   ExternalLink,
   HeartPulse,
+  MailCheck,
+  MessageSquareText,
   Loader2,
   RefreshCcw,
   ShieldAlert,
+  Sparkles,
   Target,
   Trash2,
   XCircle,
@@ -113,6 +121,32 @@ type UnifiedNotification = {
   can_mark_read: boolean;
   can_delete: boolean;
 };
+
+type NotificationInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type NotificationInsight = {
+  title: string;
+  description: string;
+  tone: NotificationInsightTone;
+  icon: ReactNode;
+};
+
+type NotificationHealth = {
+  readRate: number;
+  criticalRate: number;
+  actionRate: number;
+  freshnessRate: number;
+  sourceCoverage: number;
+  overallScore: number;
+  level: "ممتاز" | "جيد" | "متابعة" | "خطر";
+};
+
+type SourceDistributionItem = {
+  source: UnifiedNotification["source"];
+  label: string;
+  count: number;
+};
+
 
 const PAGE_ROLES: SchoolRole[] = [
   "super_admin",
@@ -248,6 +282,36 @@ function getSourceIcon(source: UnifiedNotification["source"]) {
   if (source === "health_cases") return <HeartPulse size={18} />;
   return <Bell size={18} />;
 }
+
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: NotificationInsightTone) {
+  const tones: Record<NotificationInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: NotificationInsightTone) {
+  const tones: Record<NotificationInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
 
 function settledRows<T>(result: PromiseSettledResult<any>): T[] {
   if (result.status !== "fulfilled") return [];
@@ -394,6 +458,7 @@ export default function NotificationsPage() {
 
   const [toast, setToast] = useState<Toast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [selectedItem, setSelectedItem] = useState<UnifiedNotification | null>(null);
 
   useEffect(() => {
     if (currentSchool?.id) void fetchData();
@@ -519,6 +584,108 @@ export default function NotificationsPage() {
     }),
     [items],
   );
+
+  const health = useMemo<NotificationHealth>(() => {
+    const read = items.filter((item) => item.is_read).length;
+    const recent = items.filter((item) => {
+      if (!item.created_at) return false;
+      return Date.now() - new Date(item.created_at).getTime() <= 24 * 60 * 60 * 1000;
+    }).length;
+    const coveredSources = new Set(items.map((item) => item.source)).size;
+
+    const readRate = percentage(read, items.length);
+    const criticalRate = percentage(stats.critical + stats.high, items.length);
+    const actionRate = percentage(stats.actionable, items.length);
+    const freshnessRate = percentage(recent, items.length);
+    const sourceCoverage = percentage(coveredSources, SOURCE_OPTIONS.length - 1);
+
+    const overallScore = Math.round(
+      readRate * 0.3 +
+        Math.max(0, 100 - criticalRate) * 0.2 +
+        Math.max(0, 100 - actionRate) * 0.15 +
+        freshnessRate * 0.15 +
+        sourceCoverage * 0.2,
+    );
+
+    return {
+      readRate,
+      criticalRate,
+      actionRate,
+      freshnessRate,
+      sourceCoverage,
+      overallScore,
+      level:
+        overallScore >= 90
+          ? "ممتاز"
+          : overallScore >= 75
+            ? "جيد"
+            : overallScore >= 60
+              ? "متابعة"
+              : "خطر",
+    };
+  }, [items, stats.actionable, stats.critical, stats.high]);
+
+  const sourceDistribution = useMemo<SourceDistributionItem[]>(() => {
+    return SOURCE_OPTIONS.filter((item) => item.value !== "all")
+      .map((item) => ({
+        source: item.value as UnifiedNotification["source"],
+        label: item.label,
+        count: items.filter((row) => row.source === item.value).length,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [items]);
+
+  const smartInsights = useMemo<NotificationInsight[]>(() => {
+    const insights: NotificationInsight[] = [];
+
+    if (stats.critical > 0) {
+      insights.push({
+        title: "تنبيهات حرجة",
+        description: `يوجد ${stats.critical} تنبيه حرج يحتاج استجابة فورية.`,
+        tone: "red",
+        icon: <ShieldAlert className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.unread > 0) {
+      insights.push({
+        title: "تنبيهات غير مقروءة",
+        description: `${stats.unread} تنبيه ما زال غير مقروء.`,
+        tone: "gold",
+        icon: <Bell className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.actionable > 0) {
+      insights.push({
+        title: "حالات تحتاج إجراء",
+        description: `${stats.actionable} حالة تتطلب إجراءً أو متابعة.`,
+        tone: "blue",
+        icon: <ClipboardCheck className="h-5 w-5" />,
+      });
+    }
+
+    if (sourceDistribution[0]?.count > 0) {
+      insights.push({
+        title: "المصدر الأكثر نشاطًا",
+        description: `${sourceDistribution[0].label} بعدد ${sourceDistribution[0].count} تنبيه.`,
+        tone: "teal",
+        icon: <BarChart3 className="h-5 w-5" />,
+      });
+    }
+
+    if (insights.length === 0) {
+      insights.push({
+        title: "المركز مستقر",
+        description: "لا توجد مؤشرات حرجة في التنبيهات الحالية.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return insights.slice(0, 4);
+  }, [sourceDistribution, stats.actionable, stats.critical, stats.unread]);
+
 
   async function markAsRead(item: UnifiedNotification) {
     if (!currentSchool?.id || !item.can_mark_read) return;
@@ -731,6 +898,24 @@ export default function NotificationsPage() {
             footer="تعرض هذه الصفحة تنبيهات من عدة مصادر دون تعديل الإحالات أو الحالات الصحية نفسها."
           />
 
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <NotificationExecutiveAnalytics
+              health={health}
+              stats={stats}
+            />
+
+            <NotificationSmartInsights insights={smartInsights} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <NotificationHealthPanel health={health} />
+
+            <NotificationSourcePanel items={sourceDistribution} />
+
+            <NotificationChannelPanel />
+          </section>
+
           <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
             <PageToolbar
               search={{
@@ -780,12 +965,20 @@ export default function NotificationsPage() {
                       updatingId={updatingId}
                       onMarkRead={markAsRead}
                       onDelete={deleteItem}
+                      onOpen={setSelectedItem}
                     />
                   ))}
                 </div>
               )}
             </div>
           </section>
+
+          {selectedItem && (
+            <NotificationDrawer
+              item={selectedItem}
+              onClose={() => setSelectedItem(null)}
+            />
+          )}
         </PageContainer>
       </AppShell>
     </RoleGuard>
@@ -797,15 +990,18 @@ function NotificationCard({
   updatingId,
   onMarkRead,
   onDelete,
+  onOpen,
 }: {
   item: UnifiedNotification;
   updatingId: string | null;
   onMarkRead: (item: UnifiedNotification) => void;
   onDelete: (item: UnifiedNotification) => void;
+  onOpen: (item: UnifiedNotification) => void;
 }) {
   return (
     <div
-      className={`rounded-[24px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${
+      onClick={() => onOpen(item)}
+      className={`cursor-pointer rounded-[24px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${
         item.is_read
           ? "border-slate-100 bg-slate-50"
           : "border-[#C1B489]/30 bg-[#C1B489]/10"
@@ -850,6 +1046,7 @@ function NotificationCard({
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link
             href={item.href}
+            onClick={(event) => event.stopPropagation()}
             className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-bold text-[#15445A] hover:bg-slate-100"
           >
             <ExternalLink size={15} />
@@ -859,7 +1056,10 @@ function NotificationCard({
           {item.can_mark_read && !item.is_read && (
             <button
               type="button"
-              onClick={() => onMarkRead(item)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onMarkRead(item);
+              }}
               disabled={updatingId === item.id}
               className="inline-flex items-center gap-2 rounded-2xl bg-[#07A869]/10 px-4 py-2 text-sm font-bold text-[#07A869] hover:bg-[#07A869]/15 disabled:opacity-50"
             >
@@ -875,7 +1075,10 @@ function NotificationCard({
           {item.can_delete && (
             <button
               type="button"
-              onClick={() => onDelete(item)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete(item);
+              }}
               disabled={updatingId === item.id}
               className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
             >
@@ -926,6 +1129,320 @@ function LoadingBox() {
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
         <p className="font-bold">جاري تحميل مركز التنبيهات...</p>
+      </div>
+    </div>
+  );
+}
+
+
+function NotificationExecutiveAnalytics({
+  health,
+  stats,
+}: {
+  health: NotificationHealth;
+  stats: {
+    total: number;
+    unread: number;
+    critical: number;
+    high: number;
+    actionable: number;
+  };
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">
+        Notification Executive Analytics
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        قراءة تنفيذية لجودة المتابعة وسرعة الاستجابة.
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <NotificationMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} />} tone={health.level === "ممتاز" || health.level === "جيد" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <NotificationMetric label="معدل القراءة" value={`${health.readRate}%`} icon={<MailCheck size={18} />} tone="blue" />
+        <NotificationMetric label="حرجة ومرتفعة" value={stats.critical + stats.high} icon={<ShieldAlert size={18} />} tone="red" />
+        <NotificationMetric label="تحتاج إجراء" value={stats.actionable} icon={<ClipboardCheck size={18} />} tone="teal" />
+      </div>
+    </section>
+  );
+}
+
+function NotificationSmartInsights({
+  insights,
+}: {
+  insights: NotificationInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <BrainCircuit size={20} />
+        AI Notification Insights
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        ملاحظات آلية مبنية على التنبيهات الحالية.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NotificationHealthPanel({
+  health,
+}: {
+  health: NotificationHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Notification Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات القراءة والاستجابة وتغطية المصادر.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <NotificationProgress label="معدل القراءة" value={health.readRate} tone="green" />
+        <NotificationProgress label="الحرجة والمرتفعة" value={health.criticalRate} tone="red" />
+        <NotificationProgress label="تحتاج إجراء" value={health.actionRate} tone="gold" />
+        <NotificationProgress label="حداثة التنبيهات" value={health.freshnessRate} tone="blue" />
+        <NotificationProgress label="تغطية المصادر" value={health.sourceCoverage} tone="teal" />
+      </div>
+    </section>
+  );
+}
+
+function NotificationSourcePanel({
+  items,
+}: {
+  items: SourceDistributionItem[];
+}) {
+  const max = Math.max(1, ...items.map((item) => item.count));
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <BarChart3 size={20} />
+        Source Distribution
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        توزيع التنبيهات حسب المصدر.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        {items.map((item) => (
+          <NotificationCountProgress
+            key={item.source}
+            label={item.label}
+            value={item.count}
+            total={max}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NotificationChannelPanel() {
+  const channels = [
+    { label: "داخل المنصة", status: "مفعل", icon: <Bell size={18} />, tone: "green" as NotificationInsightTone },
+    { label: "البريد الإلكتروني", status: "جاهز للربط", icon: <MailCheck size={18} />, tone: "blue" as NotificationInsightTone },
+    { label: "SMS", status: "جاهز للربط", icon: <MessageSquareText size={18} />, tone: "gold" as NotificationInsightTone },
+    { label: "WhatsApp", status: "جاهز للربط", icon: <MessageSquareText size={18} />, tone: "teal" as NotificationInsightTone },
+    { label: "الجدولة", status: "واجهة جاهزة", icon: <CalendarClock size={18} />, tone: "blue" as NotificationInsightTone },
+  ];
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Channels & Delivery</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        حالة قنوات الإرسال والتكامل.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {channels.map((item) => (
+          <div key={item.label} className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] p-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${insightTone(item.tone)}`}>
+                {item.icon}
+              </div>
+              <span className="font-black text-[var(--app-text)]">{item.label}</span>
+            </div>
+            <span className="text-xs font-bold text-[var(--app-text-muted)]">{item.status}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NotificationDrawer({
+  item,
+  onClose,
+}: {
+  item: UnifiedNotification;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Notification Drawer V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{item.title}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <NotificationDrawerMetric label="المصدر" value={getSourceLabel(item.source)} />
+          <NotificationDrawerMetric label="الأهمية" value={getSeverityLabel(item.severity)} />
+          <NotificationDrawerMetric label="الحالة" value={item.status} />
+          <NotificationDrawerMetric label="الوقت" value={getElapsedLabel(item.created_at)} />
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <NotificationDrawerSection
+            title="Overview"
+            items={[
+              `النوع: ${item.type}`,
+              `تاريخ الإنشاء: ${formatDate(item.created_at)}`,
+              `حالة القراءة: ${item.is_read ? "مقروء" : "غير مقروء"}`,
+            ]}
+          />
+          <NotificationDrawerSection
+            title="Message"
+            items={[item.message]}
+          />
+          <NotificationDrawerSection
+            title="Recommended Action"
+            items={[
+              item.severity === "critical"
+                ? "استجابة فورية وتحديد مسؤول متابعة."
+                : item.severity === "high"
+                  ? "معالجة خلال نفس اليوم ومراجعة الحالة."
+                  : "متابعة دورية وتوثيق الإجراء عند الحاجة.",
+            ]}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function NotificationMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: NotificationInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function NotificationProgress({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: NotificationInsightTone;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${Math.max(4, Math.min(100, value))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function NotificationCountProgress({
+  label,
+  value,
+  total,
+}: {
+  label: string;
+  value: number;
+  total: number;
+}) {
+  const width = percentage(value, total);
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className="h-full rounded-full bg-[var(--app-teal)]" style={{ width: `${Math.max(4, width)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function NotificationDrawerMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function NotificationDrawerSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+        ))}
       </div>
     </div>
   );

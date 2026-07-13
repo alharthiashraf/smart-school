@@ -5,9 +5,14 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
 import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
   BookOpen,
+  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -16,6 +21,9 @@ import {
   Eye,
   FileText,
   Layers3,
+  School,
+  Sparkles,
+  Target,
   Plus,
   Power,
   Printer,
@@ -78,6 +86,29 @@ type Toast = {
   type: "success" | "error";
   message: string;
 };
+
+type SubjectInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type SubjectInsight = {
+  title: string;
+  description: string;
+  tone: SubjectInsightTone;
+  icon: ReactNode;
+};
+
+type SubjectHealth = {
+  activeRate: number;
+  stageCoverage: number;
+  codeCoverage: number;
+  typeCoverage: number;
+  inactiveRate: number;
+};
+
+type DistributionItem = {
+  name: string;
+  count: number;
+};
+
 
 const PAGE_SIZE = 10;
 
@@ -144,6 +175,60 @@ function uniqueValues(values: Array<string | null | undefined>) {
     new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b, "ar"));
 }
+
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: SubjectInsightTone) {
+  const tones: Record<SubjectInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: SubjectInsightTone) {
+  const tones: Record<SubjectInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildSubjectRecommendations(subject: SubjectView) {
+  const recommendations: string[] = [];
+
+  if (!subject.stage_id) {
+    recommendations.push("اربط المادة بمرحلة دراسية لتظهر بدقة في الإسنادات والجداول.");
+  }
+
+  if (subject.displayCode === "غير محدد") {
+    recommendations.push("أضف رمزًا للمادة لتحسين الاستيراد والتكامل والتقارير.");
+  }
+
+  if (subject.is_active === false) {
+    recommendations.push("المادة غير نشطة ولن تكون متاحة لبعض المحركات الأكاديمية.");
+  }
+
+  if (subject.displayType === "غير محدد") {
+    recommendations.push("حدد نوع المادة لرفع جودة البيانات.");
+  }
+
+  return recommendations.length
+    ? recommendations
+    : ["المادة مكتملة ولا توجد ملاحظات تشغيلية حرجة."];
+}
+
 
 export default function SubjectsPage() {
   const {
@@ -334,6 +419,146 @@ export default function SubjectsPage() {
       types: typesCount,
     };
   }, [rows, filteredRows.length]);
+
+  const distributions = useMemo(() => {
+    const count = (values: string[]): DistributionItem[] => {
+      const map = new Map<string, number>();
+
+      values.forEach((value) => {
+        const key = value || "غير محدد";
+        map.set(key, (map.get(key) || 0) + 1);
+      });
+
+      return Array.from(map.entries())
+        .map(([name, countValue]) => ({ name, count: countValue }))
+        .sort((a, b) => b.count - a.count);
+    };
+
+    return {
+      stages: count(rows.map((row) => row.displayStage)),
+      types: count(rows.map((row) => row.displayType)),
+      statuses: count(rows.map((row) => row.statusLabel)),
+    };
+  }, [rows]);
+
+  const health = useMemo<SubjectHealth>(() => {
+    const withStage = rows.filter((row) => Boolean(row.stage_id)).length;
+    const withCode = rows.filter(
+      (row) => row.displayCode !== "غير محدد" && row.displayCode !== "-",
+    ).length;
+    const knownTypes = rows.filter(
+      (row) => Boolean(row.displayType) && row.displayType !== "غير محدد",
+    ).length;
+
+    return {
+      activeRate: percentage(stats.active, stats.total),
+      stageCoverage: percentage(withStage, stats.total),
+      codeCoverage: percentage(withCode, stats.total),
+      typeCoverage: percentage(knownTypes, stats.total),
+      inactiveRate: percentage(stats.inactive, stats.total),
+    };
+  }, [rows, stats.active, stats.inactive, stats.total]);
+
+  const subjectsWithoutStage = useMemo(
+    () => rows.filter((row) => !row.stage_id),
+    [rows],
+  );
+
+  const subjectsWithoutCode = useMemo(
+    () =>
+      rows.filter(
+        (row) =>
+          row.displayCode === "غير محدد" || row.displayCode === "-",
+      ),
+    [rows],
+  );
+
+  const smartInsights = useMemo<SubjectInsight[]>(() => {
+    const items: SubjectInsight[] = [];
+
+    if (subjectsWithoutStage.length > 0) {
+      items.push({
+        title: "مواد بدون مرحلة",
+        description: `يوجد ${subjectsWithoutStage.length} مادة غير مرتبطة بمرحلة دراسية.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (subjectsWithoutCode.length > 0) {
+      items.push({
+        title: "رموز مواد ناقصة",
+        description: `${subjectsWithoutCode.length} مادة لا تحتوي على رمز واضح.`,
+        tone: "gold",
+        icon: <Target className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.inactive > 0) {
+      items.push({
+        title: "مواد غير نشطة",
+        description: `يوجد ${stats.inactive} مادة معطلة وتحتاج إلى مراجعة.`,
+        tone: "blue",
+        icon: <XCircle className="h-5 w-5" />,
+      });
+    }
+
+    if (distributions.stages.length > 0) {
+      const topStage = distributions.stages[0];
+      items.push({
+        title: "أعلى مرحلة من حيث المواد",
+        description: `${topStage.name} تضم ${topStage.count} مادة.`,
+        tone: "teal",
+        icon: <School className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "هيكلة المواد مستقرة",
+        description: "لا توجد مؤشرات حرجة في المرحلة أو الرمز أو الحالة.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [
+    distributions.stages,
+    stats.inactive,
+    subjectsWithoutCode.length,
+    subjectsWithoutStage.length,
+  ]);
+
+  function runSmartSearch(command: string) {
+    const value = command.trim().toLowerCase();
+
+    setSearch("");
+    setStageFilter("all");
+    setTypeFilter("all");
+    setStatusFilter("all");
+
+    if (value.includes("بدون مرحلة")) {
+      setSearch("غير محدد");
+      return;
+    }
+
+    if (value.includes("غير نشطة")) {
+      setStatusFilter("inactive");
+      return;
+    }
+
+    const matchingType = subjectTypes.find((type) =>
+      value.includes(type.toLowerCase()),
+    );
+
+    if (matchingType) {
+      setTypeFilter(matchingType);
+      return;
+    }
+
+    setSearch(command.replace("مواد", "").trim());
+  }
 
   function openCreateForm() {
     setEditingSubject(null);
@@ -674,6 +899,55 @@ export default function SubjectsPage() {
           ]}
           footer="تستخدم المواد في إسناد المعلمين والجداول والدرجات؛ لذلك يفضل ضبط المرحلة والنوع قبل اعتمادها."
         />
+
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <SubjectExecutiveAnalytics
+            stats={stats}
+            health={health}
+            distributions={distributions}
+          />
+
+          <SubjectSmartInsights insights={smartInsights} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <SubjectHealthPanel health={health} />
+
+          <SubjectDistributionPanel
+            title="توزيع المواد حسب المراحل"
+            items={distributions.stages}
+          />
+
+          <SubjectDistributionPanel
+            title="توزيع المواد حسب الأنواع"
+            items={distributions.types}
+          />
+        </section>
+
+        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+          <div className="mb-4">
+            <h2 className="text-xl font-black text-[var(--app-text)]">
+              البحث الذكي في المواد
+            </h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+              جرّب: مواد الرياضيات، مواد أساسية، مواد غير نشطة، مواد بدون مرحلة.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {["مواد الرياضيات", "مواد أساسية", "مواد غير نشطة", "مواد بدون مرحلة"].map((command) => (
+              <button
+                key={command}
+                type="button"
+                onClick={() => runSmartSearch(command)}
+                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+              >
+                {command}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {formOpen && (
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
@@ -1132,12 +1406,39 @@ function SubjectSideCard({
         </div>
       </div>
 
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-500">ملاحظة تشغيلية</p>
-        <p className="mt-2 text-sm leading-7 text-slate-600">
-          هذه المادة تستخدم لاحقًا في إسناد المعلمين، الجداول، رصد الدرجات،
-          والتحضير الإلكتروني. تأكد من ربطها بالمرحلة الصحيحة.
-        </p>
+      <div className="mt-5 space-y-3">
+        <SubjectDrawerSection
+          title="Overview"
+          items={[
+            `اسم المادة: ${selectedSubject.displayName}`,
+            `الرمز: ${selectedSubject.displayCode}`,
+            `النوع: ${selectedSubject.displayType}`,
+            `الحالة: ${selectedSubject.statusLabel}`,
+          ]}
+        />
+
+        <SubjectDrawerSection
+          title="Academic Linking"
+          items={[
+            `المرحلة: ${selectedSubject.displayStage}`,
+            "تستخدم في إسناد المعلمين والجداول والدرجات.",
+            "صحة بيانات المادة تؤثر مباشرة في المحركات الأكاديمية.",
+          ]}
+        />
+
+        <SubjectDrawerSection
+          title="AI Recommendations"
+          items={buildSubjectRecommendations(selectedSubject)}
+        />
+
+        <SubjectDrawerSection
+          title="Timeline"
+          items={[
+            `تاريخ الإضافة: ${formatDate(selectedSubject.created_at)}`,
+            "تمت مراجعة الرمز والمرحلة والحالة تلقائيًا.",
+            "تم تحليل جاهزية المادة للاستخدام الأكاديمي.",
+          ]}
+        />
       </div>
     </div>
   );
@@ -1157,6 +1458,219 @@ function LoadingBox({ text }: { text: string }) {
     <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
       <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
       {text}
+    </div>
+  );
+}
+
+
+function SubjectExecutiveAnalytics({
+  stats,
+  health,
+  distributions,
+}: {
+  stats: {
+    total: number;
+    filtered: number;
+    active: number;
+    inactive: number;
+    stages: number;
+    types: number;
+  };
+  health: SubjectHealth;
+  distributions: {
+    stages: DistributionItem[];
+    types: DistributionItem[];
+    statuses: DistributionItem[];
+  };
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          قراءة تنفيذية لجاهزية المواد وربطها بالمراحل والأنواع.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SubjectMetric label="معدل النشاط" value={`${health.activeRate}%`} icon={<Activity size={18} />} tone="green" />
+        <SubjectMetric label="تغطية المراحل" value={`${health.stageCoverage}%`} icon={<School size={18} />} tone="blue" />
+        <SubjectMetric label="اكتمال الرموز" value={`${health.codeCoverage}%`} icon={<Target size={18} />} tone="teal" />
+        <SubjectMetric label="اكتمال الأنواع" value={`${health.typeCoverage}%`} icon={<Layers3 size={18} />} tone="gold" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <SubjectInfoLine
+          label="أكثر مرحلة"
+          value={distributions.stages[0]?.name || "-"}
+        />
+        <SubjectInfoLine
+          label="أكثر نوع"
+          value={distributions.types[0]?.name || "-"}
+        />
+      </div>
+    </section>
+  );
+}
+
+function SubjectSmartInsights({ insights }: { insights: SubjectInsight[] }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Smart Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات تشغيلية مبنية على بيانات المواد الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SubjectHealthPanel({ health }: { health: SubjectHealth }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Subject Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات جودة واكتمال بيانات المواد.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <SubjectProgress label="المواد النشطة" value={health.activeRate} total={100} tone="green" suffix="%" />
+        <SubjectProgress label="ربط المراحل" value={health.stageCoverage} total={100} tone="blue" suffix="%" />
+        <SubjectProgress label="اكتمال الرموز" value={health.codeCoverage} total={100} tone="teal" suffix="%" />
+        <SubjectProgress label="المواد غير النشطة" value={health.inactiveRate} total={100} tone="red" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function SubjectDistributionPanel({
+  title,
+  items,
+}: {
+  title: string;
+  items: DistributionItem[];
+}) {
+  const max = Math.max(1, ...items.map((item) => item.count));
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        توزيع المواد حسب البيانات المسجلة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        {items.slice(0, 6).map((item) => (
+          <SubjectProgress
+            key={item.name}
+            label={item.name}
+            value={item.count}
+            total={max}
+            tone="blue"
+          />
+        ))}
+
+        {items.length === 0 && (
+          <p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SubjectMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: SubjectInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function SubjectInfoLine({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function SubjectProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: SubjectInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function SubjectDrawerSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+        ))}
+      </div>
     </div>
   );
 }

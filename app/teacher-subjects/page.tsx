@@ -9,8 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Activity,
   AlertTriangle,
   BarChart3,
+  BrainCircuit,
   BookOpen,
   CheckCircle2,
   ChevronLeft,
@@ -29,10 +31,12 @@ import {
   Search,
   School,
   ShieldAlert,
+  Target,
   Sparkles,
   Trash2,
   UserRound,
   Users,
+  WandSparkles,
   X,
   XCircle,
 } from "lucide-react";
@@ -136,6 +140,29 @@ type Toast = {
 };
 
 type ViewMode = "table" | "cards";
+
+type AssignmentInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type AssignmentInsight = {
+  title: string;
+  description: string;
+  tone: AssignmentInsightTone;
+  icon: ReactNode;
+};
+
+type AssignmentHealth = {
+  activeRate: number;
+  teacherCoverage: number;
+  subjectCoverage: number;
+  classroomCoverage: number;
+  duplicateRate: number;
+};
+
+type DistributionItem = {
+  name: string;
+  count: number;
+};
+
 
 const PAGE_SIZE = 10;
 
@@ -285,6 +312,63 @@ function rowKey(row: AssignmentView) {
     row.semesterText,
   ].join("|");
 }
+
+function insightTone(tone: AssignmentInsightTone) {
+  const tones: Record<AssignmentInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: AssignmentInsightTone) {
+  const tones: Record<AssignmentInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function buildAssignmentRecommendations(
+  assignment: AssignmentView,
+  loadCount: number,
+  isDuplicate: boolean,
+) {
+  const recommendations: string[] = [];
+
+  if (isDuplicate) {
+    recommendations.push("راجع التكرار قبل اعتماد الإسناد.");
+  }
+
+  if (loadCount >= 8) {
+    recommendations.push("حمل المعلم مرتفع نسبيًا ويستحق مراجعة توزيع الإسنادات.");
+  }
+
+  if (assignment.stageName === "غير محدد") {
+    recommendations.push("اربط الفصل بمرحلة دراسية واضحة.");
+  }
+
+  if (assignment.subjectCode === "-") {
+    recommendations.push("يفضل إضافة رمز المادة لتحسين الاستيراد والتكامل.");
+  }
+
+  if (assignment.is_active === false) {
+    recommendations.push("الإسناد غير نشط ولن يظهر في بعض المحركات الأكاديمية.");
+  }
+
+  return recommendations.length
+    ? recommendations
+    : ["الإسناد مكتمل ولا توجد ملاحظات تشغيلية حرجة."];
+}
+
 
 export default function TeacherSubjectsPage() {
   const {
@@ -615,6 +699,139 @@ export default function TeacherSubjectsPage() {
     };
   }, [rows, filteredRows.length, unassignedTeachers.length, duplicateRows.length]);
 
+  const distributions = useMemo(() => {
+    const count = (values: string[]): DistributionItem[] => {
+      const map = new Map<string, number>();
+
+      values.forEach((value) => {
+        const key = value || "غير محدد";
+        map.set(key, (map.get(key) || 0) + 1);
+      });
+
+      return Array.from(map.entries())
+        .map(([name, countValue]) => ({ name, count: countValue }))
+        .sort((a, b) => b.count - a.count);
+    };
+
+    return {
+      stages: count(rows.map((row) => row.stageName)),
+      grades: count(rows.map((row) => row.gradeName)),
+      subjects: count(rows.map((row) => row.subjectName)),
+      semesters: count(rows.map((row) => row.semesterText)),
+    };
+  }, [rows]);
+
+  const health = useMemo<AssignmentHealth>(() => {
+    return {
+      activeRate: percentage(stats.active, stats.total),
+      teacherCoverage: percentage(stats.teachers, activeTeachers.length),
+      subjectCoverage: percentage(stats.subjects, activeSubjects.length),
+      classroomCoverage: percentage(stats.classrooms, activeClassrooms.length),
+      duplicateRate: percentage(stats.duplicates, Math.max(1, stats.total)),
+    };
+  }, [
+    activeClassrooms.length,
+    activeSubjects.length,
+    activeTeachers.length,
+    stats.active,
+    stats.classrooms,
+    stats.duplicates,
+    stats.subjects,
+    stats.teachers,
+    stats.total,
+  ]);
+
+  const smartInsights = useMemo<AssignmentInsight[]>(() => {
+    const items: AssignmentInsight[] = [];
+
+    if (stats.unassignedTeachers > 0) {
+      items.push({
+        title: "معلمون بلا إسناد",
+        description: `يوجد ${stats.unassignedTeachers} معلم نشط بدون إسناد أكاديمي.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (stats.duplicates > 0) {
+      items.push({
+        title: "إسنادات مكررة",
+        description: `تم اكتشاف ${stats.duplicates} سجلًا ضمن مجموعات مكررة.`,
+        tone: "gold",
+        icon: <ShieldAlert className="h-5 w-5" />,
+      });
+    }
+
+    if (teacherLoad[0]?.count >= 8) {
+      items.push({
+        title: "حمل مرتفع",
+        description: `${teacherLoad[0].teacherName} لديه ${teacherLoad[0].count} إسنادات.`,
+        tone: "blue",
+        icon: <BarChart3 className="h-5 w-5" />,
+      });
+    }
+
+    if (health.classroomCoverage < 100 && activeClassrooms.length > 0) {
+      items.push({
+        title: "فصول غير مستخدمة",
+        description: `تغطية الفصول الحالية ${health.classroomCoverage}% فقط.`,
+        tone: "teal",
+        icon: <School className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "الإسنادات مستقرة",
+        description: "لا توجد مؤشرات حرجة في التغطية أو التكرارات.",
+        tone: "green",
+        icon: <Sparkles className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [activeClassrooms.length, health.classroomCoverage, stats, teacherLoad]);
+
+  function runSmartSearch(command: string) {
+    const value = normalizeText(command);
+
+    setSearch("");
+    setTeacherFilter("all");
+    setSubjectFilter("all");
+    setClassroomFilter("all");
+    setSemesterFilter("all");
+    setGradeFilter("all");
+    setStageFilter("all");
+    setStatusFilter("all");
+
+    if (value.includes("بلا اسناد") || value.includes("بدون اسناد")) {
+      const first = unassignedTeachers[0];
+      if (first) setTeacherFilter(first.id);
+      return;
+    }
+
+    if (value.includes("غير نشط")) {
+      setStatusFilter("inactive");
+      return;
+    }
+
+    if (value.includes("مكرر")) {
+      const first = duplicateRows[0];
+      if (first) setSearch(first.teacherName);
+      return;
+    }
+
+    const matchingStage = stageOptions.find((item) =>
+      value.includes(normalizeText(item)),
+    );
+    if (matchingStage) {
+      setStageFilter(matchingStage);
+      return;
+    }
+
+    setSearch(command.replace("إسنادات", "").trim());
+  }
+
   function openCreateForm() {
     setEditingAssignment(null);
     setForm({
@@ -934,6 +1151,56 @@ export default function TeacherSubjectsPage() {
           ]}
           footer="هذه الصفحة هي الأساس الذي تعتمد عليه الجداول والدرجات والحضور؛ لذلك يفضل مراجعة الإسنادات قبل بناء الجدول الدراسي."
         />
+
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <AssignmentExecutiveAnalytics
+            stats={stats}
+            health={health}
+            distributions={distributions}
+            topLoad={teacherLoad[0]}
+          />
+
+          <AssignmentSmartInsights insights={smartInsights} />
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <AssignmentHealthPanel health={health} />
+          <AssignmentDistributionPanel
+            title="توزيع المراحل والصفوف"
+            primary={distributions.stages}
+            secondary={distributions.grades}
+          />
+          <AssignmentDistributionPanel
+            title="توزيع المواد والفصول"
+            primary={distributions.subjects}
+            secondary={distributions.semesters}
+          />
+        </section>
+
+        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+          <div className="mb-4">
+            <h2 className="text-xl font-black text-[var(--app-text)]">
+              البحث الذكي في الإسنادات
+            </h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+              جرّب: إسنادات الرياضيات، المرحلة الثانوية، إسنادات غير نشطة، إسنادات مكررة.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {["إسنادات الرياضيات", "المرحلة الثانوية", "إسنادات غير نشطة", "إسنادات مكررة"].map((command) => (
+              <button
+                key={command}
+                type="button"
+                onClick={() => runSmartSearch(command)}
+                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+              >
+                {command}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {(unassignedTeachers.length > 0 || teacherLoad.length > 0 || duplicateRows.length > 0) && (
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -1554,11 +1821,45 @@ function AssignmentSideCard({
         </div>
       )}
 
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-500">ملاحظة تشغيلية</p>
-        <p className="mt-2 text-sm leading-7 text-slate-600">
-          هذا الإسناد سيستخدم لاحقًا في الجدول الدراسي، حضور الحصص، رصد الدرجات، والتحضير الإلكتروني. أي خطأ هنا سيظهر أثره في الصفحات الأكاديمية التالية.
-        </p>
+      <div className="mt-5 space-y-3">
+        <AssignmentDrawerSection
+          title="Overview"
+          items={[
+            `المعلم: ${selectedAssignment.teacherName}`,
+            `المادة: ${selectedAssignment.subjectName}`,
+            `الفصل: ${selectedAssignment.classroomName}`,
+            `الحالة: ${selectedAssignment.statusLabel}`,
+          ]}
+        />
+
+        <AssignmentDrawerSection
+          title="Teacher Workload"
+          items={[
+            `إجمالي الإسنادات: ${load?.count ?? 0}`,
+            `عدد المواد: ${load?.subjects ?? 0}`,
+            `عدد الفصول: ${load?.classrooms ?? 0}`,
+          ]}
+        />
+
+        <AssignmentDrawerSection
+          title="AI Recommendations"
+          items={buildAssignmentRecommendations(
+            selectedAssignment,
+            load?.count ?? 0,
+            teacherLoad.some((item) =>
+              item.rows.some((row) => row.id === selectedAssignment.id && item.rows.filter((candidate) => rowKey(candidate) === rowKey(selectedAssignment)).length > 1),
+            ),
+          )}
+        />
+
+        <AssignmentDrawerSection
+          title="Timeline"
+          items={[
+            `تاريخ الإضافة: ${formatDate(selectedAssignment.created_at)}`,
+            "تمت مراجعة التكرار والحمل تلقائيًا.",
+            "الإسناد مرتبط بمحركات الجداول والدرجات والحضور.",
+          ]}
+        />
       </div>
 
       <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
@@ -1600,6 +1901,244 @@ function LoadingBox({ text }: { text: string }) {
     <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
       <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
       {text}
+    </div>
+  );
+}
+
+
+function AssignmentExecutiveAnalytics({
+  stats,
+  health,
+  distributions,
+  topLoad,
+}: {
+  stats: {
+    total: number;
+    filtered: number;
+    active: number;
+    inactive: number;
+    teachers: number;
+    subjects: number;
+    classrooms: number;
+    unassignedTeachers: number;
+    duplicates: number;
+  };
+  health: AssignmentHealth;
+  distributions: {
+    stages: DistributionItem[];
+    grades: DistributionItem[];
+    subjects: DistributionItem[];
+    semesters: DistributionItem[];
+  };
+  topLoad?: {
+    teacherId: string;
+    teacherName: string;
+    count: number;
+    subjects: number;
+    classrooms: number;
+    rows: AssignmentView[];
+  };
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          تغطية المعلمين والمواد والفصول وجودة الإسناد.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AssignmentMetric label="تغطية المعلمين" value={`${health.teacherCoverage}%`} icon={<UserRound size={18} />} tone="green" />
+        <AssignmentMetric label="تغطية المواد" value={`${health.subjectCoverage}%`} icon={<BookOpen size={18} />} tone="blue" />
+        <AssignmentMetric label="تغطية الفصول" value={`${health.classroomCoverage}%`} icon={<School size={18} />} tone="teal" />
+        <AssignmentMetric label="معدل النشاط" value={`${health.activeRate}%`} icon={<Activity size={18} />} tone="gold" />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <AssignmentInfoLine
+          label="أعلى حمل"
+          value={topLoad ? `${topLoad.teacherName} · ${topLoad.count}` : "-"}
+        />
+        <AssignmentInfoLine
+          label="أكثر مادة استخدامًا"
+          value={distributions.subjects[0]?.name || "-"}
+        />
+      </div>
+    </section>
+  );
+}
+
+function AssignmentSmartInsights({ insights }: { insights: AssignmentInsight[] }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Smart Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات تشغيلية مبنية على الإسنادات الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AssignmentHealthPanel({ health }: { health: AssignmentHealth }) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">Assignment Health</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشرات الجاهزية والتغطية وجودة البيانات.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AssignmentProgress label="معدل النشاط" value={health.activeRate} total={100} tone="green" suffix="%" />
+        <AssignmentProgress label="تغطية المعلمين" value={health.teacherCoverage} total={100} tone="blue" suffix="%" />
+        <AssignmentProgress label="تغطية المواد" value={health.subjectCoverage} total={100} tone="teal" suffix="%" />
+        <AssignmentProgress label="نسبة التكرار" value={health.duplicateRate} total={100} tone="red" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function AssignmentDistributionPanel({
+  title,
+  primary,
+  secondary,
+}: {
+  title: string;
+  primary: DistributionItem[];
+  secondary: DistributionItem[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        قراءة سريعة لأكثر العناصر استخدامًا.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AssignmentMiniList
+          title="التوزيع الأول"
+          items={primary.slice(0, 5).map((item) => `${item.name} — ${item.count}`)}
+        />
+        <AssignmentMiniList
+          title="التوزيع الثاني"
+          items={secondary.slice(0, 5).map((item) => `${item.name} — ${item.count}`)}
+        />
+      </div>
+    </section>
+  );
+}
+
+function AssignmentMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: AssignmentInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function AssignmentInfoLine({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function AssignmentProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: AssignmentInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function AssignmentMiniList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-3xl bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
+      <div className="space-y-2">
+        {items.length === 0 ? (
+          <p className="text-xs text-[var(--app-text-muted)]">لا توجد بيانات.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
+              {item}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AssignmentDrawerSection({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+        ))}
+      </div>
     </div>
   );
 }

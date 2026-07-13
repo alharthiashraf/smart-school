@@ -19,11 +19,16 @@ import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
+  Activity,
+  AlertTriangle,
   Award,
   BarChart3,
   Brain,
+  BrainCircuit,
   CalendarCheck,
+  ChartNoAxesCombined,
   CheckCircle2,
+  Gauge,
   FileSpreadsheet,
   FileText,
   GraduationCap,
@@ -32,6 +37,8 @@ import {
   Printer,
   RefreshCcw,
   ShieldAlert,
+  Target,
+  TrendingDown,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -138,6 +145,45 @@ type QueryResult<T> = {
 type QueryLike<T> = PromiseLike<QueryResult<T>>;
 
 type Tone = "blue" | "green" | "amber" | "red" | "slate" | "purple";
+
+type AnalyticsInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+
+type AnalyticsInsight = {
+  title: string;
+  description: string;
+  tone: AnalyticsInsightTone;
+  icon: ReactNode;
+};
+
+type SchoolHealth = {
+  academic: number;
+  attendance: number;
+  behavior: number;
+  engagement: number;
+  dataQuality: number;
+  overall: number;
+  level: "ممتاز" | "جيد" | "متابعة" | "خطر";
+};
+
+type SubjectPerformance = {
+  subject: string;
+  average: number;
+  records: number;
+};
+
+type StagePerformance = {
+  stage: string;
+  students: number;
+  averageGrade: number;
+  attendanceRate: number;
+};
+
+type AnalyticsDrilldown = {
+  title: string;
+  subtitle: string;
+  items: string[];
+};
+
 
 const PAGE_ROLES: SchoolRole[] = [
   "super_admin",
@@ -324,6 +370,40 @@ async function safeQuery<T>(
   }
 }
 
+function percentage(value: number, total: number) {
+  if (!total) return 0;
+  return Math.round((value / total) * 100);
+}
+
+function insightTone(tone: AnalyticsInsightTone) {
+  const tones: Record<AnalyticsInsightTone, string> = {
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function progressTone(tone: AnalyticsInsightTone) {
+  const tones: Record<AnalyticsInsightTone, string> = {
+    green: "bg-[var(--app-green)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive)]",
+    blue: "bg-[var(--app-blue)]",
+    teal: "bg-[var(--app-teal)]",
+  };
+
+  return tones[tone];
+}
+
+function stageFromStudent(student: Student) {
+  return student.grade_name || student.grade_level || "غير محدد";
+}
+
+
 export default function AnalyticsPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
@@ -341,6 +421,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [drilldown, setDrilldown] = useState<AnalyticsDrilldown | null>(null);
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
@@ -737,6 +818,268 @@ export default function AnalyticsPage() {
       : "لا توجد مؤشرات خطر واضحة حاليًا حسب البيانات المتاحة.",
   ];
 
+  const subjectPerformance = useMemo<SubjectPerformance[]>(() => {
+    const map = new Map<string, number[]>();
+
+    filteredGrades.forEach((item) => {
+      const subject = item.subject_name || item.subject || "غير محدد";
+      const value = gradePercent(item);
+      if (value <= 0) return;
+
+      const current = map.get(subject) || [];
+      current.push(value);
+      map.set(subject, current);
+    });
+
+    return Array.from(map.entries())
+      .map(([subject, values]) => ({
+        subject,
+        average: Math.round(
+          values.reduce((sum, value) => sum + value, 0) / values.length,
+        ),
+        records: values.length,
+      }))
+      .sort((a, b) => b.average - a.average);
+  }, [filteredGrades]);
+
+  const stagePerformance = useMemo<StagePerformance[]>(() => {
+    const stages = Array.from(
+      new Set(filteredStudents.map(stageFromStudent).filter(Boolean)),
+    );
+
+    return stages
+      .map((stage) => {
+        const stageStudents = filteredStudents.filter(
+          (student) => stageFromStudent(student) === stage,
+        );
+        const ids = new Set(stageStudents.map((student) => student.id));
+
+        const stageGrades = grades.filter(
+          (item) => item.student_id && ids.has(item.student_id),
+        );
+        const gradeValues = stageGrades
+          .map(gradePercent)
+          .filter((value) => value > 0);
+
+        const averageStageGrade = gradeValues.length
+          ? Math.round(
+              gradeValues.reduce((sum, value) => sum + value, 0) /
+                gradeValues.length,
+            )
+          : 0;
+
+        const stageAttendance = attendance.filter(
+          (item) => item.student_id && ids.has(item.student_id),
+        );
+        const present = stageAttendance.filter((item) =>
+          isPresent(item.attendance_status || item.status),
+        ).length;
+
+        return {
+          stage,
+          students: stageStudents.length,
+          averageGrade: averageStageGrade,
+          attendanceRate: stageAttendance.length
+            ? percentage(present, stageAttendance.length)
+            : 0,
+        };
+      })
+      .sort((a, b) => b.students - a.students);
+  }, [attendance, filteredStudents, grades]);
+
+  const schoolHealth = useMemo<SchoolHealth>(() => {
+    const academic = averageGrade;
+    const attendanceScore = attendanceRate;
+    const behaviorScore = Math.max(
+      0,
+      100 -
+        behavior.length * 2 -
+        referrals.filter((item) => isOpenReferral(item.status)).length * 4,
+    );
+    const engagement = Math.max(
+      0,
+      Math.min(100, 100 - riskStudentsCount * 6),
+    );
+    const dataQuality = Math.round(
+      ([
+        students.length > 0,
+        attendance.length > 0,
+        grades.length > 0,
+        classes.length > 0,
+        behavior.length >= 0,
+        referrals.length >= 0,
+      ].filter(Boolean).length /
+        6) *
+        100,
+    );
+
+    const overall = Math.round(
+      academic * 0.35 +
+        attendanceScore * 0.3 +
+        behaviorScore * 0.15 +
+        engagement * 0.1 +
+        dataQuality * 0.1,
+    );
+
+    return {
+      academic,
+      attendance: attendanceScore,
+      behavior: behaviorScore,
+      engagement,
+      dataQuality,
+      overall,
+      level:
+        overall >= 90
+          ? "ممتاز"
+          : overall >= 80
+            ? "جيد"
+            : overall >= 60
+              ? "متابعة"
+              : "خطر",
+    };
+  }, [
+    attendance.length,
+    attendanceRate,
+    averageGrade,
+    behavior.length,
+    classes.length,
+    grades.length,
+    referrals,
+    riskStudentsCount,
+    students.length,
+  ]);
+
+  const analyticsInsights = useMemo<AnalyticsInsight[]>(() => {
+    const items: AnalyticsInsight[] = [];
+
+    if (schoolHealth.level === "خطر") {
+      items.push({
+        title: "مؤشر صحة المدرسة منخفض",
+        description: `المؤشر العام ${schoolHealth.overall}% ويحتاج خطة تحسين عاجلة.`,
+        tone: "red",
+        icon: <AlertTriangle className="h-5 w-5" />,
+      });
+    }
+
+    if (attendanceRate < 85) {
+      items.push({
+        title: "الحضور أقل من المستهدف",
+        description: `نسبة الحضور الحالية ${attendanceRate}%.`,
+        tone: "gold",
+        icon: <CalendarCheck className="h-5 w-5" />,
+      });
+    }
+
+    if (subjectPerformance.length > 0) {
+      const weakest = [...subjectPerformance].sort(
+        (a, b) => a.average - b.average,
+      )[0];
+
+      if (weakest.average < 70) {
+        items.push({
+          title: "مادة تحتاج تدخلًا",
+          description: `${weakest.subject} بمتوسط ${weakest.average}%.`,
+          tone: "blue",
+          icon: <GraduationCap className="h-5 w-5" />,
+        });
+      }
+    }
+
+    if (riskStudentsCount > 0) {
+      items.push({
+        title: "طلاب معرضون للتعثر",
+        description: `يوجد ${riskStudentsCount} طالب يحتاج متابعة.`,
+        tone: "teal",
+        icon: <ShieldAlert className="h-5 w-5" />,
+      });
+    }
+
+    if (items.length === 0) {
+      items.push({
+        title: "المؤشرات مستقرة",
+        description: "لا توجد إشارات حرجة في التحليلات الحالية.",
+        tone: "green",
+        icon: <CheckCircle2 className="h-5 w-5" />,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [
+    attendanceRate,
+    riskStudentsCount,
+    schoolHealth.level,
+    schoolHealth.overall,
+    subjectPerformance,
+  ]);
+
+  const monthlyAttendanceData = useMemo(() => {
+    const grouped = new Map<
+      string,
+      { label: string; present: number; absent: number; late: number }
+    >();
+
+    attendance.forEach((item) => {
+      if (!item.attendance_date) return;
+      if (!item.student_id || !filteredStudentIds.has(item.student_id)) return;
+
+      const date = new Date(item.attendance_date);
+      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      const label = new Intl.DateTimeFormat("ar-SA", {
+        month: "short",
+        year: "numeric",
+      }).format(date);
+
+      const current = grouped.get(key) || {
+        label,
+        present: 0,
+        absent: 0,
+        late: 0,
+      };
+
+      if (isPresent(item.attendance_status || item.status)) current.present += 1;
+      if (isAbsent(item.attendance_status || item.status)) current.absent += 1;
+      if (isLate(item.attendance_status || item.status)) current.late += 1;
+
+      grouped.set(key, current);
+    });
+
+    return Array.from(grouped.values()).slice(-6);
+  }, [attendance, filteredStudentIds]);
+
+  function runSmartSearch(command: string) {
+    const value = normalizeText(command);
+
+    setSearch("");
+    setSelectedClass("all");
+
+    if (value.includes("عالي الخطوره") || value.includes("عالي الخطورة")) {
+      setSearch(
+        studentRiskList.find((item) => item.riskLabel === "مرتفع")?.full_name ||
+          "",
+      );
+      return;
+    }
+
+    if (value.includes("افضل فصل") || value.includes("أفضل فصل")) {
+      const best = [...classPerformance].sort(
+        (a, b) => b.average - a.average,
+      )[0];
+      if (best) setSelectedClass(best.className);
+      return;
+    }
+
+    if (value.includes("اضعف ماده") || value.includes("أضعف مادة")) {
+      const weakest = [...subjectPerformance].sort(
+        (a, b) => a.average - b.average,
+      )[0];
+      if (weakest) setSearch(weakest.subject);
+      return;
+    }
+
+    setSearch(command.trim());
+  }
+
+
   function getExportData(): ExportData {
     return {
       title: "تقرير التحليلات الذكية",
@@ -988,6 +1331,89 @@ export default function AnalyticsPage() {
             ]}
             footer="تتأثر دقة التحليلات باكتمال رصد الحضور والدرجات والسلوك والإحالات داخل المنصة."
           />
+
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <AnalyticsExecutiveCenter
+              health={schoolHealth}
+              attendanceRate={attendanceRate}
+              averageGrade={averageGrade}
+              studentsCount={filteredStudents.length}
+              riskStudentsCount={riskStudentsCount}
+            />
+
+            <AnalyticsSmartInsights insights={analyticsInsights} />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <SchoolHealthPanel health={schoolHealth} />
+
+            <SubjectAnalyticsPanel
+              subjects={subjectPerformance}
+              onDrilldown={(subject) =>
+                setDrilldown({
+                  title: subject.subject,
+                  subtitle: `متوسط ${subject.average}%`,
+                  items: [
+                    `عدد السجلات: ${subject.records}`,
+                    `المتوسط: ${subject.average}%`,
+                    subject.average < 60
+                      ? "تحتاج خطة علاجية عاجلة."
+                      : subject.average < 75
+                        ? "تحتاج متابعة وتحسين."
+                        : "الأداء جيد.",
+                  ],
+                })
+              }
+            />
+
+            <StageAnalyticsPanel
+              stages={stagePerformance}
+              onDrilldown={(stage) =>
+                setDrilldown({
+                  title: stage.stage,
+                  subtitle: `${stage.students} طالب`,
+                  items: [
+                    `متوسط الدرجات: ${stage.averageGrade}%`,
+                    `نسبة الحضور: ${stage.attendanceRate}%`,
+                    `عدد الطلاب: ${stage.students}`,
+                  ],
+                })
+              }
+            />
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <MonthlyTrendPanel items={monthlyAttendanceData} />
+            <PredictiveAnalyticsPanel
+              students={studentRiskList}
+              schoolHealth={schoolHealth}
+            />
+          </section>
+
+          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+            <div className="mb-4">
+              <h2 className="text-xl font-black text-[var(--app-text)]">
+                البحث الذكي والتحليل السريع
+              </h2>
+              <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                جرّب: الطلاب عالي الخطورة، أفضل فصل، أضعف مادة، حضور منخفض.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {["الطلاب عالي الخطورة", "أفضل فصل", "أضعف مادة", "حضور منخفض"].map((command) => (
+                <button
+                  key={command}
+                  type="button"
+                  onClick={() => runSmartSearch(command)}
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                >
+                  {command}
+                </button>
+              ))}
+            </div>
+          </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <Panel title="المؤشر الأسبوعي للحضور" icon={<TrendingUp size={22} />}>
@@ -1241,6 +1667,14 @@ export default function AnalyticsPage() {
               </div>
             )}
           </section>
+
+          {drilldown && (
+            <AnalyticsDrilldownDrawer
+              data={drilldown}
+              onClose={() => setDrilldown(null)}
+            />
+          )}
+
         </main>
       </AppShell>
     </RoleGuard>
@@ -1301,3 +1735,368 @@ function ProgressRow({
   );
 }
 
+
+
+function AnalyticsExecutiveCenter({
+  health,
+  attendanceRate,
+  averageGrade,
+  studentsCount,
+  riskStudentsCount,
+}: {
+  health: SchoolHealth;
+  attendanceRate: number;
+  averageGrade: number;
+  studentsCount: number;
+  riskStudentsCount: number;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-xl font-black text-[var(--app-text)]">
+          Executive Analytics Center
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          لوحة قيادة موحدة لصحة المدرسة والأداء الأكاديمي والتشغيلي.
+        </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsMetric label="School Health" value={`${health.overall}%`} icon={<Gauge size={18} />} tone={health.level === "ممتاز" || health.level === "جيد" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <AnalyticsMetric label="Academic Health" value={`${averageGrade}%`} icon={<GraduationCap size={18} />} tone="blue" />
+        <AnalyticsMetric label="Attendance Health" value={`${attendanceRate}%`} icon={<CalendarCheck size={18} />} tone="teal" />
+        <AnalyticsMetric label="Risk Students" value={riskStudentsCount} icon={<ShieldAlert size={18} />} tone={riskStudentsCount > 0 ? "red" : "green"} />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <AnalyticsInfoLine label="عدد الطلاب" value={studentsCount} />
+        <AnalyticsInfoLine label="مستوى المدرسة" value={health.level} />
+        <AnalyticsInfoLine label="جودة البيانات" value={`${health.dataQuality}%`} />
+        <AnalyticsInfoLine label="المشاركة" value={`${health.engagement}%`} />
+      </div>
+    </section>
+  );
+}
+
+function AnalyticsSmartInsights({
+  insights,
+}: {
+  insights: AnalyticsInsight[];
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <div className="mb-4">
+        <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+          <BrainCircuit size={20} />
+          AI Analytics Insights
+        </h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          توصيات آلية مبنية على المؤشرات الحالية.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {insights.map((item) => (
+          <div
+            key={item.title}
+            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+              {item.icon}
+            </div>
+            <div>
+              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                {item.description}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SchoolHealthPanel({
+  health,
+}: {
+  health: SchoolHealth;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="text-xl font-black text-[var(--app-text)]">School Health Index</h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مؤشر مركب لصحة المدرسة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AnalyticsProgress label="الأكاديمي" value={health.academic} total={100} tone="blue" suffix="%" />
+        <AnalyticsProgress label="الحضور" value={health.attendance} total={100} tone="green" suffix="%" />
+        <AnalyticsProgress label="السلوك" value={health.behavior} total={100} tone="teal" suffix="%" />
+        <AnalyticsProgress label="المشاركة" value={health.engagement} total={100} tone="gold" suffix="%" />
+        <AnalyticsProgress label="جودة البيانات" value={health.dataQuality} total={100} tone="blue" suffix="%" />
+      </div>
+    </section>
+  );
+}
+
+function SubjectAnalyticsPanel({
+  subjects,
+  onDrilldown,
+}: {
+  subjects: SubjectPerformance[];
+  onDrilldown: (item: SubjectPerformance) => void;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <BarChart3 size={20} />
+        Subject Analytics
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        أفضل وأضعف المواد حسب المتوسط.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {subjects.slice(0, 6).map((item) => (
+          <button
+            key={item.subject}
+            type="button"
+            onClick={() => onDrilldown(item)}
+            className="w-full rounded-2xl bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-black text-[var(--app-text)]">{item.subject}</span>
+              <span className="text-sm font-black text-[var(--app-teal)]">{item.average}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--app-card)]">
+              <div className="h-full rounded-full bg-[var(--app-teal)]" style={{ width: `${item.average}%` }} />
+            </div>
+          </button>
+        ))}
+
+        {subjects.length === 0 && (
+          <p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات مواد.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StageAnalyticsPanel({
+  stages,
+  onDrilldown,
+}: {
+  stages: StagePerformance[];
+  onDrilldown: (item: StagePerformance) => void;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <ChartNoAxesCombined size={20} />
+        Stage Analytics
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        مقارنة المراحل حسب التحصيل والحضور.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {stages.slice(0, 6).map((item) => (
+          <button
+            key={item.stage}
+            type="button"
+            onClick={() => onDrilldown(item)}
+            className="w-full rounded-2xl bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-black text-[var(--app-text)]">{item.stage}</span>
+              <span className="text-xs font-bold text-[var(--app-text-muted)]">{item.students} طالب</span>
+            </div>
+            <p className="mt-2 text-xs text-[var(--app-text-muted)]">
+              الدرجات {item.averageGrade}% · الحضور {item.attendanceRate}%
+            </p>
+          </button>
+        ))}
+
+        {stages.length === 0 && (
+          <p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات مراحل.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MonthlyTrendPanel({
+  items,
+}: {
+  items: Array<{ label: string; present: number; absent: number; late: number }>;
+}) {
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <TrendingUp size={20} />
+        Monthly Trend Analysis
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        اتجاه الحضور والغياب والتأخر خلال الأشهر الأخيرة.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {items.map((item) => {
+          const total = item.present + item.absent + item.late;
+          return (
+            <div key={item.label} className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-black text-[var(--app-text)]">{item.label}</span>
+                <span className="text-xs text-[var(--app-text-muted)]">
+                  {total} سجل
+                </span>
+              </div>
+              <AnalyticsProgress label="الحضور" value={item.present} total={Math.max(1, total)} tone="green" />
+            </div>
+          );
+        })}
+
+        {items.length === 0 && (
+          <p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات شهرية.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PredictiveAnalyticsPanel({
+  students,
+  schoolHealth,
+}: {
+  students: RiskStudent[];
+  schoolHealth: SchoolHealth;
+}) {
+  const high = students.filter((item) => item.riskLabel === "مرتفع").length;
+  const medium = students.filter((item) => item.riskLabel === "متوسط").length;
+  const low = students.filter((item) => item.riskLabel === "منخفض").length;
+
+  return (
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        <Brain size={20} />
+        Predictive Analytics
+      </h2>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+        قراءة تنبؤية مبنية على المؤشرات المتاحة.
+      </p>
+
+      <div className="mt-5 space-y-4">
+        <AnalyticsProgress label="خطر مرتفع" value={high} total={Math.max(1, students.length)} tone="red" />
+        <AnalyticsProgress label="خطر متوسط" value={medium} total={Math.max(1, students.length)} tone="gold" />
+        <AnalyticsProgress label="خطر منخفض" value={low} total={Math.max(1, students.length)} tone="blue" />
+      </div>
+
+      <div className="mt-5 rounded-2xl bg-[var(--app-card-soft)] p-4">
+        <p className="text-xs font-bold text-[var(--app-text-muted)]">توقع الأداء القادم</p>
+        <p className="mt-1 text-2xl font-black text-[var(--app-text)]">
+          {schoolHealth.overall >= 80 ? "اتجاه مستقر" : schoolHealth.overall >= 60 ? "تحسن مشروط" : "يحتاج تدخل"}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function AnalyticsDrilldownDrawer({
+  data,
+  onClose,
+}: {
+  data: AnalyticsDrilldown;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-black text-[#C1B489]">Analytics Drill-down</p>
+            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{data.title}</h2>
+            <p className="mt-1 text-sm text-slate-500">{data.subtitle}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+            ×
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {data.items.map((item) => (
+            <div key={item} className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+              {item}
+            </div>
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function AnalyticsMetric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  icon: ReactNode;
+  tone: AnalyticsInsightTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+        {icon}
+      </div>
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
+    </div>
+  );
+}
+
+function AnalyticsInfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
+    </div>
+  );
+}
+
+function AnalyticsProgress({
+  label,
+  value,
+  total,
+  tone,
+  suffix = "",
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone: AnalyticsInsightTone;
+  suffix?: string;
+}) {
+  const width = Math.min(100, Math.max(4, percentage(value, total)));
+
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
+        <span>{label}</span>
+        <span>{value}{suffix}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      </div>
+    </div>
+  );
+}
