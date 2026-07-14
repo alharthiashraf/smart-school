@@ -5,6 +5,7 @@ import ShellGate from "@/components/layout/ShellGate";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SchoolProvider } from "@/contexts/SchoolContext";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: {
@@ -34,6 +35,7 @@ export default function RootLayout({
           </SchoolProvider>
         </AuthProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
