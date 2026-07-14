@@ -4,6 +4,7 @@ import "./globals.css";
 import ShellGate from "@/components/layout/ShellGate";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SchoolProvider } from "@/contexts/SchoolContext";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: {
@@ -32,6 +33,7 @@ export default function RootLayout({
             <ShellGate>{children}</ShellGate>
           </SchoolProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
