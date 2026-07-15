@@ -771,7 +771,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
     },
   ];
 
-  const reportCards: ReportCard[] = [
+  const reportCards = useMemo<ReportCard[]>(() => [
     {
       title: "تقرير الطلاب",
       description: "قائمة الطلاب وبياناتهم الأساسية للمتابعة والطباعة.",
@@ -915,7 +915,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       group: "executive",
       keywords: ["تصدير", "PDF", "Excel"],
     },
-  ];
+  ], [stats]);
 
   const filteredReports = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -1134,7 +1134,7 @@ function runSmartSearch(command: string) {
   function exportPDF(type: ExportType) {
     const data = getExportData(type);
 
-    (exportTableToPDF as any)({
+    exportTableToPDF({
       title: data.title,
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: "تقرير صادر من مركز التقارير",
@@ -1149,7 +1149,7 @@ function runSmartSearch(command: string) {
   function exportExcel(type: ExportType) {
     const data = getExportData(type);
 
-    (exportTableToExcel as any)({
+    exportTableToExcel({
       title: data.title,
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: "تقرير صادر من مركز التقارير",

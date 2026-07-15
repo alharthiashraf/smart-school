@@ -14,7 +14,6 @@ import {
   GraduationCap,
   MessageSquareWarning,
   RefreshCw,
-  Search,
   Sparkles,
   Upload,
   Users,

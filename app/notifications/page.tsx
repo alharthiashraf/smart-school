@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
@@ -17,7 +17,6 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
-  Activity,
   AlertTriangle,
   BarChart3,
   BrainCircuit,
@@ -313,10 +312,17 @@ function progressTone(tone: NotificationInsightTone) {
 }
 
 
-function settledRows<T>(result: PromiseSettledResult<any>): T[] {
+type SettledListResult<T> = {
+  data: T[] | null;
+  error: unknown;
+};
+
+function settledRows<T>(
+  result: PromiseSettledResult<SettledListResult<T>>,
+): T[] {
   if (result.status !== "fulfilled") return [];
-  if (result.value?.error) return [];
-  return (result.value?.data as T[]) || [];
+  if (result.value.error) return [];
+  return result.value.data ?? [];
 }
 
 function buildUnifiedNotifications({
@@ -460,16 +466,12 @@ export default function NotificationsPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [selectedItem, setSelectedItem] = useState<UnifiedNotification | null>(null);
 
-  useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-  }, [currentSchool?.id]);
-
   function showToast(type: Toast["type"], message: string) {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -541,7 +543,11 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (currentSchool?.id) void fetchData();
+  }, [currentSchool?.id, fetchData]);
 
   const filteredItems = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -587,10 +593,17 @@ export default function NotificationsPage() {
 
   const health = useMemo<NotificationHealth>(() => {
     const read = items.filter((item) => item.is_read).length;
-    const recent = items.filter((item) => {
-      if (!item.created_at) return false;
-      return Date.now() - new Date(item.created_at).getTime() <= 24 * 60 * 60 * 1000;
-    }).length;
+    const now = new Date().getTime();
+
+const recent = items.filter((item) => {
+  if (!item.created_at) return false;
+
+  return (
+    now -
+      new Date(item.created_at).getTime() <=
+    24 * 60 * 60 * 1000
+  );
+}).length;
     const coveredSources = new Set(items.map((item) => item.source)).size;
 
     const readRate = percentage(read, items.length);

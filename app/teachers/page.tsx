@@ -1,13 +1,17 @@
 "use client";
 
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import Image from "next/image";
+
+import AppShell from "@/components/layout/AppShell";
+import RoleGuard from "@/components/auth/RoleGuard";
+import { type SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+import { useSchool } from "@/contexts/SchoolContext";
+import { exportTableToPDF } from "@/lib/exports/pdf";
+import { exportTableToExcel } from "@/lib/exports/excel";
+
 import {
   Award,
   BookOpenCheck,
@@ -30,20 +34,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-
-import AuthGuard from "@/components/auth/AuthGuard";
-import PageHeader from "@/components/ui/page/PageHeader";
-import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import SummaryCard from "@/components/ui/cards/SummaryCard";
-import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
-import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
-import EmptyState from "@/components/ui/empty-state/EmptyState";
-import PageLoader from "@/components/ui/loading/PageLoader";
-import UiStatusBadge from "@/components/ui/badges/StatusBadge";
-import { useSchool } from "@/contexts/SchoolContext";
-import { supabase } from "@/lib/supabase";
-import { exportTableToPDF } from "@/lib/exports/pdf";
-import { exportTableToExcel } from "@/lib/exports/excel";
 
 type Teacher = {
   id: string;
@@ -108,139 +98,30 @@ type Toast = {
   message: string;
 };
 
-type TeacherForm = {
-  full_name: string;
-  employee_number: string;
-  photo_url: string;
-  subject: string;
-  department: string;
-  phone: string;
-  email: string;
-  weekly_load: string;
-  status: string;
-  admin_notes: string;
-};
-
 const PAGE_SIZE = 10;
 
-const DEFAULT_STATUS = "على رأس العمل";
-
-const TEACHER_STATUSES = [
-  "على رأس العمل",
-  "مكلف",
-  "منتدب",
-  "إجازة",
-  "غير نشط",
+const TEACHERS_PAGE_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "vice_principal",
+  "administrative_staff",
 ];
 
-const emptyForm: TeacherForm = {
-  full_name: "",
-  employee_number: "",
-  photo_url: "",
-  subject: "",
-  department: "",
-  phone: "",
-  email: "",
-  weekly_load: "",
-  status: DEFAULT_STATUS,
-  admin_notes: "",
-};
-
-function todayISO() {
+function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
 function isPending(value?: string | null) {
-  const normalized = String(value || "").trim().toLowerCase();
-
   return (
-    !normalized ||
-    ["بانتظار الموافقة", "بانتظار المراجعة", "pending", "review"].includes(
-      normalized,
-    )
+    !value ||
+    value === "بانتظار الموافقة" ||
+    value === "بانتظار المراجعة" ||
+    value === "pending"
   );
-}
-
-function isActiveTeacher(status?: string | null) {
-  const normalized = String(status || "").trim().toLowerCase();
-
-  return (
-    !normalized ||
-    normalized === "active" ||
-    normalized === "على رأس العمل"
-  );
-}
-
-function safeNumber(value: string) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
-}
-
-function uniqueValues(values: Array<string | null | undefined>) {
-  return Array.from(
-    new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b, "ar"));
-}
-
-function getExportHeaders() {
-  return [
-    "اسم المعلم",
-    "الرقم الوظيفي",
-    "المادة",
-    "القسم",
-    "الجوال",
-    "البريد",
-    "النصاب الأسبوعي",
-    "الحالة",
-    "المواد المسندة",
-    "الفصول المسندة",
-    "عدد الحصص المجدولة",
-    "حصص الانتظار",
-    "انتظار معلق",
-    "الشواهد",
-    "شواهد قيد المراجعة",
-  ];
-}
-
-function getExportRows(source: TeacherWithStats[]) {
-  return source.map((teacher) => [
-    teacher.full_name || "-",
-    teacher.employee_number || "-",
-    teacher.subject || "-",
-    teacher.department || "-",
-    teacher.phone || "-",
-    teacher.email || "-",
-    teacher.weekly_load ?? "-",
-    teacher.status || "-",
-    teacher.assignedSubjectsCount,
-    teacher.assignedClassesCount,
-    teacher.scheduleCount,
-    teacher.waitingCount,
-    teacher.pendingWaiting,
-    teacher.portfolioCount,
-    teacher.pendingPortfolio,
-  ]);
 }
 
 export default function TeachersPage() {
-  const {
-    currentSchool,
-    currentRole,
-    hasPermission,
-    loading: schoolLoading,
-  } = useSchool();
-
-  const canManage =
-    hasPermission("teachers.manage") ||
-    currentRole === "super_admin" ||
-    currentRole === "school_admin";
-
-  const canView =
-    hasPermission("teachers.view") ||
-    currentRole === "super_admin" ||
-    currentRole === "school_admin" ||
-    currentRole === "vice_principal" ||
-    currentRole === "administrative_staff";
+  const { currentSchool, loading: schoolLoading } = useSchool();
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [schedules, setSchedules] = useState<TeacherSchedule[]>([]);
@@ -265,26 +146,40 @@ export default function TeachersPage() {
     useState<TeacherWithStats | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [form, setForm] = useState<TeacherForm>(emptyForm);
 
-  const today = todayISO();
+  const [fullName, setFullName] = useState("");
+  const [employeeNumber, setEmployeeNumber] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [subject, setSubject] = useState("");
+  const [department, setDepartment] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [weeklyLoad, setWeeklyLoad] = useState("");
+  const [status, setStatus] = useState("على رأس العمل");
+  const [adminNotes, setAdminNotes] = useState("");
 
-  const showToast = useCallback((type: Toast["type"], message: string) => {
+  const today = getTodayDate();
+
+  useEffect(() => {
+    if (currentSchool?.id) void fetchAllData();
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds([]);
+  }, [search, departmentFilter, subjectFilter, statusFilter, quickFilter]);
+
+  function showToast(type: Toast["type"], message: string) {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 3500);
-  }, []);
+  }
 
-  const fetchAllData = useCallback(async () => {
-    if (!currentSchool?.id) {
-      setLoading(false);
-      return;
-    }
+  async function fetchAllData() {
+    if (!currentSchool?.id) return;
 
     setLoading(true);
 
     try {
-      const schoolId = currentSchool.id;
-
       const [
         teachersResult,
         scheduleResult,
@@ -292,122 +187,80 @@ export default function TeachersPage() {
         portfolioResult,
         subjectsResult,
         classesResult,
-      ] = await Promise.allSettled([
+      ] = await Promise.all([
         supabase
           .from("teachers")
           .select(
             "id, school_id, full_name, employee_number, photo_url, subject, department, phone, email, weekly_load, status, admin_notes, created_at",
           )
-          .eq("school_id", schoolId)
+          .eq("school_id", currentSchool.id)
           .order("created_at", { ascending: false }),
 
         supabase
           .from("teacher_schedule")
           .select("id, teacher_id, school_id")
-          .eq("school_id", schoolId),
+          .eq("school_id", currentSchool.id),
 
         supabase
           .from("teacher_waiting_periods")
           .select("id, teacher_id, school_id, approval_status")
-          .eq("school_id", schoolId),
+          .eq("school_id", currentSchool.id),
 
         supabase
           .from("teacher_portfolio")
           .select("id, teacher_id, school_id, review_status")
-          .eq("school_id", schoolId),
+          .eq("school_id", currentSchool.id),
 
         supabase
           .from("teacher_subjects")
           .select("id, teacher_id, school_id")
-          .eq("school_id", schoolId),
+          .eq("school_id", currentSchool.id),
 
         supabase
           .from("teacher_classes")
           .select("id, teacher_id, school_id")
-          .eq("school_id", schoolId),
+          .eq("school_id", currentSchool.id),
       ]);
 
-      if (teachersResult.status === "fulfilled") {
-        if (teachersResult.value.error) throw teachersResult.value.error;
-        setTeachers((teachersResult.value.data as Teacher[]) || []);
-      }
+      if (teachersResult.error) throw teachersResult.error;
+      if (scheduleResult.error) throw scheduleResult.error;
+      if (waitingResult.error) throw waitingResult.error;
+      if (portfolioResult.error) throw portfolioResult.error;
 
-      if (scheduleResult.status === "fulfilled") {
-        setSchedules(
-          scheduleResult.value.error
-            ? []
-            : ((scheduleResult.value.data as TeacherSchedule[]) || []),
-        );
-      }
-
-      if (waitingResult.status === "fulfilled") {
-        setWaitingPeriods(
-          waitingResult.value.error
-            ? []
-            : ((waitingResult.value.data as WaitingPeriod[]) || []),
-        );
-      }
-
-      if (portfolioResult.status === "fulfilled") {
-        setPortfolioItems(
-          portfolioResult.value.error
-            ? []
-            : ((portfolioResult.value.data as PortfolioItem[]) || []),
-        );
-      }
-
-      if (subjectsResult.status === "fulfilled") {
-        setTeacherSubjects(
-          subjectsResult.value.error
-            ? []
-            : ((subjectsResult.value.data as TeacherSubject[]) || []),
-        );
-      }
-
-      if (classesResult.status === "fulfilled") {
-        setTeacherClasses(
-          classesResult.value.error
-            ? []
-            : ((classesResult.value.data as TeacherClass[]) || []),
-        );
-      }
-
+      setTeachers((teachersResult.data as Teacher[]) || []);
+      setSchedules((scheduleResult.data as TeacherSchedule[]) || []);
+      setWaitingPeriods((waitingResult.data as WaitingPeriod[]) || []);
+      setPortfolioItems((portfolioResult.data as PortfolioItem[]) || []);
+      setTeacherSubjects(
+        subjectsResult.error
+          ? []
+          : ((subjectsResult.data as TeacherSubject[]) || []),
+      );
+      setTeacherClasses(
+        classesResult.error ? [] : ((classesResult.data as TeacherClass[]) || []),
+      );
       setSelectedIds([]);
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "تعذر تحميل بيانات المعلمين";
+        error instanceof Error ? error.message : "تعذر تحميل بيانات المعلمين";
       showToast("error", message);
     } finally {
       setLoading(false);
     }
-  }, [currentSchool?.id, showToast]);
-
-  useEffect(() => {
-    if (!schoolLoading) {
-      void fetchAllData();
-    }
-  }, [schoolLoading, fetchAllData]);
-
-  useEffect(() => {
-    setPage(1);
-    setSelectedIds([]);
-  }, [search, departmentFilter, subjectFilter, statusFilter, quickFilter]);
+  }
 
   function resetForm() {
     setEditingId(null);
-    setForm(emptyForm);
-  }
-
-  function updateForm<K extends keyof TeacherForm>(
-    key: K,
-    value: TeacherForm[K],
-  ) {
-    setForm((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    setFullName("");
+    setEmployeeNumber("");
+    setPhotoUrl("");
+    setSubject("");
+    setDepartment("");
+    setPhone("");
+    setEmail("");
+    setWeeklyLoad("");
+    setStatus("على رأس العمل");
+    setAdminNotes("");
   }
 
   function openAddForm() {
@@ -424,37 +277,31 @@ export default function TeachersPage() {
   function startEdit(teacher: Teacher) {
     setShowForm(true);
     setEditingId(teacher.id);
-    setForm({
-      full_name: teacher.full_name || "",
-      employee_number: teacher.employee_number || "",
-      photo_url: teacher.photo_url || "",
-      subject: teacher.subject || "",
-      department: teacher.department || "",
-      phone: teacher.phone || "",
-      email: teacher.email || "",
-      weekly_load:
-        teacher.weekly_load === null || teacher.weekly_load === undefined
-          ? ""
-          : String(teacher.weekly_load),
-      status: teacher.status || DEFAULT_STATUS,
-      admin_notes: teacher.admin_notes || "",
-    });
+    setFullName(teacher.full_name || "");
+    setEmployeeNumber(teacher.employee_number || "");
+    setPhotoUrl(teacher.photo_url || "");
+    setSubject(teacher.subject || "");
+    setDepartment(teacher.department || "");
+    setPhone(teacher.phone || "");
+    setEmail(teacher.email || "");
+    setWeeklyLoad(
+      teacher.weekly_load === null || teacher.weekly_load === undefined
+        ? ""
+        : String(teacher.weekly_load),
+    );
+    setStatus(teacher.status || "على رأس العمل");
+    setAdminNotes(teacher.admin_notes || "");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function saveTeacher() {
-    if (!canManage) {
-      showToast("error", "لا تملك صلاحية إدارة المعلمين.");
-      return;
-    }
-
     if (!currentSchool?.id) {
-      showToast("error", "لا توجد مدرسة مرتبطة بالمستخدم الحالي.");
+      showToast("error", "لا توجد مدرسة مرتبطة بالمستخدم الحالي");
       return;
     }
 
-    if (!form.full_name.trim()) {
-      showToast("error", "يرجى إدخال اسم المعلم.");
+    if (!fullName.trim()) {
+      showToast("error", "يرجى إدخال اسم المعلم");
       return;
     }
 
@@ -462,18 +309,16 @@ export default function TeachersPage() {
 
     const payload = {
       school_id: currentSchool.id,
-      full_name: form.full_name.trim(),
-      employee_number: form.employee_number.trim() || null,
-      photo_url: form.photo_url.trim() || null,
-      subject: form.subject.trim() || null,
-      department: form.department.trim() || null,
-      phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
-      weekly_load: form.weekly_load.trim()
-        ? safeNumber(form.weekly_load)
-        : null,
-      status: form.status.trim() || DEFAULT_STATUS,
-      admin_notes: form.admin_notes.trim() || null,
+      full_name: fullName.trim(),
+      employee_number: employeeNumber.trim() || null,
+      photo_url: photoUrl.trim() || null,
+      subject: subject.trim() || null,
+      department: department.trim() || null,
+      phone: phone.trim() || null,
+      email: email.trim() || null,
+      weekly_load: weeklyLoad.trim() ? Number(weeklyLoad) : null,
+      status: status.trim() || "على رأس العمل",
+      admin_notes: adminNotes.trim() || null,
     };
 
     const { error } = editingId
@@ -493,15 +338,16 @@ export default function TeachersPage() {
 
     showToast(
       "success",
-      editingId ? "تم تعديل بيانات المعلم." : "تمت إضافة المعلم.",
+      editingId ? "تم تعديل بيانات المعلم" : "تم إضافة المعلم",
     );
 
-    closeForm();
+    resetForm();
+    setShowForm(false);
     void fetchAllData();
   }
 
   async function deleteTeacher(id: string) {
-    if (!canManage || !currentSchool?.id) return;
+    if (!currentSchool?.id) return;
 
     const confirmed = window.confirm("هل تريد حذف المعلم؟");
     if (!confirmed) return;
@@ -519,17 +365,14 @@ export default function TeachersPage() {
 
     if (selectedTeacher?.id === id) setSelectedTeacher(null);
 
-    showToast("success", "تم حذف المعلم.");
+    showToast("success", "تم حذف المعلم");
     void fetchAllData();
   }
 
   async function deleteSelectedTeachers() {
-    if (!canManage || !currentSchool?.id || selectedIds.length === 0) return;
+    if (!currentSchool?.id || selectedIds.length === 0) return;
 
-    const confirmed = window.confirm(
-      `هل تريد حذف ${selectedIds.length} معلم؟`,
-    );
-
+    const confirmed = window.confirm(`هل تريد حذف ${selectedIds.length} معلم؟`);
     if (!confirmed) return;
 
     const { error } = await supabase
@@ -543,14 +386,14 @@ export default function TeachersPage() {
       return;
     }
 
-    showToast("success", "تم حذف المعلمين المحددين.");
+    showToast("success", "تم حذف المعلمين المحددين");
     setSelectedIds([]);
     setSelectedTeacher(null);
     void fetchAllData();
   }
 
   async function updateSelectedStatus(newStatus: string) {
-    if (!canManage || !currentSchool?.id || selectedIds.length === 0) return;
+    if (!currentSchool?.id || selectedIds.length === 0) return;
 
     const { error } = await supabase
       .from("teachers")
@@ -563,59 +406,70 @@ export default function TeachersPage() {
       return;
     }
 
-    showToast("success", "تم تحديث حالة المعلمين المحددين.");
+    showToast("success", "تم تحديث حالة المعلمين المحددين");
     setSelectedIds([]);
     void fetchAllData();
   }
 
-  const departments = useMemo(
-    () => uniqueValues(teachers.map((teacher) => teacher.department)),
-    [teachers],
-  );
+  const departments = useMemo(() => {
+    return Array.from(
+      new Set(
+        teachers.map((teacher) => teacher.department).filter(Boolean) as string[],
+      ),
+    );
+  }, [teachers]);
 
-  const subjects = useMemo(
-    () => uniqueValues(teachers.map((teacher) => teacher.subject)),
-    [teachers],
-  );
+  const subjects = useMemo(() => {
+    return Array.from(
+      new Set(
+        teachers.map((teacher) => teacher.subject).filter(Boolean) as string[],
+      ),
+    );
+  }, [teachers]);
 
-  const statuses = useMemo(
-    () => uniqueValues(teachers.map((teacher) => teacher.status)),
-    [teachers],
-  );
+  const statuses = useMemo(() => {
+    return Array.from(
+      new Set(
+        teachers.map((teacher) => teacher.status).filter(Boolean) as string[],
+      ),
+    );
+  }, [teachers]);
+
+  function buildTeacherStats(teacher: Teacher): TeacherWithStats {
+    const teacherSchedules = schedules.filter(
+      (item) => item.teacher_id === teacher.id,
+    );
+    const teacherWaiting = waitingPeriods.filter(
+      (item) => item.teacher_id === teacher.id,
+    );
+    const teacherPortfolio = portfolioItems.filter(
+      (item) => item.teacher_id === teacher.id,
+    );
+    const assignedSubjects = teacherSubjects.filter(
+      (item) => item.teacher_id === teacher.id,
+    );
+    const assignedClasses = teacherClasses.filter(
+      (item) => item.teacher_id === teacher.id,
+    );
+
+    return {
+      ...teacher,
+      scheduleCount: teacherSchedules.length,
+      waitingCount: teacherWaiting.length,
+      pendingWaiting: teacherWaiting.filter((item) =>
+        isPending(item.approval_status),
+      ).length,
+      portfolioCount: teacherPortfolio.length,
+      pendingPortfolio: teacherPortfolio.filter((item) =>
+        isPending(item.review_status),
+      ).length,
+      assignedSubjectsCount: assignedSubjects.length,
+      assignedClassesCount: assignedClasses.length,
+    };
+  }
 
   const teachersWithStats = useMemo(() => {
-    return teachers.map((teacher) => {
-      const teacherSchedules = schedules.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const teacherWaiting = waitingPeriods.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const teacherPortfolio = portfolioItems.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const assignedSubjects = teacherSubjects.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const assignedClasses = teacherClasses.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-
-      return {
-        ...teacher,
-        scheduleCount: teacherSchedules.length,
-        waitingCount: teacherWaiting.length,
-        pendingWaiting: teacherWaiting.filter((item) =>
-          isPending(item.approval_status),
-        ).length,
-        portfolioCount: teacherPortfolio.length,
-        pendingPortfolio: teacherPortfolio.filter((item) =>
-          isPending(item.review_status),
-        ).length,
-        assignedSubjectsCount: assignedSubjects.length,
-        assignedClassesCount: assignedClasses.length,
-      };
-    });
+    return teachers.map(buildTeacherStats);
   }, [
     teachers,
     schedules,
@@ -629,21 +483,22 @@ export default function TeachersPage() {
     const keyword = search.toLowerCase().trim();
 
     return teachersWithStats.filter((teacher) => {
-      const text = [
-        teacher.full_name,
-        teacher.employee_number,
-        teacher.subject,
-        teacher.department,
-        teacher.phone,
-        teacher.email,
-        teacher.status,
-      ]
-        .join(" ")
-        .toLowerCase();
+      const text = `
+        ${teacher.full_name || ""}
+        ${teacher.employee_number || ""}
+        ${teacher.subject || ""}
+        ${teacher.department || ""}
+        ${teacher.phone || ""}
+        ${teacher.email || ""}
+        ${teacher.status || ""}
+      `.toLowerCase();
 
       const matchQuick =
         quickFilter === "all" ||
-        (quickFilter === "active" && isActiveTeacher(teacher.status)) ||
+        (quickFilter === "active" &&
+          (!teacher.status ||
+            teacher.status === "على رأس العمل" ||
+            teacher.status === "active")) ||
         (quickFilter === "leave" && teacher.status === "إجازة") ||
         (quickFilter === "assigned" && teacher.status === "مكلف") ||
         (quickFilter === "inactive" && teacher.status === "غير نشط");
@@ -673,8 +528,11 @@ export default function TeachersPage() {
     page * PAGE_SIZE,
   );
 
-  const activeTeachers = teachers.filter((teacher) =>
-    isActiveTeacher(teacher.status),
+  const activeTeachers = teachers.filter(
+    (teacher) =>
+      !teacher.status ||
+      teacher.status === "على رأس العمل" ||
+      teacher.status === "active",
   ).length;
 
   const totalWeeklyLoad = teachers.reduce(
@@ -712,34 +570,72 @@ export default function TeachersPage() {
     );
   }
 
+  function getExportHeaders() {
+    return [
+      "اسم المعلم",
+      "الرقم الوظيفي",
+      "المادة",
+      "القسم",
+      "الجوال",
+      "البريد",
+      "النصاب الأسبوعي",
+      "الحالة",
+      "المواد المسندة",
+      "الفصول المسندة",
+      "عدد الحصص المجدولة",
+      "حصص الانتظار",
+      "انتظار معلق",
+      "الشواهد",
+      "شواهد قيد المراجعة",
+    ];
+  }
+
+  function getExportRows(source: TeacherWithStats[] = filteredTeachers) {
+    return source.map((teacher) => [
+      teacher.full_name || "-",
+      teacher.employee_number || "-",
+      teacher.subject || "-",
+      teacher.department || "-",
+      teacher.phone || "-",
+      teacher.email || "-",
+      teacher.weekly_load ?? "-",
+      teacher.status || "-",
+      teacher.assignedSubjectsCount,
+      teacher.assignedClassesCount,
+      teacher.scheduleCount,
+      teacher.waitingCount,
+      teacher.pendingWaiting,
+      teacher.portfolioCount,
+      teacher.pendingPortfolio,
+    ]);
+  }
+
   async function exportTeachersExcel(
     source: TeacherWithStats[] = filteredTeachers,
   ) {
     await exportTableToExcel({
       title: "تقرير المعلمين",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
-      subtitle:
-        "قائمة المعلمين مع المواد والفصول والجدول والانتظار والشواهد",
+      subtitle: "قائمة المعلمين مع المواد والفصول والجدول والانتظار والشواهد",
       headers: getExportHeaders(),
       rows: getExportRows(source),
       fileName: `teachers-${today}.xlsx`,
     });
 
-    showToast("success", "تم تصدير المعلمين Excel.");
+    showToast("success", "تم تصدير المعلمين Excel");
   }
 
   function exportTeachersPDF(source: TeacherWithStats[] = filteredTeachers) {
     exportTableToPDF({
       title: "تقرير المعلمين",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
-      subtitle:
-        "قائمة المعلمين مع المواد والفصول والجدول والانتظار والشواهد",
+      subtitle: "قائمة المعلمين مع المواد والفصول والجدول والانتظار والشواهد",
       headers: getExportHeaders(),
       rows: getExportRows(source),
       fileName: `teachers-${today}.pdf`,
     });
 
-    showToast("success", "تم تجهيز PDF للمعلمين.");
+    showToast("success", "تم تجهيز PDF للمعلمين");
   }
 
   async function exportSelectedExcel() {
@@ -758,631 +654,587 @@ export default function TeachersPage() {
     exportTeachersPDF(selected);
   }
 
-  if (!canView) {
-    return (
-      <AuthGuard>
-        <SummaryCard
-          title="لا تملك صلاحية الوصول إلى إدارة المعلمين"
-          description="هذه الصفحة مخصصة للإدارة المدرسية فقط."
-          tone="gold"
-          icon={<GraduationCap size={22} />}
-        />
-      </AuthGuard>
-    );
-  }
-
   if (schoolLoading) {
     return (
-      <AuthGuard>
-        <PageLoader text="جاري تحميل بيانات المدرسة..." />
-      </AuthGuard>
+      <RoleGuard allowedRoles={TEACHERS_PAGE_ROLES}>
+        <AppShell>
+          <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        </AppShell>
+      </RoleGuard>
     );
   }
 
   if (!currentSchool) {
     return (
-      <AuthGuard>
-        <SummaryCard
-          title="لا توجد مدرسة مرتبطة"
-          description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
-          tone="red"
-          icon={<GraduationCap size={22} />}
-        />
-      </AuthGuard>
+      <RoleGuard allowedRoles={TEACHERS_PAGE_ROLES}>
+        <AppShell>
+          <div className="rounded-3xl border border-red-100 bg-red-50 p-6 text-center font-bold text-red-700">
+            لا توجد مدرسة مرتبطة بالمستخدم الحالي.
+          </div>
+        </AppShell>
+      </RoleGuard>
     );
   }
 
   return (
-    <AuthGuard>
-      <div className="space-y-5" dir="rtl">
-        {toast && <ToastBox toast={toast} />}
-        <PageHeader
-          variant="hero"
-          title="إدارة المعلمين"
-          description={`${currentSchool.school_name} — بيانات المعلمين، الإسناد، الجدول، حصص الانتظار، وملف الشواهد في صفحة واحدة.`}
-          badge="منصة المدرسة الذكية"
-          icon={<GraduationCap size={18} />}
-          breadcrumbs={[
-            { label: "لوحة التحكم", href: "/dashboard" },
-            { label: "إدارة المعلمين" },
-          ]}
-          meta={[
-            { label: "المدرسة", value: currentSchool.school_name },
-            { label: "تاريخ اليوم", value: today },
-            { label: "المعلمون الظاهرون", value: filteredTeachers.length },
-            { label: "المحددون", value: selectedIds.length },
-          ]}
-          stats={[
-            { label: "إجمالي المعلمين", value: teachers.length, icon: <GraduationCap size={20} />, tone: "blue" },
-            { label: "على رأس العمل", value: activeTeachers, icon: <UserRoundCheck size={20} />, tone: "green" },
-            { label: "حصص مجدولة", value: schedules.length, icon: <BookOpenCheck size={20} />, tone: "teal" },
-            { label: "مراجعات معلقة", value: pendingWaitingTotal + pendingPortfolioTotal, icon: <ClipboardCheck size={20} />, tone: pendingWaitingTotal + pendingPortfolioTotal > 0 ? "gold" : "green" },
-          ]}
-          actions={
-            <>
-              {canManage && (
-                <SecondaryButton
-                  icon={<Plus size={17} />}
+    <RoleGuard allowedRoles={TEACHERS_PAGE_ROLES}>
+      <AppShell>
+        <div className="space-y-5" dir="rtl">
+          {toast && <ToastBox toast={toast} />}
+
+          <section className="rounded-[28px] bg-gradient-to-l from-[#0f1f3d] via-[#18315f] to-[#24477f] p-5 text-white shadow-sm print:hidden">
+            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
+              <div>
+                <p className="mb-2 text-sm font-bold text-[#d4af37]">
+                  منصة المدرسة الذكية
+                </p>
+
+                <h1 className="text-3xl font-black md:text-4xl">
+                  إدارة المعلمين
+                </h1>
+
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+                  {currentSchool.school_name} — بيانات المعلمين، الجدول
+                  الأسبوعي للعرض داخل ملف المعلم، حصص الانتظار المسندة من
+                  الوكيل، وملف الشواهد.
+                </p>
+              </div>
+
+              <div className="flex shrink-0 flex-row flex-nowrap items-center gap-2">
+                <button
                   onClick={openAddForm}
-                  tone="warning"
+                  className="flex h-12 items-center gap-2 rounded-2xl bg-[#d4af37] px-4 text-sm font-black text-[#0f1f3d]"
                 >
-                  إضافة معلم
-                </SecondaryButton>
-              )}
+                  <Plus size={16} />
+                  إضافة
+                </button>
 
-              <SecondaryButton
-                icon={<Download size={17} />}
-                onClick={() => void exportTeachersExcel()}
-              >
-                Excel
-              </SecondaryButton>
+                <button
+                  onClick={() => void exportTeachersExcel()}
+                  className="flex h-12 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-black text-white hover:bg-white/20"
+                >
+                  Excel
+                  <Download size={16} />
+                </button>
 
-              <PrimaryButton
-                icon={<FileText size={17} />}
-                onClick={() => exportTeachersPDF()}
-              >
-                PDF
-              </PrimaryButton>
+                <button
+                  onClick={() => exportTeachersPDF()}
+                  className="flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#0f1f3d]"
+                >
+                  PDF
+                  <FileText size={16} />
+                </button>
 
-              <SecondaryButton
-                icon={<RefreshCcw size={17} className={loading ? "animate-spin" : ""} />}
-                onClick={() => void fetchAllData()}
-                disabled={loading}
-                tone="dark"
-              >
-                تحديث
-              </SecondaryButton>
-            </>
-          }
-        />
-
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <ExecutiveCard
-            title="إجمالي المعلمين"
-            value={teachers.length}
-            subtitle={`${activeTeachers} على رأس العمل`}
-            icon={<GraduationCap size={22} />}
-            tone="blue"
-            progress={teachers.length > 0 ? 100 : 0}
-          />
-
-          <ExecutiveCard
-            title="مواد مسندة"
-            value={teacherSubjects.length}
-            subtitle={`${teacherClasses.length} فصول مسندة`}
-            icon={<Users size={22} />}
-            tone="green"
-          />
-
-          <ExecutiveCard
-            title="الأقسام"
-            value={departments.length}
-            subtitle={`${subjects.length} مادة`}
-            icon={<BriefcaseBusiness size={22} />}
-            tone="primary"
-          />
-
-          <ExecutiveCard
-            title="حصص مجدولة"
-            value={schedules.length}
-            subtitle={`النصاب الأسبوعي ${totalWeeklyLoad}`}
-            icon={<BookOpenCheck size={22} />}
-            tone="teal"
-          />
-
-          <ExecutiveCard
-            title="حصص الانتظار"
-            value={waitingPeriods.length}
-            subtitle={`${pendingWaitingTotal} بانتظار الموافقة`}
-            icon={<CalendarCheck size={22} />}
-            tone={pendingWaitingTotal > 0 ? "gold" : "green"}
-          />
-
-          <ExecutiveCard
-            title="ملف الشواهد"
-            value={portfolioItems.length}
-            subtitle={`${pendingPortfolioTotal} قيد المراجعة`}
-            icon={<Award size={22} />}
-            tone={pendingPortfolioTotal > 0 ? "gold" : "green"}
-          />
-        </section>
-
-        <SummaryCard
-          title="الملخص التنفيذي للمعلمين"
-          description="قراءة سريعة لحالة الكادر التعليمي، الإسناد، الجدول، الانتظار، وملفات الشواهد."
-          tone={pendingWaitingTotal > 0 || pendingPortfolioTotal > 0 ? "gold" : "green"}
-          items={[
-            { label: "إجمالي المعلمين", value: teachers.length },
-            { label: "على رأس العمل", value: activeTeachers },
-            { label: "مواد مسندة", value: teacherSubjects.length },
-            { label: "حصص مجدولة", value: schedules.length },
-            { label: "انتظار معلق", value: pendingWaitingTotal },
-            { label: "شواهد قيد المراجعة", value: pendingPortfolioTotal },
-          ]}
-          footer="تعتمد المؤشرات على البيانات المسجلة في الجداول الحالية، وتزداد دقتها مع اكتمال الإسناد والجداول والشواهد."
-        />
-
-        {showForm && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {editingId ? (
-                  <Pencil className="text-[#C1B489]" />
-                ) : (
-                  <Plus className="text-[#C1B489]" />
-                )}
-
-                <h2 className="text-xl font-black text-[#15445A]">
-                  {editingId ? "تعديل بيانات المعلم" : "إضافة معلم جديد"}
-                </h2>
+                <button
+                  onClick={() => void fetchAllData()}
+                  disabled={loading}
+                  className="flex h-12 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-black text-white disabled:opacity-60"
+                >
+                  تحديث
+                  <RefreshCcw
+                    size={16}
+                    className={loading ? "animate-spin" : ""}
+                  />
+                </button>
               </div>
-
-              <SecondaryButton onClick={closeForm}>
-                إغلاق
-              </SecondaryButton>
             </div>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <Input
-                placeholder="اسم المعلم"
-                value={form.full_name}
-                onChange={(value) => updateForm("full_name", value)}
-              />
-              <Input
-                placeholder="الرقم الوظيفي"
-                value={form.employee_number}
-                onChange={(value) => updateForm("employee_number", value)}
-              />
-              <Input
-                placeholder="رابط صورة المعلم"
-                value={form.photo_url}
-                onChange={(value) => updateForm("photo_url", value)}
-              />
-              <Input
-                placeholder="المادة الأساسية"
-                value={form.subject}
-                onChange={(value) => updateForm("subject", value)}
-              />
-              <Input
-                placeholder="القسم"
-                value={form.department}
-                onChange={(value) => updateForm("department", value)}
-              />
-              <Input
-                placeholder="الجوال"
-                value={form.phone}
-                onChange={(value) => updateForm("phone", value)}
-              />
-              <Input
-                placeholder="البريد الإلكتروني"
-                value={form.email}
-                onChange={(value) => updateForm("email", value)}
-              />
-              <Input
-                placeholder="النصاب الأسبوعي"
-                value={form.weekly_load}
-                onChange={(value) => updateForm("weekly_load", value)}
-                type="number"
-              />
-
-              <select
-                value={form.status}
-                onChange={(event) => updateForm("status", event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
-              >
-                {TEACHER_STATUSES.map((teacherStatus) => (
-                  <option key={teacherStatus} value={teacherStatus}>
-                    {teacherStatus}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <textarea
-              value={form.admin_notes}
-              onChange={(event) => updateForm("admin_notes", event.target.value)}
-              placeholder="ملاحظات إدارية"
-              className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-            />
-
-            <PrimaryButton
-              className="mt-5"
-              icon={saving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
-              onClick={() => void saveTeacher()}
-              disabled={saving}
-            >
-              {saving
-                ? "جاري الحفظ..."
-                : editingId
-                  ? "حفظ التعديل"
-                  : "إضافة المعلم"}
-            </PrimaryButton>
           </section>
-        )}
 
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-            <div className="mb-5 flex flex-col gap-4 print:hidden">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">
-                    قائمة المعلمين
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-6">
+            <MergedCard title="المعلمون" icon={<GraduationCap size={22} />}>
+              <MiniRow label="الإجمالي" value={teachers.length} />
+              <MiniRow
+                label="على رأس العمل"
+                value={activeTeachers}
+                color="green"
+              />
+            </MergedCard>
+
+            <MergedCard title="الإسناد" icon={<Users size={22} />}>
+              <MiniRow label="مواد مسندة" value={teacherSubjects.length} />
+              <MiniRow
+                label="فصول مسندة"
+                value={teacherClasses.length}
+                color="blue"
+              />
+            </MergedCard>
+
+            <MergedCard title="الأقسام" icon={<BriefcaseBusiness size={22} />}>
+              <MiniRow label="عدد الأقسام" value={departments.length} />
+              <MiniRow label="عدد المواد" value={subjects.length} />
+            </MergedCard>
+
+            <MergedCard title="الجدول" icon={<BookOpenCheck size={22} />}>
+              <MiniRow label="حصص مجدولة" value={schedules.length} />
+              <MiniRow
+                label="نصاب أسبوعي"
+                value={totalWeeklyLoad}
+                color="blue"
+              />
+            </MergedCard>
+
+            <MergedCard title="حصص الانتظار" icon={<CalendarCheck size={22} />}>
+              <MiniRow label="الإجمالي" value={waitingPeriods.length} />
+              <MiniRow
+                label="بانتظار الموافقة"
+                value={pendingWaitingTotal}
+                color="amber"
+              />
+            </MergedCard>
+
+            <MergedCard title="ملف الشواهد" icon={<Award size={22} />}>
+              <MiniRow label="الشواهد" value={portfolioItems.length} />
+              <MiniRow
+                label="قيد المراجعة"
+                value={pendingPortfolioTotal}
+                color="amber"
+              />
+            </MergedCard>
+          </section>
+
+          {showForm && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
+              <div className="mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {editingId ? (
+                    <Pencil className="text-[#d4af37]" />
+                  ) : (
+                    <Plus className="text-[#d4af37]" />
+                  )}
+
+                  <h2 className="text-xl font-black text-[#0f1f3d]">
+                    {editingId ? "تعديل بيانات المعلم" : "إضافة معلم جديد"}
                   </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    عرض {pagedTeachers.length} من {filteredTeachers.length} معلم
-                  </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <QuickFilter
-                    label="الكل"
-                    value="all"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="النشطون"
-                    value="active"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="الإجازات"
-                    value="leave"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="المكلفون"
-                    value="assigned"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="غير نشط"
-                    value="inactive"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                </div>
+                <button
+                  onClick={closeForm}
+                  className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold"
+                >
+                  إغلاق
+                </button>
               </div>
 
-              <div className="grid w-full gap-3 lg:grid-cols-4">
-                <select
-                  value={departmentFilter}
-                  onChange={(event) => setDepartmentFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل الأقسام</option>
-                  {departments.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Input
+                  placeholder="اسم المعلم"
+                  value={fullName}
+                  onChange={setFullName}
+                />
+                <Input
+                  placeholder="الرقم الوظيفي"
+                  value={employeeNumber}
+                  onChange={setEmployeeNumber}
+                />
+                <Input
+                  placeholder="رابط صورة المعلم"
+                  value={photoUrl}
+                  onChange={setPhotoUrl}
+                />
+                <Input
+                  placeholder="المادة الأساسية"
+                  value={subject}
+                  onChange={setSubject}
+                />
+                <Input
+                  placeholder="القسم"
+                  value={department}
+                  onChange={setDepartment}
+                />
+                <Input placeholder="الجوال" value={phone} onChange={setPhone} />
+                <Input
+                  placeholder="البريد الإلكتروني"
+                  value={email}
+                  onChange={setEmail}
+                />
+                <Input
+                  placeholder="النصاب الأسبوعي"
+                  value={weeklyLoad}
+                  onChange={setWeeklyLoad}
+                  type="number"
+                />
 
                 <select
-                  value={subjectFilter}
-                  onChange={(event) => setSubjectFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#d4af37]"
                 >
-                  <option value="all">كل المواد</option>
-                  {subjects.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
+                  <option value="على رأس العمل">على رأس العمل</option>
+                  <option value="مكلف">مكلف</option>
+                  <option value="منتدب">منتدب</option>
+                  <option value="إجازة">إجازة</option>
+                  <option value="غير نشط">غير نشط</option>
                 </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل الحالات</option>
-                  {statuses.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="relative">
-                  <Search
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
-
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="ابحث عن معلم..."
-                    className="w-full rounded-2xl border border-slate-200 py-3 pl-4 pr-10 outline-none focus:border-[#0DA9A6]"
-                  />
-                </div>
               </div>
 
-              {selectedIds.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-sm font-black text-amber-800">
-                    تم تحديد {selectedIds.length} معلم
-                  </p>
+              <textarea
+                value={adminNotes}
+                onChange={(event) => setAdminNotes(event.target.value)}
+                placeholder="ملاحظات إدارية"
+                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+              />
+
+              <button
+                onClick={() => void saveTeacher()}
+                disabled={saving}
+                className="mt-5 flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {editingId ? <Save size={16} /> : <Plus size={16} />}
+                {saving
+                  ? "جاري الحفظ..."
+                  : editingId
+                    ? "حفظ التعديل"
+                    : "إضافة المعلم"}
+              </button>
+            </section>
+          )}
+
+          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+              <div className="mb-5 flex flex-col gap-4 print:hidden">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-[#0f1f3d]">
+                      قائمة المعلمين
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      عرض {pagedTeachers.length} من {filteredTeachers.length} معلم
+                    </p>
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
+                    <QuickFilter
+                      label="الكل"
+                      value="all"
+                      active={quickFilter}
+                      onClick={setQuickFilter}
+                    />
+                    <QuickFilter
+                      label="النشطون"
+                      value="active"
+                      active={quickFilter}
+                      onClick={setQuickFilter}
+                    />
+                    <QuickFilter
+                      label="الإجازات"
+                      value="leave"
+                      active={quickFilter}
+                      onClick={setQuickFilter}
+                    />
+                    <QuickFilter
+                      label="المكلفون"
+                      value="assigned"
+                      active={quickFilter}
+                      onClick={setQuickFilter}
+                    />
+                    <QuickFilter
+                      label="غير نشط"
+                      value="inactive"
+                      active={quickFilter}
+                      onClick={setQuickFilter}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid w-full gap-3 lg:grid-cols-4">
+                  <select
+                    value={departmentFilter}
+                    onChange={(event) => setDepartmentFilter(event.target.value)}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                  >
+                    <option value="all">كل الأقسام</option>
+                    {departments.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={subjectFilter}
+                    onChange={(event) => setSubjectFilter(event.target.value)}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                  >
+                    <option value="all">كل المواد</option>
+                    {subjects.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                  >
+                    <option value="all">كل الحالات</option>
+                    {statuses.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="relative">
+                    <Search
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      size={18}
+                    />
+
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="ابحث عن معلم..."
+                      className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 outline-none focus:border-[#d4af37]"
+                    />
+                  </div>
+                </div>
+
+                {selectedIds.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-black text-amber-800">
+                      تم تحديد {selectedIds.length} معلم
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => void exportSelectedExcel()}
+                        className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
+                      >
+                        Excel المحدد
+                      </button>
+
+                      <button
+                        onClick={exportSelectedPDF}
+                        className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
+                      >
+                        PDF المحدد
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          void updateSelectedStatus("على رأس العمل")
+                        }
+                        className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white"
+                      >
+                        جعلهم على رأس العمل
+                      </button>
+
+                      <button
+                        onClick={() => void updateSelectedStatus("إجازة")}
+                        className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-black text-white"
+                      >
+                        جعلهم إجازة
+                      </button>
+
+                      <button
+                        onClick={() => void deleteSelectedTeachers()}
+                        className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white"
+                      >
+                        حذف المحدد
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1150px]">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+                      <th className="rounded-r-2xl px-4 py-3 print:hidden">
+                        <input
+                          type="checkbox"
+                          checked={allPageSelected}
+                          onChange={toggleSelectPage}
+                        />
+                      </th>
+                      <th className="px-4 py-3">المعلم</th>
+                      <th className="px-4 py-3">الرقم الوظيفي</th>
+                      <th className="px-4 py-3">المادة</th>
+                      <th className="px-4 py-3">القسم</th>
+                      <th className="px-4 py-3">الجدول</th>
+                      <th className="px-4 py-3">الانتظار</th>
+                      <th className="px-4 py-3">الشواهد</th>
+                      <th className="px-4 py-3">الحالة</th>
+                      <th className="rounded-l-2xl px-4 py-3 print:hidden">
+                        الإجراءات
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {!loading &&
+                      pagedTeachers.map((teacher) => (
+                        <tr
+                          key={teacher.id}
+                          className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
+                        >
+                          <td className="px-4 py-3 print:hidden">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(teacher.id)}
+                              onChange={() => toggleSelectTeacher(teacher.id)}
+                            />
+                          </td>
+
+                          <td className="px-4 py-3 font-bold text-[#0f1f3d]">
+                            <div className="flex items-center gap-3">
+                              <TeacherAvatar teacher={teacher} />
+
+                              <div>
+                                <p>{teacher.full_name}</p>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {teacher.phone || "-"} — {teacher.email || "-"}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {teacher.employee_number || "-"}
+                          </td>
+
+                          <td className="px-4 py-3">{teacher.subject || "-"}</td>
+
+                          <td className="px-4 py-3">
+                            {teacher.department || "-"}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <SmallBadge label={`${teacher.scheduleCount} حصة`} />
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <SmallBadge label={`${teacher.waitingCount}`} />
+                              {teacher.pendingWaiting > 0 && (
+                                <SmallBadge
+                                  label={`معلق ${teacher.pendingWaiting}`}
+                                />
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <SmallBadge label={`${teacher.portfolioCount}`} />
+                              {teacher.pendingPortfolio > 0 && (
+                                <SmallBadge
+                                  label={`مراجعة ${teacher.pendingPortfolio}`}
+                                />
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <StatusBadge status={teacher.status} />
+                          </td>
+
+                          <td className="px-4 py-3 print:hidden">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => setSelectedTeacher(teacher)}
+                                className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+                                title="عرض مختصر"
+                              >
+                                <Eye size={16} />
+                              </button>
+
+                              <Link
+                                href={`/teachers/${teacher.id}`}
+                                className="rounded-xl bg-blue-50 p-2 text-blue-600 hover:bg-blue-100"
+                                title="فتح ملف المعلم"
+                              >
+                                <FileText size={16} />
+                              </Link>
+
+                              <Link
+                                href={`/teachers/${teacher.id}/portfolio`}
+                                className="rounded-xl bg-purple-50 p-2 text-purple-600 hover:bg-purple-100"
+                                title="ملف الشواهد"
+                              >
+                                <Award size={16} />
+                              </Link>
+
+                              <button
+                                onClick={() => startEdit(teacher)}
+                                className="rounded-xl bg-sky-50 p-2 text-sky-600 hover:bg-sky-100"
+                                title="تعديل"
+                              >
+                                <Pencil size={16} />
+                              </button>
+
+                              <button
+                                onClick={() => void deleteTeacher(teacher.id)}
+                                className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                                title="حذف"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+
+                {loading && (
+                  <div className="py-10 text-center text-slate-500">
+                    جاري تحميل المعلمين...
+                  </div>
+                )}
+
+                {!loading && filteredTeachers.length === 0 && (
+                  <div className="py-10 text-center text-slate-500">
+                    لا يوجد معلمون مطابقون للبحث
+                  </div>
+                )}
+              </div>
+
+              {!loading && filteredTeachers.length > 0 && (
+                <div className="mt-5 flex items-center justify-between">
+                  <p className="text-sm text-slate-500">
+                    عرض {pagedTeachers.length} من {filteredTeachers.length}
+                  </p>
+
+                  <div className="flex items-center gap-2">
                     <button
-                      type="button"
-                      onClick={() => void exportSelectedExcel()}
-                      className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
+                      onClick={() => setPage((value) => Math.max(1, value - 1))}
+                      disabled={page === 1}
+                      className="rounded-xl border p-2 disabled:opacity-40"
                     >
-                      Excel المحدد
+                      <ChevronRight size={18} />
                     </button>
 
+                    <span className="text-sm font-bold text-slate-700">
+                      {page} / {totalPages}
+                    </span>
+
                     <button
-                      type="button"
-                      onClick={exportSelectedPDF}
-                      className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
+                      onClick={() =>
+                        setPage((value) => Math.min(totalPages, value + 1))
+                      }
+                      disabled={page === totalPages}
+                      className="rounded-xl border p-2 disabled:opacity-40"
                     >
-                      PDF المحدد
+                      <ChevronLeft size={18} />
                     </button>
-
-                    {canManage && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void updateSelectedStatus(DEFAULT_STATUS)}
-                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white"
-                        >
-                          جعلهم على رأس العمل
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => void updateSelectedStatus("إجازة")}
-                          className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-black text-white"
-                        >
-                          جعلهم إجازة
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => void deleteSelectedTeachers()}
-                          className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white"
-                        >
-                          حذف المحدد
-                        </button>
-                      </>
-                    )}
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1150px]">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
-                    <th className="rounded-r-2xl px-4 py-3 print:hidden">
-                      <input
-                        type="checkbox"
-                        checked={allPageSelected}
-                        onChange={toggleSelectPage}
-                      />
-                    </th>
-                    <th className="px-4 py-3">المعلم</th>
-                    <th className="px-4 py-3">الرقم الوظيفي</th>
-                    <th className="px-4 py-3">المادة</th>
-                    <th className="px-4 py-3">القسم</th>
-                    <th className="px-4 py-3">الجدول</th>
-                    <th className="px-4 py-3">الانتظار</th>
-                    <th className="px-4 py-3">الشواهد</th>
-                    <th className="px-4 py-3">الحالة</th>
-                    <th className="rounded-l-2xl px-4 py-3 print:hidden">
-                      الإجراءات
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {!loading &&
-                    pagedTeachers.map((teacher) => (
-                      <tr
-                        key={teacher.id}
-                        className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
-                      >
-                        <td className="px-4 py-3 print:hidden">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(teacher.id)}
-                            onChange={() => toggleSelectTeacher(teacher.id)}
-                          />
-                        </td>
-
-                        <td className="px-4 py-3 font-bold text-[#15445A]">
-                          <div className="flex items-center gap-3">
-                            <TeacherAvatar teacher={teacher} />
-
-                            <div>
-                              <p>{teacher.full_name}</p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {teacher.phone || "-"} — {teacher.email || "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          {teacher.employee_number || "-"}
-                        </td>
-
-                        <td className="px-4 py-3">{teacher.subject || "-"}</td>
-
-                        <td className="px-4 py-3">
-                          {teacher.department || "-"}
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <SmallBadge label={`${teacher.scheduleCount} حصة`} />
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <SmallBadge label={`${teacher.waitingCount}`} />
-                            {teacher.pendingWaiting > 0 && (
-                              <SmallBadge
-                                label={`معلق ${teacher.pendingWaiting}`}
-                              />
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <SmallBadge label={`${teacher.portfolioCount}`} />
-                            {teacher.pendingPortfolio > 0 && (
-                              <SmallBadge
-                                label={`مراجعة ${teacher.pendingPortfolio}`}
-                              />
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <StatusBadge status={teacher.status} />
-                        </td>
-
-                        <td className="px-4 py-3 print:hidden">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedTeacher(teacher)}
-                              className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
-                              title="عرض مختصر"
-                            >
-                              <Eye size={16} />
-                            </button>
-
-                            <Link
-                              href={`/teachers/${teacher.id}`}
-                              className="rounded-xl bg-blue-50 p-2 text-blue-600 hover:bg-blue-100"
-                              title="فتح ملف المعلم"
-                            >
-                              <FileText size={16} />
-                            </Link>
-
-                            <Link
-                              href={`/teachers/${teacher.id}/portfolio`}
-                              className="rounded-xl bg-[#C1B489]/20 p-2 text-[#15445A] hover:bg-[#C1B489]/30"
-                              title="ملف الشواهد"
-                            >
-                              <Award size={16} />
-                            </Link>
-
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => startEdit(teacher)}
-                                  className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/20"
-                                  title="تعديل"
-                                >
-                                  <Pencil size={16} />
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => void deleteTeacher(teacher.id)}
-                                  className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
-                                  title="حذف"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-
-              {loading && (
-                <div className="py-6">
-                  <PageLoader text="جاري تحميل المعلمين..." />
-                </div>
-              )}
-
-              {!loading && filteredTeachers.length === 0 && (
-                <EmptyState
-                  icon={<Search size={30} />}
-                  title="لا توجد نتائج"
-                  description="لا يوجد معلمون مطابقون للبحث أو الفلاتر الحالية."
-                />
-              )}
-            </div>
-
-            {!loading && filteredTeachers.length > 0 && (
-              <div className="mt-5 flex items-center justify-between">
-                <p className="text-sm text-slate-500">
-                  عرض {pagedTeachers.length} من {filteredTeachers.length}
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPage((value) => Math.max(1, value - 1))}
-                    disabled={page === 1}
-                    className="rounded-xl border p-2 disabled:opacity-40"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-
-                  <span className="text-sm font-bold text-slate-700">
-                    {page} / {totalPages}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPage((value) => Math.min(totalPages, value + 1))
-                    }
-                    disabled={page === totalPages}
-                    className="rounded-xl border p-2 disabled:opacity-40"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <TeacherSideCard
-            selectedTeacher={selectedTeacher}
-            setSelectedTeacher={setSelectedTeacher}
-          />
-        </section>
-      </div>
-    </AuthGuard>
+            <TeacherSideCard
+              selectedTeacher={selectedTeacher}
+              setSelectedTeacher={setSelectedTeacher}
+            />
+          </section>
+        </div>
+      </AppShell>
+    </RoleGuard>
   );
 }
 
@@ -1394,16 +1246,15 @@ function TeacherSideCard({
   setSelectedTeacher: (teacher: TeacherWithStats | null) => void;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
       {selectedTeacher ? (
         <div>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-2xl font-black text-[#15445A]">
+            <h2 className="text-2xl font-black text-[#0f1f3d]">
               الملف المختصر
             </h2>
 
             <button
-              type="button"
               onClick={() => setSelectedTeacher(null)}
               className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
             >
@@ -1411,13 +1262,15 @@ function TeacherSideCard({
             </button>
           </div>
 
-          <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
+          <div className="rounded-3xl bg-[#0f1f3d] p-5 text-white">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-[#C1B489] text-[#15445A]">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-[#d4af37] text-[#0f1f3d]">
                 {selectedTeacher.photo_url ? (
-                  <img
+                  <Image
                     src={selectedTeacher.photo_url}
                     alt={selectedTeacher.full_name}
+                    width={56}
+                    height={56}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -1426,7 +1279,7 @@ function TeacherSideCard({
               </div>
 
               <div>
-                <h3 className="text-2xl font-black text-[#C1B489]">
+                <h3 className="text-2xl font-black text-[#d4af37]">
                   {selectedTeacher.full_name}
                 </h3>
 
@@ -1493,7 +1346,7 @@ function TeacherSideCard({
           <div className="mt-5 grid gap-2">
             <Link
               href={`/teachers/${selectedTeacher.id}`}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-5 py-3 text-sm font-black text-[#15445A]"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#d4af37] px-5 py-3 text-sm font-black text-[#0f1f3d]"
             >
               <FileText size={17} />
               فتح ملف المعلم
@@ -1501,7 +1354,7 @@ function TeacherSideCard({
 
             <Link
               href={`/teachers/${selectedTeacher.id}/portfolio`}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-black text-white"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-black text-white"
             >
               <Award size={17} />
               ملف الشواهد
@@ -1509,12 +1362,17 @@ function TeacherSideCard({
           </div>
         </div>
       ) : (
-        <EmptyState
-          icon={<GraduationCap size={42} />}
-          title="اختر معلمًا"
-          description="اضغط على أيقونة العين لعرض الملف المختصر."
-          className="min-h-[350px]"
-        />
+        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
+          <div>
+            <GraduationCap size={42} className="mx-auto text-[#d4af37]" />
+            <h3 className="mt-4 text-xl font-black text-[#0f1f3d]">
+              اختر معلماً
+            </h3>
+            <p className="mt-2 text-sm text-slate-500">
+              اضغط على أيقونة العين لعرض الملف المختصر
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1522,11 +1380,13 @@ function TeacherSideCard({
 
 function TeacherAvatar({ teacher }: { teacher: Teacher }) {
   return (
-    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[#15445A]/10 text-[#15445A]">
+    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[#0f1f3d]/10 text-[#0f1f3d]">
       {teacher.photo_url ? (
-        <img
+        <Image
           src={teacher.photo_url}
           alt={teacher.full_name}
+          width={44}
+          height={44}
           className="h-full w-full object-cover"
         />
       ) : (
@@ -1551,10 +1411,9 @@ function QuickFilter({
 
   return (
     <button
-      type="button"
       onClick={() => onClick(value)}
       className={`rounded-2xl px-4 py-2 text-sm font-black ${
-        isActive ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"
+        isActive ? "bg-[#0f1f3d] text-white" : "bg-slate-100 text-slate-600"
       }`}
     >
       {label}
@@ -1562,21 +1421,77 @@ function QuickFilter({
   );
 }
 
+function MergedCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-xl font-black text-[#0f1f3d]">{title}</h2>
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1f3d]/10 text-[#0f1f3d]">
+          {icon}
+        </div>
+      </div>
+
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function MiniRow({
+  label,
+  value,
+  color = "default",
+}: {
+  label: string;
+  value: string | number;
+  color?: "default" | "green" | "red" | "amber" | "blue";
+}) {
+  const colors = {
+    default: "text-[#0f1f3d]",
+    green: "text-emerald-700",
+    red: "text-red-700",
+    amber: "text-amber-700",
+    blue: "text-blue-700",
+  };
+
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+      <span className="text-sm font-bold text-slate-500">{label}</span>
+      <span className={`text-lg font-black ${colors[color]}`}>{value}</span>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status?: string | null }) {
-  const value = status || DEFAULT_STATUS;
+  const value = status || "على رأس العمل";
 
-  const tone =
-    value === DEFAULT_STATUS || value === "active"
-      ? "success"
+  const style =
+    value === "على رأس العمل" || value === "active"
+      ? "bg-emerald-50 text-emerald-700"
       : value === "غير نشط"
-        ? "danger"
-        : "warning";
+        ? "bg-red-50 text-red-700"
+        : "bg-amber-50 text-amber-700";
 
-  return <UiStatusBadge tone={tone}>{value}</UiStatusBadge>;
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>
+      {value}
+    </span>
+  );
 }
 
 function SmallBadge({ label }: { label: string }) {
-  return <UiStatusBadge tone="default">{label}</UiStatusBadge>;
+  return (
+    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+      {label}
+    </span>
+  );
 }
 
 function DetailStat({
@@ -1591,10 +1506,10 @@ function DetailStat({
   color: "blue" | "red" | "amber" | "green";
 }) {
   const colors = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
+    blue: "bg-blue-50 text-blue-700",
     red: "bg-red-50 text-red-700",
-    amber: "bg-[#C1B489]/20 text-[#15445A]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
+    amber: "bg-amber-50 text-amber-700",
+    green: "bg-emerald-50 text-emerald-700",
   };
 
   return (
@@ -1634,8 +1549,17 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#d4af37]"
     />
+  );
+}
+
+function LoadingBox({ text }: { text: string }) {
+  return (
+    <div className="rounded-3xl bg-white p-6 text-center text-slate-500 shadow-sm">
+      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#0f1f3d]" />
+      {text}
+    </div>
   );
 }
 

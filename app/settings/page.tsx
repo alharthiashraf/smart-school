@@ -1,5 +1,6 @@
 "use client";
 
+import NextImage from "next/image";
 import Link from "next/link";
 import {
   useCallback,
@@ -32,7 +33,7 @@ import {
   CircleAlert,
   FileSpreadsheet,
   Gauge,
-  Image,
+  Image as ImageIcon,
   Loader2,
   Palette,
   PlusCircle,
@@ -42,7 +43,6 @@ import {
   Settings,
   Sparkles,
   ShieldCheck,
-  Target,
   Trash2,
   UploadCloud,
   Users,
@@ -65,6 +65,10 @@ type SchoolType = "boys" | "girls" | "mixed";
 type SchoolStage = "ابتدائي" | "متوسط" | "ثانوي" | "مجمع";
 type Semester = "الفصل الدراسي الأول" | "الفصل الدراسي الثاني" | "الفصل الدراسي الثالث";
 type SemesterSystem = "فصلين" | "ثلاثة فصول";
+
+function normalizeSemesterSystem(value: unknown): SemesterSystem {
+  return value === "فصلين" ? "فصلين" : "ثلاثة فصول";
+}
 type ImportType = "students" | "teachers" | "subjects" | "classes" | "schedule";
 
 type SchoolSettings = {
@@ -215,7 +219,7 @@ const EMPTY_STATS: SettingsStats = {
 
 const TABS: { id: Tab; title: string; icon: ReactNode }[] = [
   { id: "school", title: "بيانات المدرسة", icon: <School size={20} /> },
-  { id: "identity", title: "الهوية", icon: <Image size={20} /> },
+  { id: "identity", title: "الهوية", icon: <ImageIcon size={20} /> },
   { id: "academic", title: "العام الدراسي", icon: <Building2 size={20} /> },
   { id: "classes", title: "الفصول", icon: <Building2 size={20} /> },
   { id: "subjects", title: "المواد", icon: <BookOpenCheck size={20} /> },
@@ -368,7 +372,7 @@ export default function SettingsPage() {
     window.setTimeout(() => setToast(null), 3500);
   }, []);
 
-  async function countRows(table: string, role?: string) {
+  const countRows = useCallback(async (table: string, role?: string) => {
     if (!schoolId) return 0;
 
     try {
@@ -390,12 +394,12 @@ export default function SettingsPage() {
     } catch {
       return 0;
     }
-  }
+  }, [schoolId]);
 
   const fetchSettings = useCallback(async () => {
     if (!schoolId) return;
 
-    const data = await safeQuery<any | null>(
+    const data = await safeQuery<(Partial<SchoolSettings> & { term_system?: SemesterSystem | null }) | null>(
       supabase
         .from("settings")
         .select("*")
@@ -441,8 +445,11 @@ export default function SettingsPage() {
       secondary_color: data.secondary_color || "#C1B489",
       academic_year: data.academic_year || "1447",
       semester: data.semester || "الفصل الدراسي الأول",
-      semester_system:
-        data.semester_system || data.term_system || currentSchool?.semester_system || "ثلاثة فصول",
+      semester_system: normalizeSemesterSystem(
+        data.semester_system ||
+          data.term_system ||
+          currentSchool?.semester_system,
+      ),
       year_start_date: data.year_start_date || "",
       year_end_date: data.year_end_date || "",
       enable_notifications: data.enable_notifications ?? true,
@@ -493,7 +500,7 @@ export default function SettingsPage() {
       administrativeStaff,
       counselors,
     });
-  }, [schoolId]);
+  }, [countRows, schoolId]);
 
   const fetchSubjects = useCallback(async () => {
     if (!schoolId) return;
@@ -1072,7 +1079,7 @@ export default function SettingsPage() {
         title: "الهوية غير مكتملة",
         description: "ارفع شعار المدرسة لتحسين التقارير والواجهات.",
         tone: "gold",
-        icon: <Image className="h-5 w-5" />,
+        icon: <ImageIcon className="h-5 w-5" />,
       });
     }
 
@@ -1333,13 +1340,16 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-5 rounded-[28px] bg-slate-50 p-5 md:flex-row md:items-center">
                   <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl bg-white shadow-sm">
                     {settings.logo_url ? (
-                      <img
+                      <NextImage
                         src={settings.logo_url}
                         alt="شعار المدرسة"
+                        width={112}
+                        height={112}
                         className="h-full w-full object-contain p-2"
+                        unoptimized
                       />
                     ) : (
-                      <Image className="text-[#15445A]" size={40} />
+                      <ImageIcon className="text-[#15445A]" size={40} />
                     )}
                   </div>
 

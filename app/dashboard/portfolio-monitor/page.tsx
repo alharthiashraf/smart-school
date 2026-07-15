@@ -9,8 +9,6 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import Section from "@/components/ui/page/PageSection";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import KpiCard from "@/components/ui/cards/KpiCard";
-import StatCard from "@/components/ui/cards/StatCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -29,7 +27,6 @@ import {
   Loader2,
   Printer,
   RefreshCcw,
-  Search,
   ShieldCheck,
   TrendingUp,
   Users,

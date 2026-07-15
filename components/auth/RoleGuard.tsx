@@ -1,15 +1,32 @@
 "use client";
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
+
 import { useSchool } from "@/contexts/SchoolContext";
+
+type RoleGuardProps = {
+  allowedRoles: readonly string[];
+  children: ReactNode;
+};
+
+function resolveSchoolRole(school: unknown): string | null {
+  if (!school || typeof school !== "object") return null;
+
+  const record = school as Record<string, unknown>;
+  const candidates = [record.role, record.user_role, record.member_role];
+
+  const role = candidates.find(
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0,
+  );
+
+  return role?.trim() ?? null;
+}
 
 export default function RoleGuard({
   allowedRoles,
   children,
-}: {
-  allowedRoles: readonly string[];
-  children: ReactNode;
-}) {
+}: RoleGuardProps) {
   const { currentSchool, loading } = useSchool();
 
   if (loading) {
@@ -20,13 +37,9 @@ export default function RoleGuard({
     return <div>لا توجد مدرسة مرتبطة بالمستخدم الحالي.</div>;
   }
 
-  const role =
-    (currentSchool as any).role ||
-    (currentSchool as any).user_role ||
-    (currentSchool as any).member_role ||
-    "school_admin";
+  const role = resolveSchoolRole(currentSchool);
 
-  if (!allowedRoles.includes(role)) {
+  if (!role || !allowedRoles.includes(role)) {
     return <div>لا تملك صلاحية الدخول لهذه الصفحة.</div>;
   }
 

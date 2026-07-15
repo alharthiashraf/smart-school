@@ -1,6 +1,12 @@
 "use client";
 
-import { BarChart3, FileText, Sparkles, Users } from "lucide-react";
+import {
+  BarChart3,
+  FileText,
+  Sparkles,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 type Props = {
   schoolName?: string | null;
@@ -29,15 +35,35 @@ export default function GradesHeader({
           <h1 className="text-2xl font-black">{activeTitle}</h1>
 
           <p className="mt-1 text-xs text-slate-200">
-            {schoolName || "المدرسة"} — السلوك والمواظبة مستقلان تمامًا عن المواد.
+            {schoolName || "المدرسة"} — السلوك والمواظبة مستقلان تمامًا عن
+            المواد.
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <Info icon={FileText} label="المدرسة" value={schoolName || "-"} />
-          <Info icon={BarChart3} label="الفصل الدراسي" value={semester || "-"} />
-          <Info icon={FileText} label="السنة" value={academicYear || "-"} />
-          <Info icon={Users} label="الطلاب" value={`${studentsCount}`} />
+          <Info
+            icon={FileText}
+            label="المدرسة"
+            value={schoolName || "-"}
+          />
+
+          <Info
+            icon={BarChart3}
+            label="الفصل الدراسي"
+            value={semester || "-"}
+          />
+
+          <Info
+            icon={FileText}
+            label="السنة"
+            value={academicYear || "-"}
+          />
+
+          <Info
+            icon={Users}
+            label="الطلاب"
+            value={`${studentsCount}`}
+          />
         </div>
       </div>
     </section>
@@ -49,7 +75,7 @@ function Info({
   label,
   value,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string;
 }) {
@@ -59,6 +85,7 @@ function Info({
         <Icon className="h-3 w-3 text-[#d4af37]" />
         {label}
       </div>
+
       <div className="truncate text-sm font-black">{value}</div>
     </div>
   );

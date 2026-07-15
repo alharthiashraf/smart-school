@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
@@ -246,16 +252,12 @@ export default function VicePrincipalPage() {
   const today = getTodayDate();
   const last30Days = getDateDaysAgo(30);
 
-  useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-  }, [currentSchool?.id]);
-
   function showToast(type: Toast["type"], message: string) {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -365,7 +367,19 @@ export default function VicePrincipalPage() {
     setParentCommunications(
       (parentCommunicationsResult.data as ParentCommunication[]) || []
     );
-  }
+  }, [currentSchool?.id, last30Days]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالمستخدم الحالي.");
+      return;
+    }
+
+    void fetchData();
+  }, [currentSchool?.id, fetchData, schoolLoading]);
 
   const studentMap = useMemo(() => {
     return new Map(students.map((student) => [student.id, student]));
@@ -392,10 +406,6 @@ export default function VicePrincipalPage() {
     isOpenStatus(item.status)
   );
 
-  const highRiskInterventions = interventions.filter((item) =>
-    ["مرتفع", "حرج"].includes(String(item.priority || ""))
-  );
-
   const criticalInterventions = interventions.filter(
     (item) => item.priority === "حرج"
   );
@@ -409,7 +419,8 @@ export default function VicePrincipalPage() {
   const recentInterventions = interventions.slice(0, 6);
   const recentHealthCases = healthCases.slice(0, 6);
   const recentParentCommunications = parentCommunications.slice(0, 6);
-    const riskStudents = useMemo<RiskStudent[]>(() => {
+
+  const riskStudents = useMemo<RiskStudent[]>(() => {
     return students
       .map((student) => {
         const studentAttendance = attendance.filter(
@@ -603,7 +614,8 @@ export default function VicePrincipalPage() {
       </RoleGuard>
     );
   }
-    return (
+
+  return (
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <div className="space-y-5" dir="rtl">
@@ -793,7 +805,8 @@ export default function VicePrincipalPage() {
               )}
             </DashboardPanel>
           </section>
-                    <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <DashboardPanel
               title="أحدث الحالات الصحية"
               icon={<HeartPulse size={20} />}

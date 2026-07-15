@@ -14,9 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 
 import {
-  Activity,
   AlertTriangle,
-  BarChart3,
   BrainCircuit,
   CheckCircle2,
   ChartNoAxesCombined,

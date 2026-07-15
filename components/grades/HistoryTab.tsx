@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type LucideIcon,
   CalendarClock,
   Clock3,
   History,
@@ -282,7 +283,7 @@ function Stat({
   label,
   value,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
 }) {

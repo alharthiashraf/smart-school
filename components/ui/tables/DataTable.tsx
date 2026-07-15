@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { ArrowDownUp, Check } from "lucide-react";
 
 import DataTableEmpty from "./DataTableEmpty";
@@ -89,6 +89,20 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   const activeSearch = searchValue ?? localSearch;
 
+  const getRowId = useCallback(
+    (row: T, index: number) => {
+      if (getRowKey) return getRowKey(row, index);
+
+      const intrinsicId = row.id;
+      if (typeof intrinsicId === "string" || typeof intrinsicId === "number") {
+        return String(intrinsicId);
+      }
+
+      return String(index);
+    },
+    [getRowKey],
+  );
+
   const visibleColumns = useMemo(
     () => columns.filter((column) => !column.hidden),
     [columns],
@@ -128,15 +142,14 @@ export default function DataTable<T extends Record<string, unknown>>({
     return data.filter((row, index) =>
       selectedKeys.includes(getRowId(row, index)),
     );
-  }, [data, selectedKeys]);
+  }, [data, getRowId, selectedKeys]);
 
-  const allPageKeys = paginatedData.map((row, index) => getRowId(row, index));
+  const pageStartIndex = (page - 1) * pageSize;
+  const allPageKeys = paginatedData.map((row, index) =>
+    getRowId(row, pageStartIndex + index),
+  );
   const allPageSelected =
     allPageKeys.length > 0 && allPageKeys.every((key) => selectedKeys.includes(key));
-
-  function getRowId(row: T, index: number) {
-    return getRowKey ? getRowKey(row, index) : String(index);
-  }
 
   function setSearch(value: string) {
     setPage(1);
@@ -269,7 +282,8 @@ export default function DataTable<T extends Record<string, unknown>>({
 
               <tbody>
                 {paginatedData.map((row, index) => {
-                  const rowKey = getRowId(row, index);
+                  const absoluteIndex = pageStartIndex + index;
+                  const rowKey = getRowId(row, absoluteIndex);
                   const selected = selectedKeys.includes(rowKey);
 
                   return (

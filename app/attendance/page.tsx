@@ -8,9 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Activity,
   AlertTriangle,
-  BarChart3,
   BrainCircuit,
   CalendarDays,
   ChartNoAxesCombined,

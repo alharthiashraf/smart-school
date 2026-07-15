@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type LucideIcon,
   Activity,
   BookOpen,
   CalendarClock,
@@ -380,7 +381,7 @@ export default function StudentDrawer({
   );
 }
 
-function SectionTitle({ icon: Icon, title }: { icon: any; title: string }) {
+function SectionTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <div className="mb-3 mt-6 flex items-center gap-2 text-sm font-black text-slate-900">
       <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[#0f1f3d] text-white">
@@ -397,7 +398,7 @@ function SummaryCard({
   value,
   hint,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string;
   hint: string;

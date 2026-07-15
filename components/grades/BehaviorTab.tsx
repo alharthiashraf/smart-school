@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type LucideIcon,
   AlertTriangle,
   Minus,
   Plus,
@@ -312,7 +313,7 @@ function Stat({
   label,
   value,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
 }) {

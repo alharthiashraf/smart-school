@@ -27,11 +27,8 @@ import { type SchoolRole } from "@/lib/permissions";
 
 import {
   Activity,
-  AlertTriangle,
   BadgeCheck,
   BrainCircuit,
-  CheckCircle2,
-  Clock3,
   DatabaseZap,
   Fingerprint,
   Gauge,
@@ -40,10 +37,8 @@ import {
   LockKeyhole,
   RefreshCcw,
   Search,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
-  Target,
   UserCheck,
   UserRoundX,
   Users,

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type LucideIcon,
   AlertTriangle,
   BarChart3,
   BookOpen,
@@ -405,7 +406,7 @@ function HeroStat({
   label,
   value,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
 }) {
@@ -427,7 +428,7 @@ function MetricCard({
   subtitle,
   percent,
 }: {
-  icon: any;
+  icon: LucideIcon;
   title: string;
   value: string;
   subtitle: string;
@@ -506,7 +507,7 @@ function RankingCard({
   tone,
 }: {
   title: string;
-  icon: any;
+  icon: LucideIcon;
   rows: AnalyticsStudentRow[];
   tone: "top" | "low";
 }) {
@@ -572,7 +573,7 @@ function FollowCard({
   rows,
 }: {
   title: string;
-  icon: any;
+  icon: LucideIcon;
   rows: { name: string; value: string; subtitle: string }[];
 }) {
   return (

@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Edit,
-  FileText,
   Loader2,
   Plus,
   RefreshCcw,

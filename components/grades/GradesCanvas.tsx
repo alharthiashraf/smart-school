@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
+  type LucideIcon,
   AlertTriangle,
   CheckCircle2,
   Loader2,
@@ -141,14 +142,21 @@ export default function GradesCanvas({
     return componentsMax > 0 ? componentsMax : toNumber(totalMax);
   }, [orderedComponents, totalMax]);
 
-  function getScore(studentId: string, componentId: string) {
-    return (
-      scores.find(
-        (score) =>
-          score.student_id === studentId && score.component_id === componentId
-      )?.score ?? 0
-    );
-  }
+  const scoreMap = useMemo(() => {
+    const map = new Map<string, number>();
+
+    for (const score of scores) {
+      map.set(`${score.student_id}-${score.component_id}`, score.score);
+    }
+
+    return map;
+  }, [scores]);
+
+  const getScore = useCallback(
+    (studentId: string, componentId: string) =>
+      scoreMap.get(`${studentId}-${componentId}`) ?? 0,
+    [scoreMap]
+  );
 
   const rows = useMemo(() => {
     const q = normalizeSearch(search);
@@ -175,11 +183,7 @@ export default function GradesCanvas({
 
         const missing = orderedComponents.some(
           (component) =>
-            !scores.some(
-              (score) =>
-                score.student_id === student.id &&
-                score.component_id === component.id
-            )
+            !scoreMap.has(`${student.id}-${component.id}`)
         );
 
         return {
@@ -191,7 +195,14 @@ export default function GradesCanvas({
           status: percent >= 60 ? "ناجح" : "راسب",
         };
       });
-  }, [students, orderedComponents, scores, search, actualMax]);
+  }, [
+    actualMax,
+    getScore,
+    orderedComponents,
+    scoreMap,
+    search,
+    students,
+  ]);
 
   const summary = useMemo(() => {
     const passed = rows.filter((row) => row.percent >= 60).length;
@@ -221,7 +232,7 @@ export default function GradesCanvas({
         average: avg,
       };
     });
-  }, [rows, orderedComponents, scores]);
+  }, [rows, orderedComponents, getScore]);
 
   function focusCell(rowIndex: number, colIndex: number) {
     const row = rows[rowIndex];
@@ -610,7 +621,7 @@ function SummaryCard({
   value,
   tone = "default",
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   tone?: "default" | "success" | "danger" | "warning";

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Loader2, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 
 import type { DataTableAction } from "./DataTable";
 

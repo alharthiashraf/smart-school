@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type LucideIcon,
   AlertTriangle,
   CalendarCheck,
   Clock3,
@@ -81,7 +82,6 @@ export default function AttendanceTab({
     ? Math.round(rows.reduce((sum, row) => sum + row.score, 0) / rows.length)
     : 0;
 
-  const excellent = rows.filter((row) => row.score >= 95).length;
   const regular = rows.filter((row) => row.score >= 90).length;
   const follow = rows.filter((row) => row.score < 75).length;
   const critical = rows.filter((row) => row.score < 60).length;
@@ -309,7 +309,7 @@ function Stat({
   label,
   value,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
 }) {

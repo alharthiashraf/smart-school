@@ -19,7 +19,6 @@ import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
-  Activity,
   AlertTriangle,
   Award,
   BarChart3,
@@ -37,8 +36,6 @@ import {
   Printer,
   RefreshCcw,
   ShieldAlert,
-  Target,
-  TrendingDown,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -1117,7 +1114,7 @@ export default function AnalyticsPage() {
   function exportPDF() {
     const data = getExportData();
 
-    (exportTableToPDF as any)({
+    exportTableToPDF({
       title: data.title,
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: "تقرير صادر من مركز التحليلات الذكية",
@@ -1132,7 +1129,7 @@ export default function AnalyticsPage() {
   function exportExcel() {
     const data = getExportData();
 
-    (exportTableToExcel as any)({
+    exportTableToExcel({
       title: data.title,
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: "تقرير صادر من مركز التحليلات الذكية",

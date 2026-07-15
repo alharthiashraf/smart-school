@@ -74,6 +74,70 @@ type Student = {
   grade_level?: string | null;
 };
 
+type AlertRow = {
+  id: string;
+  school_id: string;
+  student_id: string | null;
+  alert_type: string | null;
+  title: string | null;
+  message: string | null;
+  severity: string | null;
+  is_read: boolean | null;
+  created_at: string | null;
+};
+
+type NotificationRow = {
+  id: string;
+  school_id: string;
+  title: string | null;
+  body: string | null;
+  type: string | null;
+  is_read: boolean | null;
+  created_at: string | null;
+};
+
+type ReferralRow = {
+  id: string;
+  school_id: string;
+  student_id: string | null;
+  referral_type: string | null;
+  priority: string | null;
+  status: string | null;
+  title: string | null;
+  description: string | null;
+  reason: string | null;
+  referral_date: string | null;
+  created_at: string | null;
+};
+
+type InterventionRow = {
+  id: string;
+  school_id: string;
+  student_id: string | null;
+  intervention_type: string | null;
+  status: string | null;
+  priority: string | null;
+  title: string | null;
+  description: string | null;
+  action_taken: string | null;
+  intervention_date: string | null;
+  created_at: string | null;
+};
+
+type HealthCaseRow = {
+  id: string;
+  school_id: string;
+  student_id: string | null;
+  case_type: string | null;
+  severity: string | null;
+  status: string | null;
+  title: string | null;
+  symptoms: string | null;
+  action_taken: string | null;
+  incident_date: string | null;
+  created_at: string | null;
+};
+
 type Toast = {
   type: "success" | "error";
   message: string;
@@ -215,7 +279,7 @@ export default function AlertsPage() {
 
     if (error) throw error;
 
-    return (data || []).map((item: any) => ({
+    return (data || []).map((item: AlertRow) => ({
       id: item.id,
       source: "alerts",
       school_id: item.school_id,
@@ -241,7 +305,7 @@ export default function AlertsPage() {
 
     if (error) throw error;
 
-    return (data || []).map((item: any) => ({
+    return (data || []).map((item: NotificationRow) => ({
       id: item.id,
       source: "notifications",
       school_id: item.school_id,
@@ -267,7 +331,7 @@ export default function AlertsPage() {
 
     if (error) throw error;
 
-    return (data || []).map((item: any) => ({
+    return (data || []).map((item: ReferralRow) => ({
       id: item.id,
       source: "student_referrals",
       school_id: item.school_id,
@@ -293,7 +357,7 @@ export default function AlertsPage() {
 
     if (error) throw error;
 
-    return (data || []).map((item: any) => ({
+    return (data || []).map((item: InterventionRow) => ({
       id: item.id,
       source: "student_interventions",
       school_id: item.school_id,
@@ -319,7 +383,7 @@ export default function AlertsPage() {
 
     if (error) throw error;
 
-    return (data || []).map((item: any) => ({
+    return (data || []).map((item: HealthCaseRow) => ({
       id: item.id,
       source: "health_cases",
       school_id: item.school_id,

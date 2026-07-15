@@ -9,191 +9,151 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Award,
-  BookOpenCheck,
-  BriefcaseBusiness,
-  CalendarCheck,
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Clock,
   Download,
   Eye,
   FileText,
-  GraduationCap,
+  Grid2X2,
+  List,
+  Loader2,
   Pencil,
   Plus,
+  Printer,
   RefreshCcw,
   Save,
   Search,
+  ShieldCheck,
   Trash2,
-  UserRoundCheck,
+  UserRound,
   Users,
-  UsersRound,
   X,
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
-import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
-import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
-import EmptyState from "@/components/ui/empty-state/EmptyState";
-import PageLoader from "@/components/ui/loading/PageLoader";
-import UiStatusBadge from "@/components/ui/badges/StatusBadge";
 import { useSchool } from "@/contexts/SchoolContext";
-import { supabase } from "@/lib/supabase";
+import {
+  StudentsService,
+  type AttendanceStatus,
+  type SchoolGradeSubjectRecord,
+  type StudentAttendanceRecord,
+  type StudentPeriodScoreRecord,
+  type StudentRecord,
+} from "@/services/students.service";
 import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
-type Teacher = {
-  id: string;
-  school_id?: string | null;
-  full_name: string;
-  employee_number?: string | null;
-  photo_url?: string | null;
-  subject?: string | null;
-  department?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  weekly_load?: number | null;
+type Student = StudentRecord & {
+  grade_level?: string | null;
+  classroom?: string | null;
+  section?: string | null;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  guardian_email?: string | null;
+  parent_email?: string | null;
   status?: string | null;
-  admin_notes?: string | null;
-  created_at?: string | null;
 };
 
-type TeacherSchedule = {
-  id: string;
-  teacher_id: string;
-  school_id?: string | null;
+type Attendance = StudentAttendanceRecord;
+type StudentPeriodScore = StudentPeriodScoreRecord;
+type SchoolGradeSubject = SchoolGradeSubjectRecord;
+
+type StudentWithAverage = Student & {
+  average: number;
+  hasGrades: boolean;
+  absenceCount: number;
+  todayStatus?: string;
 };
 
-type WaitingPeriod = {
-  id: string;
-  teacher_id: string;
-  school_id?: string | null;
-  approval_status?: string | null;
+type StudentForm = {
+  full_name: string;
+  national_id: string;
+  student_number: string;
+  grade_level: string;
+  classroom: string;
+  section: string;
+  guardian_name: string;
+  guardian_phone: string;
+  guardian_email: string;
+  status: string;
 };
-
-type PortfolioItem = {
-  id: string;
-  teacher_id: string;
-  school_id?: string | null;
-  review_status?: string | null;
-};
-
-type TeacherSubject = {
-  id: string;
-  teacher_id: string;
-  school_id?: string | null;
-};
-
-type TeacherClass = {
-  id: string;
-  teacher_id: string;
-  school_id?: string | null;
-};
-
-type TeacherWithStats = Teacher & {
-  scheduleCount: number;
-  waitingCount: number;
-  pendingWaiting: number;
-  portfolioCount: number;
-  pendingPortfolio: number;
-  assignedSubjectsCount: number;
-  assignedClassesCount: number;
-};
-
-type TeacherAnalytics = {
-  topDepartments: Array<{ name: string; count: number; load: number }>;
-  topSubjects: Array<{ name: string; count: number }>;
-  withoutSubjects: number;
-  withoutClasses: number;
-  withoutSchedule: number;
-  highLoad: number;
-  portfolioMissing: number;
-  averageWeeklyLoad: number;
-};
-
-type TeacherSmartInsight = {
-  title: string;
-  description: string;
-  tone: "green" | "gold" | "red" | "blue" | "teal";
-  icon: ReactNode;
-};
-
 
 type Toast = {
   type: "success" | "error";
   message: string;
 };
 
-type TeacherForm = {
-  full_name: string;
-  employee_number: string;
-  photo_url: string;
-  subject: string;
-  department: string;
-  phone: string;
-  email: string;
-  weekly_load: string;
-  status: string;
-  admin_notes: string;
-};
+type ViewMode = "table" | "cards";
 
 const PAGE_SIZE = 10;
+const DEFAULT_STATUS = "نشط";
+const STUDENT_STATUSES = ["نشط", "منقول", "منسحب", "متخرج", "غير نشط"];
 
-const DEFAULT_STATUS = "على رأس العمل";
-
-const TEACHER_STATUSES = [
-  "على رأس العمل",
-  "مكلف",
-  "منتدب",
-  "إجازة",
-  "غير نشط",
-];
-
-const emptyForm: TeacherForm = {
+const emptyForm: StudentForm = {
   full_name: "",
-  employee_number: "",
-  photo_url: "",
-  subject: "",
-  department: "",
-  phone: "",
-  email: "",
-  weekly_load: "",
+  national_id: "",
+  student_number: "",
+  grade_level: "",
+  classroom: "",
+  section: "",
+  guardian_name: "",
+  guardian_phone: "",
+  guardian_email: "",
   status: DEFAULT_STATUS,
-  admin_notes: "",
 };
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offset * 60 * 1000);
+  return localDate.toISOString().slice(0, 10);
 }
 
-function isPending(value?: string | null) {
-  const normalized = String(value || "").trim().toLowerCase();
+function normalizeAttendance(status?: string | null) {
+  const value = String(status || "").trim().toLowerCase();
 
-  return (
-    !normalized ||
-    ["بانتظار الموافقة", "بانتظار المراجعة", "pending", "review"].includes(
-      normalized,
-    )
-  );
+  if (["present", "حاضر", "حضور"].includes(value)) return "present";
+  if (["absent", "غائب", "غياب"].includes(value)) return "absent";
+  if (["late", "متأخر", "تأخر", "تاخر"].includes(value)) return "late";
+  if (["clinic", "عيادة", "excused", "مستأذن", "تحويل إلى العيادة الصحية"].includes(value)) return "clinic";
+
+  return "none";
 }
 
-function isActiveTeacher(status?: string | null) {
-  const normalized = String(status || "").trim().toLowerCase();
-
-  return (
-    !normalized ||
-    normalized === "active" ||
-    normalized === "على رأس العمل"
-  );
+function isPresent(status?: string | null) {
+  return normalizeAttendance(status) === "present";
 }
 
-function safeNumber(value: string) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
+function isAbsent(status?: string | null) {
+  return normalizeAttendance(status) === "absent";
+}
+
+function isLate(status?: string | null) {
+  return normalizeAttendance(status) === "late";
+}
+
+function isClinic(status?: string | null) {
+  return normalizeAttendance(status) === "clinic";
+}
+
+function getStatusLabel(status?: string | null) {
+  const normalized = normalizeAttendance(status);
+
+  if (normalized === "present") return "حاضر";
+  if (normalized === "absent") return "غائب";
+  if (normalized === "late") return "متأخر";
+  if (normalized === "clinic") return "عيادة";
+
+  return "لم يسجل";
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {
@@ -207,99 +167,45 @@ function percentage(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
-function dashboardTokenTone(tone: TeacherSmartInsight["tone"]) {
-  const tones: Record<TeacherSmartInsight["tone"], string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
-  };
-
-  return tones[tone];
-}
-
-function progressBarColor(tone: TeacherSmartInsight["tone"]) {
-  const colors: Record<TeacherSmartInsight["tone"], string> = {
-    green: "bg-[var(--app-green)]",
-    gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
-  };
-
-  return colors[tone];
-}
-
-function buildTeacherTimeline(teacher: TeacherWithStats | null) {
-  if (!teacher) return [];
-
-  return [
-    {
-      title: "تم فتح الملف المختصر",
-      description: "استعراض بيانات المعلم ومؤشرات الإسناد والجدول.",
-      time: "الآن",
-    },
-    {
-      title: "حالة الجدول",
-      description: `عدد الحصص المجدولة: ${teacher.scheduleCount}`,
-      time: "آخر مزامنة",
-    },
-    {
-      title: "حالة الإسناد",
-      description: `مواد: ${teacher.assignedSubjectsCount} · فصول: ${teacher.assignedClassesCount}`,
-      time: "تحليل مباشر",
-    },
-    {
-      title: "ملف الشواهد",
-      description: `الشواهد: ${teacher.portfolioCount} · قيد المراجعة: ${teacher.pendingPortfolio}`,
-      time: "ملف الأداء",
-    },
-  ];
-}
-
-
 function getExportHeaders() {
   return [
-    "اسم المعلم",
-    "الرقم الوظيفي",
-    "المادة",
-    "القسم",
-    "الجوال",
-    "البريد",
-    "النصاب الأسبوعي",
-    "الحالة",
-    "المواد المسندة",
-    "الفصول المسندة",
-    "عدد الحصص المجدولة",
-    "حصص الانتظار",
-    "انتظار معلق",
-    "الشواهد",
-    "شواهد قيد المراجعة",
+    "رقم الطالب",
+    "رقم الهوية",
+    "اسم الطالب",
+    "المرحلة",
+    "الفصل",
+    "الشعبة",
+    "ولي الأمر",
+    "جوال ولي الأمر",
+    "بريد ولي الأمر",
+    "حضور اليوم",
+    "متوسط الدرجات",
+    "حالة التحصيل",
+    "الحالة العامة",
   ];
 }
 
-function getExportRows(source: TeacherWithStats[]) {
-  return source.map((teacher) => [
-    teacher.full_name || "-",
-    teacher.employee_number || "-",
-    teacher.subject || "-",
-    teacher.department || "-",
-    teacher.phone || "-",
-    teacher.email || "-",
-    teacher.weekly_load ?? "-",
-    teacher.status || "-",
-    teacher.assignedSubjectsCount,
-    teacher.assignedClassesCount,
-    teacher.scheduleCount,
-    teacher.waitingCount,
-    teacher.pendingWaiting,
-    teacher.portfolioCount,
-    teacher.pendingPortfolio,
-  ]);
+function gradeTone(average: number) {
+  if (average >= 90) return "bg-[#07A869]/10 text-[#07A869]";
+  if (average >= 60) return "bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (average > 0) return "bg-red-50 text-red-700";
+  return "bg-slate-100 text-slate-500";
 }
 
-export default function TeachersPage() {
+function riskLabel(student: StudentWithAverage) {
+  if (student.absenceCount >= 5 || (student.average > 0 && student.average < 60)) return "عالي";
+  if (student.absenceCount >= 3 || (student.average > 0 && student.average < 75)) return "متوسط";
+  return "مستقر";
+}
+
+function riskTone(student: StudentWithAverage) {
+  const label = riskLabel(student);
+  if (label === "عالي") return "bg-red-50 text-red-700";
+  if (label === "متوسط") return "bg-[#C1B489]/20 text-[#15445A]";
+  return "bg-[#07A869]/10 text-[#07A869]";
+}
+
+export default function StudentsPage() {
   const {
     currentSchool,
     currentRole,
@@ -308,41 +214,52 @@ export default function TeachersPage() {
   } = useSchool();
 
   const canManage =
-    hasPermission("teachers.manage") ||
+    hasPermission("students.manage") ||
     currentRole === "super_admin" ||
-    currentRole === "school_admin";
+    currentRole === "school_admin" ||
+    currentRole === "administrative_staff";
 
-  const canView =
-    hasPermission("teachers.view") ||
+  const canMarkAttendance =
+    hasPermission("attendance.manage") ||
     currentRole === "super_admin" ||
     currentRole === "school_admin" ||
     currentRole === "vice_principal" ||
-    currentRole === "administrative_staff";
+    currentRole === "administrative_staff" ||
+    currentRole === "teacher";
 
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [schedules, setSchedules] = useState<TeacherSchedule[]>([]);
-  const [waitingPeriods, setWaitingPeriods] = useState<WaitingPeriod[]>([]);
-  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
-  const [teacherSubjects, setTeacherSubjects] = useState<TeacherSubject[]>([]);
-  const [teacherClasses, setTeacherClasses] = useState<TeacherClass[]>([]);
+  const canView =
+    hasPermission("students.view") ||
+    currentRole === "super_admin" ||
+    currentRole === "school_admin" ||
+    currentRole === "vice_principal" ||
+    currentRole === "administrative_staff" ||
+    currentRole === "teacher" ||
+    currentRole === "student_counselor" ||
+    currentRole === "health_supervisor";
+
+  const [students, setStudents] = useState<Student[]>([]);
+  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [scores, setScores] = useState<StudentPeriodScore[]>([]);
+  const [gradeSubjects, setGradeSubjects] = useState<SchoolGradeSubject[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
-  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [gradeFilter, setGradeFilter] = useState("all");
+  const [classroomFilter, setClassroomFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [quickFilter, setQuickFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedTeacher, setSelectedTeacher] =
-    useState<TeacherWithStats | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentWithAverage | null>(null);
+  const [attendanceMenuId, setAttendanceMenuId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [form, setForm] = useState<TeacherForm>(emptyForm);
+  const [form, setForm] = useState<StudentForm>(emptyForm);
 
   const today = todayISO();
 
@@ -360,101 +277,20 @@ export default function TeachersPage() {
     setLoading(true);
 
     try {
-      const schoolId = currentSchool.id;
+      const result = await StudentsService.getDashboard(currentSchool.id);
 
-      const [
-        teachersResult,
-        scheduleResult,
-        waitingResult,
-        portfolioResult,
-        subjectsResult,
-        classesResult,
-      ] = await Promise.allSettled([
-        supabase
-          .from("teachers")
-          .select(
-            "id, school_id, full_name, employee_number, photo_url, subject, department, phone, email, weekly_load, status, admin_notes, created_at",
-          )
-          .eq("school_id", schoolId)
-          .order("created_at", { ascending: false }),
-
-        supabase
-          .from("teacher_schedule")
-          .select("id, teacher_id, school_id")
-          .eq("school_id", schoolId),
-
-        supabase
-          .from("teacher_waiting_periods")
-          .select("id, teacher_id, school_id, approval_status")
-          .eq("school_id", schoolId),
-
-        supabase
-          .from("teacher_portfolio")
-          .select("id, teacher_id, school_id, review_status")
-          .eq("school_id", schoolId),
-
-        supabase
-          .from("teacher_subjects")
-          .select("id, teacher_id, school_id")
-          .eq("school_id", schoolId),
-
-        supabase
-          .from("teacher_classes")
-          .select("id, teacher_id, school_id")
-          .eq("school_id", schoolId),
-      ]);
-
-      if (teachersResult.status === "fulfilled") {
-        if (teachersResult.value.error) throw teachersResult.value.error;
-        setTeachers((teachersResult.value.data as Teacher[]) || []);
+      if (result.error) {
+        showToast("error", result.error);
       }
 
-      if (scheduleResult.status === "fulfilled") {
-        setSchedules(
-          scheduleResult.value.error
-            ? []
-            : ((scheduleResult.value.data as TeacherSchedule[]) || []),
-        );
-      }
-
-      if (waitingResult.status === "fulfilled") {
-        setWaitingPeriods(
-          waitingResult.value.error
-            ? []
-            : ((waitingResult.value.data as WaitingPeriod[]) || []),
-        );
-      }
-
-      if (portfolioResult.status === "fulfilled") {
-        setPortfolioItems(
-          portfolioResult.value.error
-            ? []
-            : ((portfolioResult.value.data as PortfolioItem[]) || []),
-        );
-      }
-
-      if (subjectsResult.status === "fulfilled") {
-        setTeacherSubjects(
-          subjectsResult.value.error
-            ? []
-            : ((subjectsResult.value.data as TeacherSubject[]) || []),
-        );
-      }
-
-      if (classesResult.status === "fulfilled") {
-        setTeacherClasses(
-          classesResult.value.error
-            ? []
-            : ((classesResult.value.data as TeacherClass[]) || []),
-        );
-      }
-
+      setStudents(result.data?.students ?? []);
+      setAttendance(result.data?.attendance ?? []);
+      setScores(result.data?.scores ?? []);
+      setGradeSubjects(result.data?.gradeSubjects ?? []);
       setSelectedIds([]);
+      setAttendanceMenuId(null);
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "تعذر تحميل بيانات المعلمين";
+      const message = error instanceof Error ? error.message : "تعذر تحميل بيانات الطلاب";
       showToast("error", message);
     } finally {
       setLoading(false);
@@ -462,29 +298,21 @@ export default function TeachersPage() {
   }, [currentSchool?.id, showToast]);
 
   useEffect(() => {
-    if (!schoolLoading) {
-      void fetchAllData();
-    }
+    if (!schoolLoading) void fetchAllData();
   }, [schoolLoading, fetchAllData]);
 
   useEffect(() => {
     setPage(1);
     setSelectedIds([]);
-  }, [search, departmentFilter, subjectFilter, statusFilter, quickFilter]);
+  }, [search, gradeFilter, classroomFilter, statusFilter, quickFilter]);
 
   function resetForm() {
     setEditingId(null);
     setForm(emptyForm);
   }
 
-  function updateForm<K extends keyof TeacherForm>(
-    key: K,
-    value: TeacherForm[K],
-  ) {
-    setForm((current) => ({
-      ...current,
-      [key]: value,
-    }));
+  function updateForm<K extends keyof StudentForm>(key: K, value: StudentForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
   }
 
   function openAddForm() {
@@ -498,30 +326,27 @@ export default function TeachersPage() {
     setShowForm(false);
   }
 
-  function startEdit(teacher: Teacher) {
+  function startEdit(student: Student) {
     setShowForm(true);
-    setEditingId(teacher.id);
+    setEditingId(student.id);
     setForm({
-      full_name: teacher.full_name || "",
-      employee_number: teacher.employee_number || "",
-      photo_url: teacher.photo_url || "",
-      subject: teacher.subject || "",
-      department: teacher.department || "",
-      phone: teacher.phone || "",
-      email: teacher.email || "",
-      weekly_load:
-        teacher.weekly_load === null || teacher.weekly_load === undefined
-          ? ""
-          : String(teacher.weekly_load),
-      status: teacher.status || DEFAULT_STATUS,
-      admin_notes: teacher.admin_notes || "",
+      full_name: student.full_name || "",
+      national_id: student.national_id || "",
+      student_number: student.student_number || "",
+      grade_level: student.grade_level || "",
+      classroom: student.classroom || "",
+      section: student.section || "",
+      guardian_name: student.guardian_name || "",
+      guardian_phone: student.guardian_phone || "",
+      guardian_email: student.guardian_email || student.parent_email || "",
+      status: student.status || DEFAULT_STATUS,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function saveTeacher() {
+  async function saveStudent() {
     if (!canManage) {
-      showToast("error", "لا تملك صلاحية إدارة المعلمين.");
+      showToast("error", "لا تملك صلاحية إدارة الطلاب.");
       return;
     }
 
@@ -531,7 +356,7 @@ export default function TeachersPage() {
     }
 
     if (!form.full_name.trim()) {
-      showToast("error", "يرجى إدخال اسم المعلم.");
+      showToast("error", "يرجى إدخال اسم الطالب.");
       return;
     }
 
@@ -540,392 +365,265 @@ export default function TeachersPage() {
     const payload = {
       school_id: currentSchool.id,
       full_name: form.full_name.trim(),
-      employee_number: form.employee_number.trim() || null,
-      photo_url: form.photo_url.trim() || null,
-      subject: form.subject.trim() || null,
-      department: form.department.trim() || null,
-      phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
-      weekly_load: form.weekly_load.trim()
-        ? safeNumber(form.weekly_load)
-        : null,
+      national_id: form.national_id.trim() || null,
+      student_number: form.student_number.trim() || null,
+      grade_level: form.grade_level.trim() || null,
+      classroom: form.classroom.trim() || null,
+      section: form.section.trim() || null,
+      guardian_name: form.guardian_name.trim() || null,
+      guardian_phone: form.guardian_phone.trim() || null,
+      guardian_email: form.guardian_email.trim() || null,
+      parent_email: form.guardian_email.trim() || null,
       status: form.status.trim() || DEFAULT_STATUS,
-      admin_notes: form.admin_notes.trim() || null,
     };
 
-    const { error } = editingId
-      ? await supabase
-          .from("teachers")
-          .update(payload)
-          .eq("id", editingId)
-          .eq("school_id", currentSchool.id)
-      : await supabase.from("teachers").insert(payload);
+    const result = editingId
+      ? await StudentsService.update(currentSchool.id, editingId, payload)
+      : await StudentsService.create(payload);
 
     setSaving(false);
 
-    if (error) {
-      showToast("error", error.message);
+    if (result.error) {
+      showToast("error", result.error);
       return;
     }
 
-    showToast(
-      "success",
-      editingId ? "تم تعديل بيانات المعلم." : "تمت إضافة المعلم.",
-    );
-
+    showToast("success", editingId ? "تم تعديل بيانات الطالب." : "تمت إضافة الطالب.");
     closeForm();
     void fetchAllData();
   }
 
-  async function deleteTeacher(id: string) {
+  async function deleteStudent(id: string) {
     if (!canManage || !currentSchool?.id) return;
 
-    const confirmed = window.confirm("هل تريد حذف المعلم؟");
+    const confirmed = window.confirm("هل تريد حذف الطالب؟");
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from("teachers")
-      .delete()
-      .eq("id", id)
-      .eq("school_id", currentSchool.id);
+    const result = await StudentsService.remove(currentSchool.id, id);
 
-    if (error) {
-      showToast("error", error.message);
+    if (result.error) {
+      showToast("error", result.error);
       return;
     }
 
-    if (selectedTeacher?.id === id) setSelectedTeacher(null);
+    if (selectedStudent?.id === id) setSelectedStudent(null);
 
-    showToast("success", "تم حذف المعلم.");
+    showToast("success", "تم حذف الطالب.");
     void fetchAllData();
   }
 
-  async function deleteSelectedTeachers() {
+  async function deleteSelectedStudents() {
     if (!canManage || !currentSchool?.id || selectedIds.length === 0) return;
 
-    const confirmed = window.confirm(
-      `هل تريد حذف ${selectedIds.length} معلم؟`,
-    );
-
+    const confirmed = window.confirm(`هل تريد حذف ${selectedIds.length} طالب؟`);
     if (!confirmed) return;
 
-    const { error } = await supabase
-      .from("teachers")
-      .delete()
-      .eq("school_id", currentSchool.id)
-      .in("id", selectedIds);
+    const result = await StudentsService.removeMany(currentSchool.id, selectedIds);
 
-    if (error) {
-      showToast("error", error.message);
+    if (result.error) {
+      showToast("error", result.error);
       return;
     }
 
-    showToast("success", "تم حذف المعلمين المحددين.");
+    showToast("success", "تم حذف الطلاب المحددين.");
     setSelectedIds([]);
-    setSelectedTeacher(null);
+    setSelectedStudent(null);
     void fetchAllData();
   }
 
   async function updateSelectedStatus(newStatus: string) {
     if (!canManage || !currentSchool?.id || selectedIds.length === 0) return;
 
-    const { error } = await supabase
-      .from("teachers")
-      .update({ status: newStatus })
-      .eq("school_id", currentSchool.id)
-      .in("id", selectedIds);
+    const result = await StudentsService.updateStatus(currentSchool.id, selectedIds, newStatus);
 
-    if (error) {
-      showToast("error", error.message);
+    if (result.error) {
+      showToast("error", result.error);
       return;
     }
 
-    showToast("success", "تم تحديث حالة المعلمين المحددين.");
+    showToast("success", "تم تحديث حالة الطلاب المحددين.");
     setSelectedIds([]);
     void fetchAllData();
   }
 
-  const departments = useMemo(
-    () => uniqueValues(teachers.map((teacher) => teacher.department)),
-    [teachers],
-  );
+  async function markAttendance(studentId: string, status: AttendanceStatus) {
+    if (!canMarkAttendance) {
+      showToast("error", "لا تملك صلاحية تسجيل الحضور.");
+      return;
+    }
 
-  const subjects = useMemo(
-    () => uniqueValues(teachers.map((teacher) => teacher.subject)),
-    [teachers],
-  );
+    if (!currentSchool?.id) return;
 
-  const statuses = useMemo(
-    () => uniqueValues(teachers.map((teacher) => teacher.status)),
-    [teachers],
-  );
-
-  const teachersWithStats = useMemo(() => {
-    return teachers.map((teacher) => {
-      const teacherSchedules = schedules.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const teacherWaiting = waitingPeriods.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const teacherPortfolio = portfolioItems.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const assignedSubjects = teacherSubjects.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-      const assignedClasses = teacherClasses.filter(
-        (item) => item.teacher_id === teacher.id,
-      );
-
-      return {
-        ...teacher,
-        scheduleCount: teacherSchedules.length,
-        waitingCount: teacherWaiting.length,
-        pendingWaiting: teacherWaiting.filter((item) =>
-          isPending(item.approval_status),
-        ).length,
-        portfolioCount: teacherPortfolio.length,
-        pendingPortfolio: teacherPortfolio.filter((item) =>
-          isPending(item.review_status),
-        ).length,
-        assignedSubjectsCount: assignedSubjects.length,
-        assignedClassesCount: assignedClasses.length,
-      };
-    });
-  }, [
-    teachers,
-    schedules,
-    waitingPeriods,
-    portfolioItems,
-    teacherSubjects,
-    teacherClasses,
-  ]);
-
-  const teacherAnalytics = useMemo<TeacherAnalytics>(() => {
-    const departmentMap = new Map<string, { count: number; load: number }>();
-    const subjectMap = new Map<string, number>();
-
-    teachersWithStats.forEach((teacher) => {
-      const department = teacher.department || "غير محدد";
-      const subject = teacher.subject || "غير محدد";
-
-      const departmentItem = departmentMap.get(department) || { count: 0, load: 0 };
-      departmentItem.count += 1;
-      departmentItem.load += Number(teacher.weekly_load || 0);
-      departmentMap.set(department, departmentItem);
-
-      subjectMap.set(subject, (subjectMap.get(subject) || 0) + 1);
+    const result = await StudentsService.markAttendance({
+      schoolId: currentSchool.id,
+      studentId,
+      date: today,
+      status,
     });
 
-    const topDepartments = Array.from(departmentMap.entries())
-      .map(([name, item]) => ({ name, count: item.count, load: item.load }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
-
-    const topSubjects = Array.from(subjectMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
-
-    const totalLoad = teachersWithStats.reduce(
-      (sum, teacher) => sum + Number(teacher.weekly_load || 0),
-      0,
-    );
-
-    return {
-      topDepartments,
-      topSubjects,
-      withoutSubjects: teachersWithStats.filter((teacher) => teacher.assignedSubjectsCount === 0).length,
-      withoutClasses: teachersWithStats.filter((teacher) => teacher.assignedClassesCount === 0).length,
-      withoutSchedule: teachersWithStats.filter((teacher) => teacher.scheduleCount === 0).length,
-      highLoad: teachersWithStats.filter((teacher) => Number(teacher.weekly_load || 0) >= 24).length,
-      portfolioMissing: teachersWithStats.filter((teacher) => teacher.portfolioCount === 0).length,
-      averageWeeklyLoad: teachersWithStats.length
-        ? Math.round(totalLoad / teachersWithStats.length)
-        : 0,
-    };
-  }, [teachersWithStats]);
-
-  const teacherSmartInsights = useMemo<TeacherSmartInsight[]>(() => {
-    const insights: TeacherSmartInsight[] = [];
-
-    if (teacherAnalytics.withoutSubjects > 0) {
-      insights.push({
-        title: "معلمون بدون مواد مسندة",
-        description: `يوجد ${teacherAnalytics.withoutSubjects} معلم لا تظهر لديه مواد مسندة.`,
-        tone: "red",
-        icon: <BookOpenCheck className="h-5 w-5" />,
-      });
-    }
-
-    if (teacherAnalytics.withoutSchedule > 0) {
-      insights.push({
-        title: "جداول غير مكتملة",
-        description: `${teacherAnalytics.withoutSchedule} معلم لا يظهر لديه جدول مجدول.`,
-        tone: "gold",
-        icon: <CalendarCheck className="h-5 w-5" />,
-      });
-    }
-
-    if (teacherAnalytics.highLoad > 0) {
-      insights.push({
-        title: "نصاب مرتفع",
-        description: `${teacherAnalytics.highLoad} معلم لديهم نصاب أسبوعي مرتفع ويحتاجون مراجعة توزيع.`,
-        tone: "blue",
-        icon: <BriefcaseBusiness className="h-5 w-5" />,
-      });
-    }
-
-    if (teacherAnalytics.portfolioMissing > 0) {
-      insights.push({
-        title: "ملفات شواهد غير مكتملة",
-        description: `${teacherAnalytics.portfolioMissing} معلم لا تظهر لديهم شواهد مرفوعة.`,
-        tone: "teal",
-        icon: <Award className="h-5 w-5" />,
-      });
-    }
-
-    if (insights.length === 0) {
-      insights.push({
-        title: "حالة الكادر مستقرة",
-        description: "لا توجد مؤشرات حرجة حالياً في الإسناد أو الجداول أو الشواهد.",
-        tone: "green",
-        icon: <UserRoundCheck className="h-5 w-5" />,
-      });
-    }
-
-    return insights.slice(0, 4);
-  }, [teacherAnalytics]);
-
-  function runSmartSearch(command: string) {
-    const normalized = command.trim();
-
-    if (!normalized) return;
-
-    setSearch("");
-    setDepartmentFilter("all");
-    setSubjectFilter("all");
-    setStatusFilter("all");
-
-    if (normalized.includes("إجازة")) {
-      setQuickFilter("leave");
+    if (result.error) {
+      showToast("error", result.error);
       return;
     }
 
-    if (normalized.includes("مكلف")) {
-      setQuickFilter("assigned");
-      return;
-    }
-
-    if (normalized.includes("غير نشط")) {
-      setQuickFilter("inactive");
-      return;
-    }
-
-    if (normalized.includes("نشيط") || normalized.includes("على رأس العمل")) {
-      setQuickFilter("active");
-      return;
-    }
-
-    if (normalized.includes("بدون جدول")) {
-      setQuickFilter("all");
-      setSearch("بدون جدول");
-      return;
-    }
-
-    setQuickFilter("all");
-    setSearch(normalized);
+    setAttendanceMenuId(null);
+    showToast("success", "تم تسجيل الحضور.");
+    void fetchAllData();
   }
 
-  const filteredTeachers = useMemo(() => {
+  function todayAttendance(studentId: string) {
+    return attendance.find(
+      (item) => item.student_id === studentId && item.attendance_date === today,
+    )?.status;
+  }
+
+  function getStudentAverage(studentId: string, studentGradeLevel?: string | null) {
+    const studentScores = scores.filter((score) => score.student_id === studentId);
+    if (studentScores.length === 0) return 0;
+
+    const subjectsForLevel = gradeSubjects.filter(
+      (subject) => !studentGradeLevel || subject.grade_level === studentGradeLevel,
+    );
+
+    const subjectIds = new Set(subjectsForLevel.map((subject) => subject.id));
+    const grouped: Record<string, number> = {};
+
+    studentScores.forEach((score) => {
+      if (subjectIds.size > 0 && !subjectIds.has(score.school_subject_id)) return;
+      grouped[score.school_subject_id] = (grouped[score.school_subject_id] || 0) + Number(score.score || 0);
+    });
+
+    const subjectTotals = Object.entries(grouped)
+      .map(([subjectId, total]) => {
+        const subject = gradeSubjects.find((item) => item.id === subjectId);
+        const max = Number(subject?.total_score || 100);
+        return max > 0 ? Math.round((total / max) * 100) : 0;
+      })
+      .filter((value) => value > 0);
+
+    if (subjectTotals.length === 0) return 0;
+
+    return Math.round(subjectTotals.reduce((sum, value) => sum + value, 0) / subjectTotals.length);
+  }
+
+  function getStudentGradeStatus(studentId: string, gradeLevel?: string | null) {
+    const average = getStudentAverage(studentId, gradeLevel);
+    if (average >= 90) return "متفوق";
+    if (average >= 60) return "مستقر";
+    if (average > 0) return "يحتاج متابعة";
+    return "لا توجد درجات";
+  }
+
+  const gradeLevels = useMemo(() => uniqueValues(students.map((student) => student.grade_level)), [students]);
+  const classrooms = useMemo(() => uniqueValues(students.map((student) => student.classroom)), [students]);
+  const statuses = useMemo(() => uniqueValues(students.map((student) => student.status)), [students]);
+
+  const repeatedAbsenceStudents = useMemo(() => {
+    const absenceMap: Record<string, number> = {};
+
+    attendance.forEach((item) => {
+      if (isAbsent(item.status)) {
+        absenceMap[item.student_id] = (absenceMap[item.student_id] || 0) + 1;
+      }
+    });
+
+    return students
+      .map((student) => ({ ...student, absenceCount: absenceMap[student.id] || 0 }))
+      .filter((student) => student.absenceCount >= 3)
+      .sort((a, b) => b.absenceCount - a.absenceCount);
+  }, [students, attendance]);
+
+  const studentsWithGrades = useMemo<StudentWithAverage[]>(() => {
+    return students.map((student) => {
+      const average = getStudentAverage(student.id, student.grade_level);
+      const absenceCount =
+        repeatedAbsenceStudents.find((item) => item.id === student.id)?.absenceCount || 0;
+
+      return {
+        ...student,
+        average,
+        hasGrades: average > 0,
+        absenceCount,
+        todayStatus: todayAttendance(student.id),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, scores, gradeSubjects, attendance, repeatedAbsenceStudents]);
+
+  const filteredStudents = useMemo(() => {
     const keyword = search.toLowerCase().trim();
 
-    return teachersWithStats.filter((teacher) => {
-      const extraKeywords = [
-        teacher.scheduleCount === 0 ? "بدون جدول" : "",
-        teacher.assignedSubjectsCount === 0 ? "بدون مواد" : "",
-        teacher.assignedClassesCount === 0 ? "بدون فصول" : "",
-        Number(teacher.weekly_load || 0) >= 24 ? "تجاوز النصاب نصاب مرتفع" : "",
-      ];
-
+    return studentsWithGrades.filter((student) => {
       const text = [
-        teacher.full_name,
-        teacher.employee_number,
-        teacher.subject,
-        teacher.department,
-        teacher.phone,
-        teacher.email,
-        teacher.status,
-        ...extraKeywords,
+        student.full_name,
+        student.student_number,
+        student.grade_level,
+        student.classroom,
+        student.section,
+        student.national_id,
+        student.guardian_name,
+        student.guardian_phone,
+        student.guardian_email,
+        student.parent_email,
+        student.status,
       ]
         .join(" ")
         .toLowerCase();
 
       const matchQuick =
         quickFilter === "all" ||
-        (quickFilter === "active" && isActiveTeacher(teacher.status)) ||
-        (quickFilter === "leave" && teacher.status === "إجازة") ||
-        (quickFilter === "assigned" && teacher.status === "مكلف") ||
-        (quickFilter === "inactive" && teacher.status === "غير نشط");
+        (quickFilter === "present" && isPresent(student.todayStatus)) ||
+        (quickFilter === "absent" && isAbsent(student.todayStatus)) ||
+        (quickFilter === "late" && isLate(student.todayStatus)) ||
+        (quickFilter === "excellent" && student.average >= 90) ||
+        (quickFilter === "weak" && student.average > 0 && student.average < 60) ||
+        (quickFilter === "risk" && student.absenceCount >= 3);
 
       return (
         text.includes(keyword) &&
         matchQuick &&
-        (departmentFilter === "all" ||
-          teacher.department === departmentFilter) &&
-        (subjectFilter === "all" || teacher.subject === subjectFilter) &&
-        (statusFilter === "all" || teacher.status === statusFilter)
+        (gradeFilter === "all" || student.grade_level === gradeFilter) &&
+        (classroomFilter === "all" || student.classroom === classroomFilter) &&
+        (statusFilter === "all" || student.status === statusFilter)
       );
     });
-  }, [
-    teachersWithStats,
-    search,
-    departmentFilter,
-    subjectFilter,
-    statusFilter,
-    quickFilter,
-  ]);
+  }, [studentsWithGrades, search, gradeFilter, classroomFilter, statusFilter, quickFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
+  const pagedStudents = filteredStudents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const pagedTeachers = filteredTeachers.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE,
+  const todayRecords = useMemo(
+    () => attendance.filter((item) => item.attendance_date === today),
+    [attendance, today],
   );
 
-  const activeTeachers = teachers.filter((teacher) =>
-    isActiveTeacher(teacher.status),
-  ).length;
+  const presentToday = todayRecords.filter((item) => isPresent(item.status)).length;
+  const absentToday = todayRecords.filter((item) => isAbsent(item.status)).length;
+  const lateToday = todayRecords.filter((item) => isLate(item.status)).length;
+  const clinicToday = todayRecords.filter((item) => isClinic(item.status)).length;
 
-  const totalWeeklyLoad = teachers.reduce(
-    (sum, teacher) => sum + Number(teacher.weekly_load || 0),
-    0,
-  );
+  const attendanceRate = todayRecords.length > 0 ? Math.round((presentToday / todayRecords.length) * 100) : 0;
 
-  const pendingWaitingTotal = waitingPeriods.filter((item) =>
-    isPending(item.approval_status),
-  ).length;
+  const excellentStudents = studentsWithGrades.filter((student) => student.hasGrades && student.average >= 90);
+  const weakStudents = studentsWithGrades.filter((student) => student.hasGrades && student.average < 60);
+  const gradedStudents = studentsWithGrades.filter((student) => student.hasGrades);
 
-  const pendingPortfolioTotal = portfolioItems.filter((item) =>
-    isPending(item.review_status),
-  ).length;
+  const averageGrade =
+    gradedStudents.length > 0
+      ? Math.round(gradedStudents.reduce((sum, student) => sum + student.average, 0) / gradedStudents.length)
+      : 0;
 
   const allPageSelected =
-    pagedTeachers.length > 0 &&
-    pagedTeachers.every((teacher) => selectedIds.includes(teacher.id));
+    pagedStudents.length > 0 && pagedStudents.every((student) => selectedIds.includes(student.id));
 
-  function toggleSelectTeacher(id: string) {
+  function toggleSelectStudent(id: string) {
     setSelectedIds((previous) =>
-      previous.includes(id)
-        ? previous.filter((item) => item !== id)
-        : [...previous, id],
+      previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id],
     );
   }
 
   function toggleSelectPage() {
-    const pageIds = pagedTeachers.map((teacher) => teacher.id);
-
+    const pageIds = pagedStudents.map((student) => student.id);
     setSelectedIds((previous) =>
       allPageSelected
         ? previous.filter((id) => !pageIds.includes(id))
@@ -933,60 +631,84 @@ export default function TeachersPage() {
     );
   }
 
-  async function exportTeachersExcel(
-    source: TeacherWithStats[] = filteredTeachers,
-  ) {
-    await exportTableToExcel({
-      title: "تقرير المعلمين",
-      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
-      subtitle:
-        "قائمة المعلمين مع المواد والفصول والجدول والانتظار والشواهد",
-      headers: getExportHeaders(),
-      rows: getExportRows(source),
-      fileName: `teachers-${today}.xlsx`,
-    });
+  const selectedAttendance = selectedStudent
+    ? attendance.filter((item) => item.student_id === selectedStudent.id)
+    : [];
 
-    showToast("success", "تم تصدير المعلمين Excel.");
+  const selectedAverage = selectedStudent ? getStudentAverage(selectedStudent.id, selectedStudent.grade_level) : 0;
+  const selectedAbsentCount = selectedAttendance.filter((item) => isAbsent(item.status)).length;
+  const selectedLateCount = selectedAttendance.filter((item) => isLate(item.status)).length;
+  const selectedPresentCount = selectedAttendance.filter((item) => isPresent(item.status)).length;
+
+  const selectedRisk =
+    selectedAbsentCount >= 5 || (selectedAverage > 0 && selectedAverage < 60)
+      ? "يحتاج متابعة"
+      : selectedAbsentCount >= 3 || (selectedAverage > 0 && selectedAverage < 75)
+        ? "متابعة خفيفة"
+        : "مستقر";
+
+  function getExportRows(source: StudentWithAverage[] = filteredStudents) {
+    return source.map((student) => [
+      student.student_number || "-",
+      student.national_id || "-",
+      student.full_name || "-",
+      student.grade_level || "-",
+      student.classroom || "-",
+      student.section || "-",
+      student.guardian_name || "-",
+      student.guardian_phone || "-",
+      student.guardian_email || student.parent_email || "-",
+      getStatusLabel(student.todayStatus),
+      student.average > 0 ? `${student.average}%` : "-",
+      getStudentGradeStatus(student.id, student.grade_level),
+      student.status || DEFAULT_STATUS,
+    ]);
   }
 
-  function exportTeachersPDF(source: TeacherWithStats[] = filteredTeachers) {
-    exportTableToPDF({
-      title: "تقرير المعلمين",
+  async function exportStudentsExcel(source: StudentWithAverage[] = filteredStudents) {
+    await exportTableToExcel({
+      title: "تقرير الطلاب",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
-      subtitle:
-        "قائمة المعلمين مع المواد والفصول والجدول والانتظار والشواهد",
+      subtitle: "قائمة الطلاب مع الحضور والمؤشرات الدراسية",
       headers: getExportHeaders(),
       rows: getExportRows(source),
-      fileName: `teachers-${today}.pdf`,
+      fileName: `students-${today}.xlsx`,
     });
 
-    showToast("success", "تم تجهيز PDF للمعلمين.");
+    showToast("success", "تم تصدير الطلاب Excel.");
+  }
+
+  function exportStudentsPDF(source: StudentWithAverage[] = filteredStudents) {
+    exportTableToPDF({
+      title: "تقرير الطلاب",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة الطلاب مع الحضور والمؤشرات الدراسية",
+      headers: getExportHeaders(),
+      rows: getExportRows(source),
+      fileName: `students-${today}.pdf`,
+    });
+
+    showToast("success", "تم تجهيز PDF للطلاب.");
   }
 
   async function exportSelectedExcel() {
-    const selected = filteredTeachers.filter((teacher) =>
-      selectedIds.includes(teacher.id),
-    );
-
-    await exportTeachersExcel(selected);
+    const selected = filteredStudents.filter((student) => selectedIds.includes(student.id));
+    await exportStudentsExcel(selected);
   }
 
   function exportSelectedPDF() {
-    const selected = filteredTeachers.filter((teacher) =>
-      selectedIds.includes(teacher.id),
-    );
-
-    exportTeachersPDF(selected);
+    const selected = filteredStudents.filter((student) => selectedIds.includes(student.id));
+    exportStudentsPDF(selected);
   }
 
   if (!canView) {
     return (
       <AuthGuard>
         <SummaryCard
-          title="لا تملك صلاحية الوصول إلى إدارة المعلمين"
-          description="هذه الصفحة مخصصة للإدارة المدرسية فقط."
+          title="لا تملك صلاحية الوصول إلى إدارة الطلاب"
+          description="هذه الصفحة مخصصة للطاقم المدرسي حسب الصلاحيات."
           tone="gold"
-          icon={<GraduationCap size={22} />}
+          icon={<Users size={22} />}
         />
       </AuthGuard>
     );
@@ -995,7 +717,7 @@ export default function TeachersPage() {
   if (schoolLoading) {
     return (
       <AuthGuard>
-        <PageLoader text="جاري تحميل بيانات المدرسة..." />
+        <LoadingBox text="جاري تحميل بيانات المدرسة..." />
       </AuthGuard>
     );
   }
@@ -1007,7 +729,7 @@ export default function TeachersPage() {
           title="لا توجد مدرسة مرتبطة"
           description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
           tone="red"
-          icon={<GraduationCap size={22} />}
+          icon={<AlertTriangle size={22} />}
         />
       </AuthGuard>
     );
@@ -1015,438 +737,294 @@ export default function TeachersPage() {
 
   return (
     <AuthGuard>
-      <div className="space-y-5" dir="rtl">
+      <main className="space-y-5" dir="rtl">
         {toast && <ToastBox toast={toast} />}
+
         <PageHeader
           variant="hero"
-          title="إدارة المعلمين"
-          description={`${currentSchool.school_name} — بيانات المعلمين، الإسناد، الجدول، حصص الانتظار، وملف الشواهد في صفحة واحدة.`}
+          title="إدارة الطلاب"
+          description={`${currentSchool.school_name} — إدارة بيانات الطلاب، متابعة حضور اليوم، مؤشرات الدرجات، والتنبيهات الذكية للغياب والتعثر.`}
           badge="منصة المدرسة الذكية"
-          icon={<GraduationCap size={18} />}
+          icon={<Users size={18} />}
           breadcrumbs={[
             { label: "لوحة التحكم", href: "/dashboard" },
-            { label: "إدارة المعلمين" },
+            { label: "إدارة الطلاب" },
           ]}
           meta={[
             { label: "المدرسة", value: currentSchool.school_name },
             { label: "تاريخ اليوم", value: today },
-            { label: "المعلمون الظاهرون", value: filteredTeachers.length },
+            { label: "الطلاب الظاهرون", value: filteredStudents.length },
             { label: "المحددون", value: selectedIds.length },
           ]}
           stats={[
-            { label: "إجمالي المعلمين", value: teachers.length, icon: <GraduationCap size={20} />, tone: "blue" },
-            { label: "على رأس العمل", value: activeTeachers, icon: <UserRoundCheck size={20} />, tone: "green" },
-            { label: "حصص مجدولة", value: schedules.length, icon: <BookOpenCheck size={20} />, tone: "teal" },
-            { label: "مراجعات معلقة", value: pendingWaitingTotal + pendingPortfolioTotal, icon: <ClipboardCheck size={20} />, tone: pendingWaitingTotal + pendingPortfolioTotal > 0 ? "gold" : "green" },
+            { label: "إجمالي الطلاب", value: students.length, icon: <Users size={20} />, tone: "blue" },
+            { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <ClipboardCheck size={20} />, tone: attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red" },
+            { label: "متوسط المدرسة", value: `${averageGrade}%`, icon: <BarChart3 size={20} />, tone: averageGrade >= 85 ? "green" : averageGrade >= 60 ? "gold" : "red" },
+            { label: "غياب متكرر", value: repeatedAbsenceStudents.length, icon: <AlertTriangle size={20} />, tone: repeatedAbsenceStudents.length > 0 ? "red" : "green" },
           ]}
           actions={
             <>
               {canManage && (
-                <SecondaryButton
-                  icon={<Plus size={17} />}
+                <button
+                  type="button"
                   onClick={openAddForm}
-                  tone="warning"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  إضافة معلم
-                </SecondaryButton>
+                  <Plus size={17} />
+                  إضافة طالب
+                </button>
               )}
 
-              <SecondaryButton
-                icon={<Download size={17} />}
-                onClick={() => void exportTeachersExcel()}
+              <button
+                type="button"
+                onClick={() => void exportStudentsExcel()}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
+                <Download size={17} />
                 Excel
-              </SecondaryButton>
+              </button>
 
-              <PrimaryButton
-                icon={<FileText size={17} />}
-                onClick={() => exportTeachersPDF()}
+              <button
+                type="button"
+                onClick={() => exportStudentsPDF()}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
+                <FileText size={17} />
                 PDF
-              </PrimaryButton>
+              </button>
 
-              <SecondaryButton
-                icon={<RefreshCcw size={17} className={loading ? "animate-spin" : ""} />}
+              <button
+                type="button"
                 onClick={() => void fetchAllData()}
                 disabled={loading}
-                tone="dark"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
               >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw size={17} />}
                 تحديث
-              </SecondaryButton>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <Printer size={17} />
+                طباعة
+              </button>
             </>
           }
         />
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <ExecutiveCard
-            title="إجمالي المعلمين"
-            value={teachers.length}
-            subtitle={`${activeTeachers} على رأس العمل`}
-            icon={<GraduationCap size={22} />}
-            tone="blue"
-            progress={teachers.length > 0 ? 100 : 0}
-          />
-
-          <ExecutiveCard
-            title="مواد مسندة"
-            value={teacherSubjects.length}
-            subtitle={`${teacherClasses.length} فصول مسندة`}
-            icon={<Users size={22} />}
-            tone="green"
-          />
-
-          <ExecutiveCard
-            title="الأقسام"
-            value={departments.length}
-            subtitle={`${subjects.length} مادة`}
-            icon={<BriefcaseBusiness size={22} />}
-            tone="primary"
-          />
-
-          <ExecutiveCard
-            title="حصص مجدولة"
-            value={schedules.length}
-            subtitle={`النصاب الأسبوعي ${totalWeeklyLoad}`}
-            icon={<BookOpenCheck size={22} />}
-            tone="teal"
-          />
-
-          <ExecutiveCard
-            title="حصص الانتظار"
-            value={waitingPeriods.length}
-            subtitle={`${pendingWaitingTotal} بانتظار الموافقة`}
-            icon={<CalendarCheck size={22} />}
-            tone={pendingWaitingTotal > 0 ? "gold" : "green"}
-          />
-
-          <ExecutiveCard
-            title="ملف الشواهد"
-            value={portfolioItems.length}
-            subtitle={`${pendingPortfolioTotal} قيد المراجعة`}
-            icon={<Award size={22} />}
-            tone={pendingPortfolioTotal > 0 ? "gold" : "green"}
-          />
+          <ExecutiveCard title="إجمالي الطلاب" value={students.length} subtitle={`${gradeLevels.length} مرحلة · ${classrooms.length} فصل`} icon={<Users size={22} />} tone="blue" progress={students.length > 0 ? 100 : 0} />
+          <ExecutiveCard title="نسبة الحضور" value={`${attendanceRate}%`} subtitle={`${presentToday} حاضر · ${absentToday} غائب · ${lateToday} متأخر`} icon={<ClipboardCheck size={22} />} tone={attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red"} progress={attendanceRate} />
+          <ExecutiveCard title="متوسط المدرسة" value={`${averageGrade}%`} subtitle={`${gradedStudents.length} طالب لديهم درجات`} icon={<BarChart3 size={22} />} tone={averageGrade >= 85 ? "green" : averageGrade >= 60 ? "gold" : "red"} progress={averageGrade} />
+          <ExecutiveCard title="المتفوقون" value={excellentStudents.length} subtitle="متوسط 90% فأعلى" icon={<ShieldCheck size={22} />} tone="green" progress={students.length ? percentage(excellentStudents.length, students.length) : 0} />
+          <ExecutiveCard title="يحتاجون متابعة" value={weakStudents.length} subtitle="متوسط أقل من 60%" icon={<AlertTriangle size={22} />} tone={weakStudents.length > 0 ? "red" : "green"} progress={students.length ? percentage(weakStudents.length, students.length) : 0} />
+          <ExecutiveCard title="عيادة اليوم" value={clinicToday} subtitle="تحويلات صحية اليوم" icon={<Clock size={22} />} tone={clinicToday > 0 ? "gold" : "green"} progress={todayRecords.length ? percentage(clinicToday, todayRecords.length) : 0} />
         </section>
 
         <SummaryCard
-          title="الملخص التنفيذي للمعلمين"
-          description="قراءة سريعة لحالة الكادر التعليمي، الإسناد، الجدول، الانتظار، وملفات الشواهد."
-          tone={pendingWaitingTotal > 0 || pendingPortfolioTotal > 0 ? "gold" : "green"}
+          title="الملخص التنفيذي للطلاب"
+          description="قراءة سريعة للمجتمع الطلابي، حضور اليوم، الأداء الدراسي، وحالات المتابعة."
+          tone={repeatedAbsenceStudents.length > 0 || weakStudents.length > 0 ? "gold" : "green"}
           items={[
-            { label: "إجمالي المعلمين", value: teachers.length },
-            { label: "على رأس العمل", value: activeTeachers },
-            { label: "مواد مسندة", value: teacherSubjects.length },
-            { label: "حصص مجدولة", value: schedules.length },
-            { label: "انتظار معلق", value: pendingWaitingTotal },
-            { label: "شواهد قيد المراجعة", value: pendingPortfolioTotal },
+            { label: "إجمالي الطلاب", value: students.length },
+            { label: "الطلاب الظاهرون", value: filteredStudents.length },
+            { label: "حضور اليوم", value: `${attendanceRate}%` },
+            { label: "متوسط المدرسة", value: `${averageGrade}%` },
+            { label: "متعثرون", value: weakStudents.length },
+            { label: "غياب متكرر", value: repeatedAbsenceStudents.length },
           ]}
-          footer="تعتمد المؤشرات على البيانات المسجلة في الجداول الحالية، وتزداد دقتها مع اكتمال الإسناد والجداول والشواهد."
+          footer="تعتمد المؤشرات على الحضور والدرجات المسجلة في المنصة، وتزداد دقتها مع اكتمال إدخال البيانات."
         />
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <TeacherAnalyticsPanel
-            analytics={teacherAnalytics}
-            totalTeachers={teachers.length}
-            activeTeachers={activeTeachers}
-            totalWeeklyLoad={totalWeeklyLoad}
-          />
-
-          <TeacherSmartInsightsPanel insights={teacherSmartInsights} />
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <TeacherChartsPanel
-            totalTeachers={teachers.length}
-            activeTeachers={activeTeachers}
-            waitingPeriods={waitingPeriods.length}
-            pendingWaiting={pendingWaitingTotal}
-            portfolioItems={portfolioItems.length}
-            pendingPortfolio={pendingPortfolioTotal}
-            averageWeeklyLoad={teacherAnalytics.averageWeeklyLoad}
-            withoutSchedule={teacherAnalytics.withoutSchedule}
-          />
-
-          <TeacherPerformancePanel
-            totalTeachers={teachers.length}
-            withSubjects={teachers.length - teacherAnalytics.withoutSubjects}
-            withClasses={teachers.length - teacherAnalytics.withoutClasses}
-            withSchedule={teachers.length - teacherAnalytics.withoutSchedule}
-            withPortfolio={teachers.length - teacherAnalytics.portfolioMissing}
-          />
-
-          <TeacherImportPanel />
-        </section>
-
-        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
-          <div className="mb-4">
-            <h2 className="text-xl font-black text-[var(--app-text)]">البحث الذكي</h2>
-            <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-              جرّب: معلمو الرياضيات، معلمون بدون جدول، معلمون بإجازة، معلم تجاوز النصاب.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {["معلمو الرياضيات", "معلمون بدون جدول", "معلمون بإجازة", "معلم تجاوز النصاب", "على رأس العمل"].map((command) => (
-              <button
-                key={command}
-                type="button"
-                onClick={() => runSmartSearch(command)}
-                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
-              >
-                {command}
-              </button>
-            ))}
-          </div>
-        </section>
-
-
         {showForm && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {editingId ? (
-                  <Pencil className="text-[#C1B489]" />
-                ) : (
-                  <Plus className="text-[#C1B489]" />
-                )}
-
-                <h2 className="text-xl font-black text-[#15445A]">
-                  {editingId ? "تعديل بيانات المعلم" : "إضافة معلم جديد"}
+          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-black text-[#15445A]">
+                  {editingId ? "تعديل بيانات الطالب" : "إضافة طالب جديد"}
                 </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  أدخل بيانات الطالب الأساسية وبيانات ولي الأمر ثم احفظ التغييرات.
+                </p>
               </div>
 
-              <SecondaryButton onClick={closeForm}>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+              >
                 إغلاق
-              </SecondaryButton>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <Input
-                placeholder="اسم المعلم"
-                value={form.full_name}
-                onChange={(value) => updateForm("full_name", value)}
-              />
-              <Input
-                placeholder="الرقم الوظيفي"
-                value={form.employee_number}
-                onChange={(value) => updateForm("employee_number", value)}
-              />
-              <Input
-                placeholder="رابط صورة المعلم"
-                value={form.photo_url}
-                onChange={(value) => updateForm("photo_url", value)}
-              />
-              <Input
-                placeholder="المادة الأساسية"
-                value={form.subject}
-                onChange={(value) => updateForm("subject", value)}
-              />
-              <Input
-                placeholder="القسم"
-                value={form.department}
-                onChange={(value) => updateForm("department", value)}
-              />
-              <Input
-                placeholder="الجوال"
-                value={form.phone}
-                onChange={(value) => updateForm("phone", value)}
-              />
-              <Input
-                placeholder="البريد الإلكتروني"
-                value={form.email}
-                onChange={(value) => updateForm("email", value)}
-              />
-              <Input
-                placeholder="النصاب الأسبوعي"
-                value={form.weekly_load}
-                onChange={(value) => updateForm("weekly_load", value)}
-                type="number"
-              />
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Input placeholder="اسم الطالب" value={form.full_name} onChange={(value) => updateForm("full_name", value)} />
+              <Input placeholder="رقم الطالب" value={form.student_number} onChange={(value) => updateForm("student_number", value)} />
+              <Input placeholder="رقم الهوية" value={form.national_id} onChange={(value) => updateForm("national_id", value)} />
+              <Input placeholder="المرحلة" value={form.grade_level} onChange={(value) => updateForm("grade_level", value)} />
+              <Input placeholder="الفصل" value={form.classroom} onChange={(value) => updateForm("classroom", value)} />
+              <Input placeholder="الشعبة" value={form.section} onChange={(value) => updateForm("section", value)} />
+              <Input placeholder="ولي الأمر" value={form.guardian_name} onChange={(value) => updateForm("guardian_name", value)} />
+              <Input placeholder="جوال ولي الأمر" value={form.guardian_phone} onChange={(value) => updateForm("guardian_phone", value)} />
+              <Input placeholder="بريد ولي الأمر" value={form.guardian_email} onChange={(value) => updateForm("guardian_email", value)} />
 
               <select
                 value={form.status}
                 onChange={(event) => updateForm("status", event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
               >
-                {TEACHER_STATUSES.map((teacherStatus) => (
-                  <option key={teacherStatus} value={teacherStatus}>
-                    {teacherStatus}
+                {STUDENT_STATUSES.map((studentStatus) => (
+                  <option key={studentStatus} value={studentStatus}>
+                    {studentStatus}
                   </option>
                 ))}
               </select>
             </div>
 
-            <textarea
-              value={form.admin_notes}
-              onChange={(event) => updateForm("admin_notes", event.target.value)}
-              placeholder="ملاحظات إدارية"
-              className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-            />
-
-            <PrimaryButton
-              className="mt-5"
-              icon={saving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
-              onClick={() => void saveTeacher()}
+            <button
+              type="button"
+              onClick={() => void saveStudent()}
               disabled={saving}
+              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
             >
-              {saving
-                ? "جاري الحفظ..."
-                : editingId
-                  ? "حفظ التعديل"
-                  : "إضافة المعلم"}
-            </PrimaryButton>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
+              {saving ? "جاري الحفظ..." : editingId ? "حفظ التعديل" : "إضافة الطالب"}
+            </button>
+          </section>
+        )}
+
+        {repeatedAbsenceStudents.length > 0 && (
+          <section className="rounded-[28px] border border-red-100 bg-red-50 p-5">
+            <div className="mb-5 flex items-center gap-2">
+              <AlertTriangle className="text-red-700" size={22} />
+              <h2 className="text-xl font-black text-red-800">طلاب يحتاجون متابعة بسبب الغياب</h2>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {repeatedAbsenceStudents.slice(0, 8).map((student) => (
+                <Link key={student.id} href={`/students/${student.id}`} className="rounded-2xl bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+                  <p className="font-black text-slate-900">{student.full_name}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {student.grade_level || "-"} - {student.classroom || "-"}
+                  </p>
+                  <p className="mt-2 font-bold text-red-600">{student.absenceCount} غياب</p>
+                </Link>
+              ))}
+            </div>
           </section>
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm xl:col-span-2">
             <div className="mb-5 flex flex-col gap-4 print:hidden">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">
-                    قائمة المعلمين
-                  </h2>
-
+                  <h2 className="text-2xl font-black text-[#15445A]">قائمة الطلاب</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    عرض {pagedTeachers.length} من {filteredTeachers.length} معلم
+                    عرض {pagedStudents.length} من {filteredStudents.length} طالب حسب الفلاتر الحالية.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <QuickFilter
-                    label="الكل"
-                    value="all"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="النشطون"
-                    value="active"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="الإجازات"
-                    value="leave"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="المكلفون"
-                    value="assigned"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
-                  <QuickFilter
-                    label="غير نشط"
-                    value="inactive"
-                    active={quickFilter}
-                    onClick={setQuickFilter}
-                  />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("table")}
+                    className={`inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-black ${viewMode === "table" ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"}`}
+                  >
+                    <List size={16} />
+                    جدول
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("cards")}
+                    className={`inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-black ${viewMode === "cards" ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"}`}
+                  >
+                    <Grid2X2 size={16} />
+                    بطاقات
+                  </button>
                 </div>
               </div>
 
-              <div className="grid w-full gap-3 lg:grid-cols-4">
-                <select
-                  value={departmentFilter}
-                  onChange={(event) => setDepartmentFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل الأقسام</option>
-                  {departments.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={subjectFilter}
-                  onChange={(event) => setSubjectFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل المواد</option>
-                  {subjects.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل الحالات</option>
-                  {statuses.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="relative">
-                  <Search
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
-
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="ابحث عن معلم..."
-                    className="w-full rounded-2xl border border-slate-200 py-3 pl-4 pr-10 outline-none focus:border-[#0DA9A6]"
-                  />
-                </div>
+              <div className="flex flex-wrap gap-2">
+                <QuickFilter label="الكل" value="all" active={quickFilter} onClick={setQuickFilter} />
+                <QuickFilter label="حاضر اليوم" value="present" active={quickFilter} onClick={setQuickFilter} />
+                <QuickFilter label="غائب اليوم" value="absent" active={quickFilter} onClick={setQuickFilter} />
+                <QuickFilter label="متأخر" value="late" active={quickFilter} onClick={setQuickFilter} />
+                <QuickFilter label="متفوقون" value="excellent" active={quickFilter} onClick={setQuickFilter} />
+                <QuickFilter label="متعثرون" value="weak" active={quickFilter} onClick={setQuickFilter} />
+                <QuickFilter label="غياب متكرر" value="risk" active={quickFilter} onClick={setQuickFilter} />
               </div>
+
+              <PageToolbar
+                search={{
+                  value: search,
+                  onChange: setSearch,
+                  placeholder: "ابحث عن طالب بالاسم أو الرقم أو ولي الأمر...",
+                }}
+                filters={
+                  <>
+                    <ToolbarSelect value={gradeFilter} onChange={setGradeFilter}>
+                      <option value="all">كل المراحل</option>
+                      {gradeLevels.map((grade) => (
+                        <option key={grade} value={grade}>
+                          {grade}
+                        </option>
+                      ))}
+                    </ToolbarSelect>
+
+                    <ToolbarSelect value={classroomFilter} onChange={setClassroomFilter}>
+                      <option value="all">كل الفصول</option>
+                      {classrooms.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </ToolbarSelect>
+
+                    <ToolbarSelect value={statusFilter} onChange={setStatusFilter}>
+                      <option value="all">كل الحالات</option>
+                      {statuses.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </ToolbarSelect>
+                  </>
+                }
+                onRefresh={() => void fetchAllData()}
+                onExportExcel={() => void exportStudentsExcel()}
+                onExportPDF={() => exportStudentsPDF()}
+                onPrint={() => window.print()}
+              />
 
               {selectedIds.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-sm font-black text-amber-800">
-                    تم تحديد {selectedIds.length} معلم
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#C1B489]/40 bg-[#C1B489]/20 p-3">
+                  <p className="text-sm font-black text-[#15445A]">تم تحديد {selectedIds.length} طالب</p>
 
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void exportSelectedExcel()}
-                      className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
-                    >
+                    <button type="button" onClick={() => void exportSelectedExcel()} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700">
                       Excel المحدد
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={exportSelectedPDF}
-                      className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
-                    >
+                    <button type="button" onClick={exportSelectedPDF} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700">
                       PDF المحدد
                     </button>
 
                     {canManage && (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => void updateSelectedStatus(DEFAULT_STATUS)}
-                          className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white"
-                        >
-                          جعلهم على رأس العمل
+                        <button type="button" onClick={() => void updateSelectedStatus(DEFAULT_STATUS)} className="rounded-xl bg-[#07A869] px-3 py-2 text-xs font-black text-white">
+                          جعلهم نشطين
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => void updateSelectedStatus("إجازة")}
-                          className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-black text-white"
-                        >
-                          جعلهم إجازة
+                        <button type="button" onClick={() => void updateSelectedStatus("غير نشط")} className="rounded-xl bg-[#C1B489] px-3 py-2 text-xs font-black text-[#15445A]">
+                          جعلهم غير نشطين
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => void deleteSelectedTeachers()}
-                          className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white"
-                        >
+                        <button type="button" onClick={() => void deleteSelectedStudents()} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white">
                           حذف المحدد
                         </button>
                       </>
@@ -1456,173 +1034,50 @@ export default function TeachersPage() {
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1150px]">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
-                    <th className="rounded-r-2xl px-4 py-3 print:hidden">
-                      <input
-                        type="checkbox"
-                        checked={allPageSelected}
-                        onChange={toggleSelectPage}
-                      />
-                    </th>
-                    <th className="px-4 py-3">المعلم</th>
-                    <th className="px-4 py-3">الرقم الوظيفي</th>
-                    <th className="px-4 py-3">المادة</th>
-                    <th className="px-4 py-3">القسم</th>
-                    <th className="px-4 py-3">الجدول</th>
-                    <th className="px-4 py-3">الانتظار</th>
-                    <th className="px-4 py-3">الشواهد</th>
-                    <th className="px-4 py-3">الحالة</th>
-                    <th className="rounded-l-2xl px-4 py-3 print:hidden">
-                      الإجراءات
-                    </th>
-                  </tr>
-                </thead>
+            {loading ? (
+              <LoadingBox text="جاري تحميل الطلاب..." />
+            ) : filteredStudents.length === 0 ? (
+              <EmptyBox icon={<Search size={30} />} title="لا توجد نتائج" description="لا يوجد طلاب مطابقون للبحث أو الفلاتر الحالية." />
+            ) : viewMode === "cards" ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {pagedStudents.map((student) => (
+                  <StudentCard
+                    key={student.id}
+                    student={student}
+                    canManage={canManage}
+                    canMarkAttendance={canMarkAttendance}
+                    attendanceMenuId={attendanceMenuId}
+                    setAttendanceMenuId={setAttendanceMenuId}
+                    onSelect={setSelectedStudent}
+                    onEdit={startEdit}
+                    onDelete={deleteStudent}
+                    onMarkAttendance={markAttendance}
+                  />
+                ))}
+              </div>
+            ) : (
+              <StudentsTable
+                pagedStudents={pagedStudents}
+                allPageSelected={allPageSelected}
+                selectedIds={selectedIds}
+                canManage={canManage}
+                canMarkAttendance={canMarkAttendance}
+                attendanceMenuId={attendanceMenuId}
+                setAttendanceMenuId={setAttendanceMenuId}
+                toggleSelectPage={toggleSelectPage}
+                toggleSelectStudent={toggleSelectStudent}
+                setSelectedStudent={setSelectedStudent}
+                startEdit={startEdit}
+                deleteStudent={deleteStudent}
+                markAttendance={markAttendance}
+                getStudentGradeStatus={getStudentGradeStatus}
+              />
+            )}
 
-                <tbody>
-                  {!loading &&
-                    pagedTeachers.map((teacher) => (
-                      <tr
-                        key={teacher.id}
-                        className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
-                      >
-                        <td className="px-4 py-3 print:hidden">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(teacher.id)}
-                            onChange={() => toggleSelectTeacher(teacher.id)}
-                          />
-                        </td>
-
-                        <td className="px-4 py-3 font-bold text-[#15445A]">
-                          <div className="flex items-center gap-3">
-                            <TeacherAvatar teacher={teacher} />
-
-                            <div>
-                              <p>{teacher.full_name}</p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {teacher.phone || "-"} — {teacher.email || "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          {teacher.employee_number || "-"}
-                        </td>
-
-                        <td className="px-4 py-3">{teacher.subject || "-"}</td>
-
-                        <td className="px-4 py-3">
-                          {teacher.department || "-"}
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <SmallBadge label={`${teacher.scheduleCount} حصة`} />
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <SmallBadge label={`${teacher.waitingCount}`} />
-                            {teacher.pendingWaiting > 0 && (
-                              <SmallBadge
-                                label={`معلق ${teacher.pendingWaiting}`}
-                              />
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <SmallBadge label={`${teacher.portfolioCount}`} />
-                            {teacher.pendingPortfolio > 0 && (
-                              <SmallBadge
-                                label={`مراجعة ${teacher.pendingPortfolio}`}
-                              />
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <StatusBadge status={teacher.status} />
-                        </td>
-
-                        <td className="px-4 py-3 print:hidden">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedTeacher(teacher)}
-                              className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
-                              title="عرض مختصر"
-                            >
-                              <Eye size={16} />
-                            </button>
-
-                            <Link
-                              href={`/teachers/${teacher.id}`}
-                              className="rounded-xl bg-blue-50 p-2 text-blue-600 hover:bg-blue-100"
-                              title="فتح ملف المعلم"
-                            >
-                              <FileText size={16} />
-                            </Link>
-
-                            <Link
-                              href={`/teachers/${teacher.id}/portfolio`}
-                              className="rounded-xl bg-[#C1B489]/20 p-2 text-[#15445A] hover:bg-[#C1B489]/30"
-                              title="ملف الشواهد"
-                            >
-                              <Award size={16} />
-                            </Link>
-
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => startEdit(teacher)}
-                                  className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/20"
-                                  title="تعديل"
-                                >
-                                  <Pencil size={16} />
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => void deleteTeacher(teacher.id)}
-                                  className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
-                                  title="حذف"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-
-              {loading && (
-                <div className="py-6">
-                  <PageLoader text="جاري تحميل المعلمين..." />
-                </div>
-              )}
-
-              {!loading && filteredTeachers.length === 0 && (
-                <EmptyState
-                  icon={<Search size={30} />}
-                  title="لا توجد نتائج"
-                  description="لا يوجد معلمون مطابقون للبحث أو الفلاتر الحالية."
-                />
-              )}
-            </div>
-
-            {!loading && filteredTeachers.length > 0 && (
+            {!loading && filteredStudents.length > 0 && (
               <div className="mt-5 flex items-center justify-between">
                 <p className="text-sm text-slate-500">
-                  عرض {pagedTeachers.length} من {filteredTeachers.length}
+                  عرض {pagedStudents.length} من {filteredStudents.length}
                 </p>
 
                 <div className="flex items-center gap-2">
@@ -1641,9 +1096,7 @@ export default function TeachersPage() {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setPage((value) => Math.min(totalPages, value + 1))
-                    }
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                     disabled={page === totalPages}
                     className="rounded-xl border p-2 disabled:opacity-40"
                   >
@@ -1652,281 +1105,302 @@ export default function TeachersPage() {
                 </div>
               </div>
             )}
-          </div>
+          </section>
 
-          <TeacherSideCard
-            selectedTeacher={selectedTeacher}
-            setSelectedTeacher={setSelectedTeacher}
+          <StudentSideCard
+            selectedStudent={selectedStudent}
+            setSelectedStudent={setSelectedStudent}
+            selectedAverage={selectedAverage}
+            selectedRisk={selectedRisk}
+            selectedPresentCount={selectedPresentCount}
+            selectedAbsentCount={selectedAbsentCount}
+            selectedLateCount={selectedLateCount}
           />
         </section>
-      </div>
+      </main>
     </AuthGuard>
   );
 }
 
-function TeacherSideCard({
-  selectedTeacher,
-  setSelectedTeacher,
+function StudentsTable({
+  pagedStudents,
+  allPageSelected,
+  selectedIds,
+  canManage,
+  canMarkAttendance,
+  attendanceMenuId,
+  setAttendanceMenuId,
+  toggleSelectPage,
+  toggleSelectStudent,
+  setSelectedStudent,
+  startEdit,
+  deleteStudent,
+  markAttendance,
+  getStudentGradeStatus,
 }: {
-  selectedTeacher: TeacherWithStats | null;
-  setSelectedTeacher: (teacher: TeacherWithStats | null) => void;
+  pagedStudents: StudentWithAverage[];
+  allPageSelected: boolean;
+  selectedIds: string[];
+  canManage: boolean;
+  canMarkAttendance: boolean;
+  attendanceMenuId: string | null;
+  setAttendanceMenuId: (id: string | null) => void;
+  toggleSelectPage: () => void;
+  toggleSelectStudent: (id: string) => void;
+  setSelectedStudent: (student: StudentWithAverage) => void;
+  startEdit: (student: Student) => void;
+  deleteStudent: (id: string) => Promise<void>;
+  markAttendance: (studentId: string, status: AttendanceStatus) => Promise<void>;
+  getStudentGradeStatus: (studentId: string, gradeLevel?: string | null) => string;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-      {selectedTeacher ? (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1280px]">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+            <th className="rounded-r-2xl px-4 py-3 print:hidden">
+              <input type="checkbox" checked={allPageSelected} onChange={toggleSelectPage} />
+            </th>
+            <th className="px-4 py-3">الطالب</th>
+            <th className="px-4 py-3">رقم الطالب</th>
+            <th className="px-4 py-3">الهوية</th>
+            <th className="px-4 py-3">المرحلة</th>
+            <th className="px-4 py-3">الفصل</th>
+            <th className="px-4 py-3">ولي الأمر</th>
+            <th className="px-4 py-3">حضور اليوم</th>
+            <th className="px-4 py-3">متوسط الدرجات</th>
+            <th className="px-4 py-3">المخاطر</th>
+            <th className="px-4 py-3">الحالة</th>
+            <th className="rounded-l-2xl px-4 py-3 print:hidden">الإجراءات</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {pagedStudents.map((student) => (
+            <tr key={student.id} className="border-b border-slate-50 text-sm transition hover:bg-slate-50">
+              <td className="px-4 py-3 print:hidden">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(student.id)}
+                  onChange={() => toggleSelectStudent(student.id)}
+                />
+              </td>
+
+              <td className="px-4 py-3 font-bold text-[#15445A]">{student.full_name}</td>
+              <td className="px-4 py-3">{student.student_number || "-"}</td>
+              <td className="px-4 py-3">{student.national_id || "-"}</td>
+              <td className="px-4 py-3">{student.grade_level || "-"}</td>
+              <td className="px-4 py-3">{student.classroom || "-"}{student.section ? ` - ${student.section}` : ""}</td>
+
+              <td className="px-4 py-3">
+                <p>{student.guardian_name || "-"}</p>
+                <p className="mt-1 text-xs text-slate-400">{student.guardian_phone || "-"}</p>
+                <p className="mt-1 text-xs text-slate-400">{student.guardian_email || student.parent_email || "-"}</p>
+              </td>
+
+              <td className="px-4 py-3">
+                <StatusBadge status={student.todayStatus} />
+              </td>
+
+              <td className="px-4 py-3">
+                <div className="flex flex-col gap-1">
+                  <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${gradeTone(student.average)}`}>
+                    {student.average > 0 ? `${student.average}%` : "لا توجد درجات"}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {getStudentGradeStatus(student.id, student.grade_level)}
+                  </span>
+                </div>
+              </td>
+
+              <td className="px-4 py-3">
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${riskTone(student)}`}>
+                  {riskLabel(student)}
+                </span>
+              </td>
+
+              <td className="px-4 py-3">
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                  {student.status || DEFAULT_STATUS}
+                </span>
+              </td>
+
+              <td className="px-4 py-3 print:hidden">
+                <StudentActions
+                  student={student}
+                  canManage={canManage}
+                  canMarkAttendance={canMarkAttendance}
+                  attendanceMenuId={attendanceMenuId}
+                  setAttendanceMenuId={setAttendanceMenuId}
+                  onSelect={setSelectedStudent}
+                  onEdit={startEdit}
+                  onDelete={deleteStudent}
+                  onMarkAttendance={markAttendance}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StudentCard({
+  student,
+  canManage,
+  canMarkAttendance,
+  attendanceMenuId,
+  setAttendanceMenuId,
+  onSelect,
+  onEdit,
+  onDelete,
+  onMarkAttendance,
+}: {
+  student: StudentWithAverage;
+  canManage: boolean;
+  canMarkAttendance: boolean;
+  attendanceMenuId: string | null;
+  setAttendanceMenuId: (id: string | null) => void;
+  onSelect: (student: StudentWithAverage) => void;
+  onEdit: (student: Student) => void;
+  onDelete: (id: string) => Promise<void>;
+  onMarkAttendance: (studentId: string, status: AttendanceStatus) => Promise<void>;
+}) {
+  return (
+    <article className="rounded-[24px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-2xl font-black text-[#15445A]">
-              الملف المختصر
-            </h2>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTeacher(null)}
-              className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-[#C1B489] text-[#15445A]">
-                {selectedTeacher.photo_url ? (
-                  <img
-                    src={selectedTeacher.photo_url}
-                    alt={selectedTeacher.full_name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <UserRoundCheck size={28} />
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-2xl font-black text-[#C1B489]">
-                  {selectedTeacher.full_name}
-                </h3>
-
-                <p className="text-sm text-slate-300">
-                  {selectedTeacher.subject || "-"} —{" "}
-                  {selectedTeacher.department || "-"}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <InfoMini
-                title="الرقم الوظيفي"
-                value={selectedTeacher.employee_number || "-"}
-              />
-              <InfoMini
-                title="النصاب"
-                value={String(selectedTeacher.weekly_load ?? "-")}
-              />
-              <InfoMini title="الحالة" value={selectedTeacher.status || "-"} />
-              <InfoMini title="المادة" value={selectedTeacher.subject || "-"} />
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <DetailStat
-              title="مواد مسندة"
-              value={selectedTeacher.assignedSubjectsCount}
-              icon={<BookOpenCheck size={18} />}
-              color="blue"
-            />
-            <DetailStat
-              title="فصول مسندة"
-              value={selectedTeacher.assignedClassesCount}
-              icon={<Users size={18} />}
-              color="blue"
-            />
-            <DetailStat
-              title="الجدول"
-              value={selectedTeacher.scheduleCount}
-              icon={<BookOpenCheck size={18} />}
-              color="blue"
-            />
-            <DetailStat
-              title="الانتظار"
-              value={selectedTeacher.waitingCount}
-              icon={<CalendarCheck size={18} />}
-              color="amber"
-            />
-            <DetailStat
-              title="انتظار معلق"
-              value={selectedTeacher.pendingWaiting}
-              icon={<ClipboardCheck size={18} />}
-              color="red"
-            />
-            <DetailStat
-              title="الشواهد"
-              value={selectedTeacher.portfolioCount}
-              icon={<Award size={18} />}
-              color="green"
-            />
-          </div>
-
-
-          <div className="mt-5 space-y-3">
-            <TeacherDrawerSection
-              title="Timeline"
-              items={buildTeacherTimeline(selectedTeacher).map((item) => `${item.time} — ${item.title}: ${item.description}`)}
-            />
-
-            <TeacherDrawerSection
-              title="Portfolio"
-              items={[
-                `الشواهد: ${selectedTeacher.portfolioCount}`,
-                `قيد المراجعة: ${selectedTeacher.pendingPortfolio}`,
-                `حالة الملف: ${selectedTeacher.portfolioCount > 0 ? "مكتمل جزئيًا" : "يحتاج رفع شواهد"}`,
-              ]}
-            />
-
-            <TeacherDrawerSection
-              title="Schedule & Assignment"
-              items={[
-                `الحصص المجدولة: ${selectedTeacher.scheduleCount}`,
-                `المواد المسندة: ${selectedTeacher.assignedSubjectsCount}`,
-                `الفصول المسندة: ${selectedTeacher.assignedClassesCount}`,
-                `النصاب الأسبوعي: ${selectedTeacher.weekly_load ?? "-"}`,
-              ]}
-            />
-
-            <TeacherDrawerSection
-              title="AI Recommendations"
-              items={[
-                selectedTeacher.scheduleCount === 0 ? "يفضل مراجعة جدول المعلم وربطه بالحصة." : "الجدول يظهر مرتبطًا.",
-                selectedTeacher.assignedSubjectsCount === 0 ? "المعلم يحتاج إسناد مادة." : "إسناد المواد ظاهر.",
-                selectedTeacher.portfolioCount === 0 ? "يفضل تذكير المعلم برفع الشواهد." : "ملف الشواهد يحتوي على عناصر.",
-              ]}
-            />
-          </div>
-
-          <div className="mt-5 grid gap-2">
-            <Link
-              href={`/teachers/${selectedTeacher.id}`}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-5 py-3 text-sm font-black text-[#15445A]"
-            >
-              <FileText size={17} />
-              فتح ملف المعلم
-            </Link>
-
-            <Link
-              href={`/teachers/${selectedTeacher.id}/portfolio`}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-black text-white"
-            >
-              <Award size={17} />
-              ملف الشواهد
-            </Link>
-          </div>
+          <h3 className="text-lg font-black text-[#15445A]">{student.full_name}</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {student.grade_level || "-"} · {student.classroom || "-"}
+            {student.section ? ` · ${student.section}` : ""}
+          </p>
         </div>
-      ) : (
-        <EmptyState
-          icon={<GraduationCap size={42} />}
-          title="اختر معلمًا"
-          description="اضغط على أيقونة العين لعرض الملف المختصر."
-          className="min-h-[350px]"
+
+        <span className={`rounded-full px-3 py-1 text-xs font-black ${riskTone(student)}`}>
+          {riskLabel(student)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <MiniValue label="رقم الطالب" value={student.student_number || "-"} />
+        <MiniValue label="حضور اليوم" value={getStatusLabel(student.todayStatus)} />
+        <MiniValue label="المتوسط" value={student.average > 0 ? `${student.average}%` : "-"} />
+        <MiniValue label="الغياب" value={student.absenceCount} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <StudentActions
+          student={student}
+          canManage={canManage}
+          canMarkAttendance={canMarkAttendance}
+          attendanceMenuId={attendanceMenuId}
+          setAttendanceMenuId={setAttendanceMenuId}
+          onSelect={onSelect}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onMarkAttendance={onMarkAttendance}
         />
-      )}
-    </div>
+      </div>
+    </article>
   );
 }
 
-function TeacherAvatar({ teacher }: { teacher: Teacher }) {
-  return (
-    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[#15445A]/10 text-[#15445A]">
-      {teacher.photo_url ? (
-        <img
-          src={teacher.photo_url}
-          alt={teacher.full_name}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <UserRoundCheck size={22} />
-      )}
-    </div>
-  );
-}
-
-function QuickFilter({
-  label,
-  value,
-  active,
-  onClick,
+function StudentActions({
+  student,
+  canManage,
+  canMarkAttendance,
+  attendanceMenuId,
+  setAttendanceMenuId,
+  onSelect,
+  onEdit,
+  onDelete,
+  onMarkAttendance,
 }: {
-  label: string;
-  value: string;
-  active: string;
-  onClick: (value: string) => void;
+  student: StudentWithAverage;
+  canManage: boolean;
+  canMarkAttendance: boolean;
+  attendanceMenuId: string | null;
+  setAttendanceMenuId: (id: string | null) => void;
+  onSelect: (student: StudentWithAverage) => void;
+  onEdit: (student: Student) => void;
+  onDelete: (id: string) => Promise<void>;
+  onMarkAttendance: (studentId: string, status: AttendanceStatus) => Promise<void>;
 }) {
-  const isActive = active === value;
-
   return (
-    <button
-      type="button"
-      onClick={() => onClick(value)}
-      className={`rounded-2xl px-4 py-2 text-sm font-black ${
-        isActive ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onSelect(student)}
+        className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+        title="عرض مختصر"
+      >
+        <Eye size={16} />
+      </button>
+
+      <Link
+        href={`/students/${student.id}`}
+        className="rounded-xl bg-[#07A869]/10 p-2 text-[#07A869] hover:bg-[#07A869]/15"
+        title="فتح ملف الطالب"
+      >
+        <FileText size={16} />
+      </Link>
+
+      {canManage && (
+        <button
+          type="button"
+          onClick={() => onEdit(student)}
+          className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/15"
+          title="تعديل"
+        >
+          <Pencil size={16} />
+        </button>
+      )}
+
+      {canMarkAttendance && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setAttendanceMenuId(attendanceMenuId === student.id ? null : student.id)}
+            className="rounded-xl bg-[#15445A] px-3 py-2 text-xs font-black text-white"
+          >
+            الحضور
+          </button>
+
+          {attendanceMenuId === student.id && (
+            <div className="absolute left-0 top-10 z-20 w-44 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+              <AttendanceAction label="حاضر" color="green" onClick={() => onMarkAttendance(student.id, "حاضر")} />
+              <AttendanceAction label="غائب" color="red" onClick={() => onMarkAttendance(student.id, "غائب")} />
+              <AttendanceAction label="متأخر" color="amber" onClick={() => onMarkAttendance(student.id, "متأخر")} />
+              <AttendanceAction label="عيادة" color="blue" onClick={() => onMarkAttendance(student.id, "عيادة")} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {canManage && (
+        <button
+          type="button"
+          onClick={() => void onDelete(student.id)}
+          className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+          title="حذف"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ToastBox({ toast }: { toast: Toast }) {
+  return (
+    <div
+      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
+        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
       }`}
     >
-      {label}
-    </button>
-  );
-}
-
-function StatusBadge({ status }: { status?: string | null }) {
-  const value = status || DEFAULT_STATUS;
-
-  const tone =
-    value === DEFAULT_STATUS || value === "active"
-      ? "success"
-      : value === "غير نشط"
-        ? "danger"
-        : "warning";
-
-  return <UiStatusBadge tone={tone}>{value}</UiStatusBadge>;
-}
-
-function SmallBadge({ label }: { label: string }) {
-  return <UiStatusBadge tone="default">{label}</UiStatusBadge>;
-}
-
-function DetailStat({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: ReactNode;
-  color: "blue" | "red" | "amber" | "green";
-}) {
-  const colors = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    red: "bg-red-50 text-red-700",
-    amber: "bg-[#C1B489]/20 text-[#15445A]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-  };
-
-  return (
-    <div className={`rounded-2xl p-4 ${colors[color]}`}>
-      <div className="mb-2 flex items-center gap-2">
-        {icon}
-        <p className="text-xs font-bold">{title}</p>
-      </div>
-      <h3 className="text-2xl font-black">{value}</h3>
-    </div>
-  );
-}
-
-function InfoMini({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
-      <p className="mt-1 truncate font-black text-white">{value}</p>
+      <span>{toast.message}</span>
     </div>
   );
 }
@@ -1948,282 +1422,243 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
     />
   );
 }
 
-function ToastBox({ toast }: { toast: Toast }) {
+function QuickFilter({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  active: string;
+  onClick: (value: string) => void;
+}) {
+  const isActive = active === value;
+
   return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+    <button
+      type="button"
+      onClick={() => onClick(value)}
+      className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
+        isActive ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
       }`}
     >
-      <div
-        className={`h-2.5 w-2.5 rounded-full ${
-          toast.type === "success" ? "bg-emerald-200" : "bg-red-200"
-        }`}
-      />
-      <span>{toast.message}</span>
-    </div>
+      {label}
+    </button>
   );
 }
 
+function StatusBadge({ status }: { status?: string | null }) {
+  const label = getStatusLabel(status);
 
-function TeacherAnalyticsPanel({
-  analytics,
-  totalTeachers,
-  activeTeachers,
-  totalWeeklyLoad,
+  const style = isPresent(status)
+    ? "bg-[#07A869]/10 text-[#07A869]"
+    : isAbsent(status)
+      ? "bg-red-50 text-red-700"
+      : isLate(status)
+        ? "bg-[#C1B489]/20 text-[#15445A]"
+        : isClinic(status)
+          ? "bg-[#3D7EB9]/10 text-[#3D7EB9]"
+          : "bg-slate-100 text-slate-500";
+
+  return <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>{label}</span>;
+}
+
+function AttendanceAction({
+  label,
+  color,
+  onClick,
 }: {
-  analytics: TeacherAnalytics;
-  totalTeachers: number;
-  activeTeachers: number;
-  totalWeeklyLoad: number;
+  label: string;
+  color: "green" | "red" | "amber" | "blue";
+  onClick: () => void;
 }) {
+  const colors = {
+    green: "text-[#07A869] hover:bg-[#07A869]/10",
+    red: "text-red-700 hover:bg-red-50",
+    amber: "text-[#15445A] hover:bg-[#C1B489]/20",
+    blue: "text-[#3D7EB9] hover:bg-[#3D7EB9]/10",
+  };
+
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-xl font-black text-[var(--app-text)]">Teacher Analytics</h2>
-        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          تحليل سريع للتخصصات، الأقسام، النصاب، والإسناد.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <TeacherAnalyticsMini label="إجمالي المعلمين" value={totalTeachers} icon={<GraduationCap size={18} />} tone="blue" />
-        <TeacherAnalyticsMini label="على رأس العمل" value={activeTeachers} icon={<UserRoundCheck size={18} />} tone="green" />
-        <TeacherAnalyticsMini label="متوسط النصاب" value={analytics.averageWeeklyLoad} icon={<BriefcaseBusiness size={18} />} tone="gold" />
-        <TeacherAnalyticsMini label="النصاب الكلي" value={totalWeeklyLoad} icon={<BookOpenCheck size={18} />} tone="teal" />
-      </div>
-
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <TeacherMiniList title="أكثر الأقسام" items={analytics.topDepartments.map((item) => `${item.name} — ${item.count} معلم · نصاب ${item.load}`)} />
-        <TeacherMiniList title="أكثر المواد" items={analytics.topSubjects.map((item) => `${item.name} — ${item.count} معلم`)} />
-      </div>
-    </section>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`block w-full rounded-xl px-3 py-2 text-right text-sm font-black ${colors[color]}`}
+    >
+      {label}
+    </button>
   );
 }
 
-function TeacherSmartInsightsPanel({ insights }: { insights: TeacherSmartInsight[] }) {
-  return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-xl font-black text-[var(--app-text)]">Smart Insights</h2>
-        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          توصيات تشغيلية مبنية على الإسناد والجداول والشواهد.
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {insights.map((insight) => (
-          <div
-            key={insight.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
-          >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${dashboardTokenTone(insight.tone)}`}>
-              {insight.icon}
-            </div>
-
-            <div>
-              <p className="text-sm font-black text-[var(--app-text)]">{insight.title}</p>
-              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
-                {insight.description}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TeacherChartsPanel({
-  totalTeachers,
-  activeTeachers,
-  waitingPeriods,
-  pendingWaiting,
-  portfolioItems,
-  pendingPortfolio,
-  averageWeeklyLoad,
-  withoutSchedule,
+function StudentSideCard({
+  selectedStudent,
+  setSelectedStudent,
+  selectedAverage,
+  selectedRisk,
+  selectedPresentCount,
+  selectedAbsentCount,
+  selectedLateCount,
 }: {
-  totalTeachers: number;
-  activeTeachers: number;
-  waitingPeriods: number;
-  pendingWaiting: number;
-  portfolioItems: number;
-  pendingPortfolio: number;
-  averageWeeklyLoad: number;
-  withoutSchedule: number;
+  selectedStudent: StudentWithAverage | null;
+  setSelectedStudent: (student: StudentWithAverage | null) => void;
+  selectedAverage: number;
+  selectedRisk: string;
+  selectedPresentCount: number;
+  selectedAbsentCount: number;
+  selectedLateCount: number;
 }) {
-  return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-xl font-black text-[var(--app-text)]">Charts</h2>
-        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          توزيع بصري سريع لحالة الكادر والجداول والشواهد.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <TeacherProgressRow label="على رأس العمل" value={activeTeachers} total={Math.max(1, totalTeachers)} tone="green" />
-        <TeacherProgressRow label="بدون جدول" value={withoutSchedule} total={Math.max(1, totalTeachers)} tone="red" />
-        <TeacherProgressRow label="انتظار معلق" value={pendingWaiting} total={Math.max(1, waitingPeriods)} tone="gold" />
-        <TeacherProgressRow label="شواهد قيد المراجعة" value={pendingPortfolio} total={Math.max(1, portfolioItems)} tone="blue" />
-
-        <div className="rounded-2xl bg-[var(--app-card-soft)] p-3">
-          <div className="mb-2 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
-            <span>متوسط النصاب</span>
-            <span>{averageWeeklyLoad}</span>
-          </div>
-          <div className="h-3 overflow-hidden rounded-full bg-[var(--app-card)]">
-            <div
-              className="h-full rounded-full bg-[var(--app-teal)]"
-              style={{ width: `${Math.min(100, Math.max(4, percentage(averageWeeklyLoad, 24)))}%` }}
-            />
+  if (!selectedStudent) {
+    return (
+      <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
+          <div>
+            <Users size={40} className="mx-auto text-[#C1B489]" />
+            <h3 className="mt-4 text-xl font-black text-[#15445A]">اختر طالبًا</h3>
+            <p className="mt-2 text-sm text-slate-500">اضغط على أيقونة العين لعرض الملف المختصر</p>
           </div>
         </div>
       </div>
-    </section>
-  );
-}
+    );
+  }
 
-function TeacherPerformancePanel({
-  totalTeachers,
-  withSubjects,
-  withClasses,
-  withSchedule,
-  withPortfolio,
-}: {
-  totalTeachers: number;
-  withSubjects: number;
-  withClasses: number;
-  withSchedule: number;
-  withPortfolio: number;
-}) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-xl font-black text-[var(--app-text)]">Teacher Performance</h2>
-        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          اكتمال الإسناد والجدول والشواهد.
-        </p>
+    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-2xl font-black text-[#15445A]">الملف المختصر</h2>
+
+        <button
+          type="button"
+          onClick={() => setSelectedStudent(null)}
+          className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
+        >
+          <X size={18} />
+        </button>
       </div>
 
-      <div className="space-y-4">
-        <TeacherProgressRow label="اكتمال المواد" value={withSubjects} total={Math.max(1, totalTeachers)} tone="green" />
-        <TeacherProgressRow label="اكتمال الفصول" value={withClasses} total={Math.max(1, totalTeachers)} tone="blue" />
-        <TeacherProgressRow label="اكتمال الجداول" value={withSchedule} total={Math.max(1, totalTeachers)} tone="teal" />
-        <TeacherProgressRow label="اكتمال الشواهد" value={withPortfolio} total={Math.max(1, totalTeachers)} tone="gold" />
+      <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#C1B489] text-[#15445A]">
+            <UserRound size={28} />
+          </div>
+
+          <div>
+            <h3 className="text-2xl font-black text-[#C1B489]">{selectedStudent.full_name}</h3>
+            <p className="text-sm text-slate-300">
+              {selectedStudent.grade_level || "-"} - {selectedStudent.classroom || "-"}
+              {selectedStudent.section ? ` - ${selectedStudent.section}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <InfoMini title="رقم الطالب" value={selectedStudent.student_number || "-"} />
+          <InfoMini title="رقم الهوية" value={selectedStudent.national_id || "-"} />
+          <InfoMini title="ولي الأمر" value={selectedStudent.guardian_name || "-"} />
+          <InfoMini title="متوسط الدرجات" value={selectedAverage ? `${selectedAverage}%` : "-"} />
+        </div>
       </div>
-    </section>
+
+      <div className="mt-5 rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+        <p className="text-sm font-bold text-slate-500">مؤشر المتابعة</p>
+        <h3 className="mt-2 text-2xl font-black text-[#15445A]">{selectedRisk}</h3>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <DetailStat title="متوسط" value={selectedAverage ? `${selectedAverage}%` : "-"} icon={<BarChart3 size={18} />} color="blue" />
+        <DetailStat title="حضور" value={selectedPresentCount} icon={<CheckCircle2 size={18} />} color="green" />
+        <DetailStat title="غياب" value={selectedAbsentCount} icon={<ClipboardCheck size={18} />} color="red" />
+        <DetailStat title="تأخر" value={selectedLateCount} icon={<Clock size={18} />} color="gold" />
+      </div>
+
+      <Link
+        href={`/students/${selectedStudent.id}`}
+        className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-5 py-3 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      >
+        <FileText size={17} />
+        فتح ملف الطالب
+      </Link>
+    </div>
   );
 }
 
-function TeacherImportPanel() {
+function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
-      <div className="mb-4">
-        <h2 className="text-xl font-black text-[var(--app-text)]">Import Teachers</h2>
-        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          مساحة مخصصة لاستيراد المعلمين من Excel أو نور أو CSV لاحقًا.
-        </p>
-      </div>
-
-      <div className="rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 text-center">
-        <Download className="mx-auto h-8 w-8 text-[var(--app-teal)]" />
-        <p className="mt-3 text-sm font-black text-[var(--app-text)]">جاهز للربط مع مستورد المعلمين</p>
-        <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
-          يمكن ربط هذه البطاقة لاحقًا بصفحة استيراد من نور أو ملف Excel.
-        </p>
-      </div>
-    </section>
+    <div className="rounded-2xl bg-white/10 p-3">
+      <p className="text-xs text-slate-300">{title}</p>
+      <p className="mt-1 truncate font-black text-white">{value}</p>
+    </div>
   );
 }
 
-function TeacherAnalyticsMini({
-  label,
+function DetailStat({
+  title,
   value,
   icon,
-  tone,
+  color,
 }: {
-  label: string;
+  title: string;
   value: string | number;
   icon: ReactNode;
-  tone: TeacherSmartInsight["tone"];
+  color: "blue" | "red" | "gold" | "green";
+}) {
+  const colors = {
+    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
+    red: "bg-red-50 text-red-700",
+    gold: "bg-[#C1B489]/20 text-[#15445A]",
+    green: "bg-[#07A869]/10 text-[#07A869]",
+  };
+
+  return (
+    <div className={`rounded-2xl p-4 ${colors[color]}`}>
+      <div className="mb-2 flex items-center gap-2">
+        {icon}
+        <p className="text-xs font-bold">{title}</p>
+      </div>
+      <h3 className="text-2xl font-black">{value}</h3>
+    </div>
+  );
+}
+
+function MiniValue({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl bg-white px-3 py-2">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-1 font-black text-[#15445A]">{value}</p>
+    </div>
+  );
+}
+
+function LoadingBox({ text }: { text: string }) {
+  return (
+    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
+      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
+      {text}
+    </div>
+  );
+}
+
+function EmptyBox({
+  icon,
+  title,
+  description,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${dashboardTokenTone(tone)}`}>
+    <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#0DA9A6]">
         {icon}
       </div>
-      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
-      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
-    </div>
-  );
-}
-
-function TeacherMiniList({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="rounded-3xl bg-[var(--app-card-soft)] p-4">
-      <h3 className="mb-3 text-sm font-black text-[var(--app-text)]">{title}</h3>
-      <div className="space-y-2">
-        {items.length === 0 ? (
-          <p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات كافية.</p>
-        ) : (
-          items.map((item) => (
-            <div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
-              {item}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TeacherProgressRow({
-  label,
-  value,
-  total,
-  tone,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  tone: TeacherSmartInsight["tone"];
-}) {
-  const width = Math.max(4, Math.round((value / total) * 100));
-
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]">
-        <span>{label}</span>
-        <span>{value}</span>
-      </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div
-          className={`h-full rounded-full ${progressBarColor(tone)}`}
-          style={{ width: `${width}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function TeacherDrawerSection({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
-      <div className="space-y-1">
-        {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
-            {item}
-          </p>
-        ))}
-      </div>
+      <h3 className="text-lg font-black text-[#15445A]">{title}</h3>
+      <p className="mt-2 text-sm text-slate-500">{description}</p>
     </div>
   );
 }

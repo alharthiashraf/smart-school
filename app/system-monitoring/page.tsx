@@ -30,7 +30,6 @@ import {
   AlertTriangle,
   BarChart3,
   BrainCircuit,
-  CheckCircle2,
   Clock3,
   CloudCog,
   Database,

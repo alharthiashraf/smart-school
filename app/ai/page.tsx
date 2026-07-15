@@ -123,18 +123,6 @@ function numberValue(row: AnyRow, keys: string[], fallback = 0) {
   return fallback;
 }
 
-function textValue(row: AnyRow, keys: string[], fallback = "") {
-  for (const key of keys) {
-    const value = row[key];
-
-    if (value !== null && value !== undefined && String(value).trim()) {
-      return String(value);
-    }
-  }
-
-  return fallback;
-}
-
 function percentage(value: number, total: number) {
   if (!total) return 0;
   return Math.round((value / total) * 100);
@@ -665,14 +653,14 @@ export default function AiCenterPage() {
     if (!question) return;
 
     const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${crypto.randomUUID()}`,
       role: "user",
       content: question,
       createdAt: nowLabel(),
     };
 
     const answerMessage: ChatMessage = {
-      id: `assistant-${Date.now() + 1}`,
+      id: `assistant-${crypto.randomUUID()}`,
       role: "assistant",
       content: generateAnswer(question),
       createdAt: nowLabel(),

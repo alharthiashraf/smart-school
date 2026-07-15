@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
   Activity,
@@ -17,7 +16,6 @@ import {
   HeartPulse,
   LayoutDashboard,
   School,
-  Search,
   Settings,
   Shield,
   Sparkles,
@@ -575,8 +573,6 @@ export default function DashboardPage() {
 
   const attendanceTotal = stats.presentToday + stats.absentToday + stats.lateToday;
   const attendanceRate = percent(stats.presentToday, attendanceTotal);
-  const absenceRate = percent(stats.absentToday + stats.lateToday, attendanceTotal);
-
   const systemHealth =
     stats.unreadNotifications === 0 && stats.absentToday === 0
       ? "مستقر"

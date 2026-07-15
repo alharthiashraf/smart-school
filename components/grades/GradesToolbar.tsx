@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  type LucideIcon,
   BarChart3,
   BookOpen,
   ChevronDown,
@@ -200,7 +201,7 @@ export default function GradesToolbar({
     setGradeName(clean(selectedScheme.grade_name));
     setTrackName(clean(selectedScheme.track_name));
     setSubjectName(clean(selectedScheme.subject_name));
-  }, [selectedScheme?.id]);
+  }, [selectedScheme]);
 
   const yearOptions = useMemo(
     () => unique(schemes.map((scheme) => scheme.academic_year)),
@@ -494,7 +495,7 @@ function TabButton({
   onClick,
 }: {
   active: boolean;
-  icon: any;
+  icon: LucideIcon;
   label: string;
   onClick: () => void;
 }) {
@@ -519,7 +520,7 @@ function Tool({
   label,
   onClick,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   onClick?: () => void;
 }) {

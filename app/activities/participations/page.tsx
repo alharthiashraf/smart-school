@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
@@ -135,16 +135,6 @@ const ROLE_OPTIONS = [
   "ظ…ط±ط´ط­",
 ];
 
-function formatDate(value?: string | null) {
-  if (!value) return "â€”";
-
-  return new Date(value).toLocaleDateString("ar-SA", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function statusStyle(status?: string | null) {
   const value = String(status || "");
 
@@ -196,10 +186,6 @@ export default function ActivityParticipationsPage() {
   const [toast, setToast] = useState<ActivityToast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    if (currentSchool?.id) void loadData();
-  }, [currentSchool?.id]);
-
   const activityOptions = useMemo<OptionItem[]>(() => {
     return activities.map((item) => ({
       id: item.id,
@@ -226,7 +212,7 @@ export default function ActivityParticipationsPage() {
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -274,7 +260,18 @@ export default function ActivityParticipationsPage() {
     setActivities((activitiesResult.data || []) as Activity[]);
     setTeams((teamsResult.data || []) as Team[]);
     setCompetitions((competitionsResult.data || []) as Competition[]);
-  }
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      return;
+    }
+
+    void loadData();
+  }, [currentSchool?.id, loadData, schoolLoading]);
 
   function resetForm() {
     setForm(emptyForm);

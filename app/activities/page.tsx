@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
@@ -169,10 +175,17 @@ function formatDate(value?: string | null) {
   }
 }
 
-function rows<T>(result: PromiseSettledResult<any>): T[] {
+type SupabaseListResult<T> = {
+  data: T[] | null;
+  error: unknown;
+};
+
+function rows<T>(
+  result: PromiseSettledResult<SupabaseListResult<T>>,
+): T[] {
   if (result.status !== "fulfilled") return [];
-  if (result.value?.error) return [];
-  return (result.value?.data as T[]) || [];
+  if (result.value.error) return [];
+  return result.value.data ?? [];
 }
 
 function isActiveStatus(value?: string | null) {
@@ -257,7 +270,7 @@ export default function ActivitiesPage() {
 
   const today = getTodayDate();
 
-  async function loadPage() {
+  const loadPage = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -345,7 +358,7 @@ export default function ActivitiesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentSchool?.id]);
 
   useEffect(() => {
     if (schoolLoading) return;
@@ -357,8 +370,7 @@ export default function ActivitiesPage() {
     }
 
     void loadPage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSchool?.id, schoolLoading]);
+  }, [currentSchool?.id, loadPage, schoolLoading]);
 
   const achievementLevel = useMemo(() => {
     const score =

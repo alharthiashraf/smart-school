@@ -27,8 +27,6 @@ import { type SchoolRole } from "@/lib/permissions";
 
 import {
   Accessibility,
-  Activity,
-  AlertTriangle,
   BarChart3,
   BrainCircuit,
   CheckCircle2,
@@ -44,7 +42,6 @@ import {
   Target,
   TestTube2,
   TriangleAlert,
-  Users,
   WandSparkles,
   X,
   Zap,

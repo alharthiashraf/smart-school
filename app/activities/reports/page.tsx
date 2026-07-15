@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
@@ -164,10 +164,6 @@ export default function ActivityReportsPage() {
   const [toast, setToast] = useState<ActivityToast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    if (currentSchool?.id) void loadData();
-  }, [currentSchool?.id]);
-
   const activityOptions = useMemo<OptionItem[]>(() => {
     return activities.map((item) => ({
       id: item.id,
@@ -187,7 +183,7 @@ export default function ActivityReportsPage() {
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -224,7 +220,18 @@ export default function ActivityReportsPage() {
     setItems((reportsResult.data || []) as ActivityReport[]);
     setActivities((activitiesResult.data || []) as Activity[]);
     setCompetitions((competitionsResult.data || []) as Competition[]);
-  }
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      return;
+    }
+
+    void loadData();
+  }, [currentSchool?.id, loadData, schoolLoading]);
 
   function resetForm() {
     setForm({

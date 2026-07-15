@@ -24,7 +24,6 @@ import { useSchool } from "@/contexts/SchoolContext";
 import {
   Activity,
   AlertTriangle,
-  BarChart3,
   BrainCircuit,
   Award,
   Bell,

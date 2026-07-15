@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
@@ -180,21 +186,7 @@ export default function ActivitiesManagePage() {
     };
   }, [items]);
 
-  useEffect(() => {
-    if (!schoolLoading && !currentSchool?.id) {
-      setLoading(false);
-      return;
-    }
-
-    if (currentSchool?.id) void loadData();
-  }, [currentSchool?.id, schoolLoading]);
-
-  function showToast(type: ActivityToast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -214,6 +206,22 @@ export default function ActivitiesManagePage() {
     }
 
     setItems((data || []) as Activity[]);
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (!schoolLoading && !currentSchool?.id) {
+      setLoading(false);
+      return;
+    }
+
+    if (currentSchool?.id) {
+      void loadData();
+    }
+  }, [currentSchool?.id, loadData, schoolLoading]);
+
+  function showToast(type: ActivityToast["type"], message: string) {
+    setToast({ type, message });
+    window.setTimeout(() => setToast(null), 3000);
   }
 
   function resetForm() {
@@ -343,7 +351,7 @@ export default function ActivitiesManagePage() {
   }
 
   function exportPDF() {
-    (exportTableToPDF as any)({
+    exportTableToPDF({
       title: "ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©",
       schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
       subtitle: "ظ‚ط§ط¦ظ…ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط©",

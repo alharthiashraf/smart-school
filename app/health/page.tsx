@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
@@ -21,10 +21,8 @@ import {
   CheckCircle2,
   ClipboardList,
   Download,
-  FileText,
   HeartPulse,
   Loader2,
-  Pill,
   PlusCircle,
   Printer,
   RefreshCcw,
@@ -33,7 +31,6 @@ import {
   ShieldAlert,
   Stethoscope,
   Trash2,
-  UserCheck,
   XCircle,
 } from "lucide-react";
 
@@ -307,16 +304,12 @@ export default function HealthPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
 
-  useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-  }, [currentSchool?.id]);
-
   function showToast(type: Toast["type"], message: string) {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -411,7 +404,11 @@ export default function HealthPage() {
     });
 
     setNoteDrafts(drafts);
-  }
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (currentSchool?.id) void fetchData();
+  }, [currentSchool?.id, fetchData]);
 
   const studentMap = useMemo(() => {
     return new Map(students.map((student) => [student.id, student]));
@@ -1944,23 +1941,6 @@ export default function HealthPage() {
   );
 }
 
-function QuickStatusButton({
-  status,
-  onClick,
-}: {
-  status: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-100"
-    >
-      {status}
-    </button>
-  );
-}
-
 function DashboardInfoCard({
   title,
   value,
@@ -2008,37 +1988,6 @@ function StatusBadge({ status }: { status: string }) {
     >
       {status}
     </span>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  icon: ReactNode;
-  color: "blue" | "amber" | "red" | "emerald";
-}) {
-  const colors = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    amber: "bg-[#C1B489]/20 text-[#15445A]",
-    red: "bg-red-50 text-red-700",
-    emerald: "bg-[#07A869]/10 text-[#07A869]",
-  };
-
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}
-      >
-        {icon}
-      </div>
-      <p className="text-sm text-slate-500">{title}</p>
-      <h2 className="mt-2 text-4xl font-black text-[#15445A]">{value}</h2>
-    </div>
   );
 }
 

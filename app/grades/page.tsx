@@ -27,7 +27,6 @@ import {
   ShieldCheck,
   Upload,
   UsersRound,
-  WandSparkles,
   XCircle,
   GraduationCap,
 } from "lucide-react";
@@ -639,9 +638,14 @@ export default function GradesPage() {
     }
   }
 
-  function getConductScore(studentId: string, scoreType: ConductScoreType) {
-    return conductScores.find((score) => score.student_id === studentId && score.score_type === scoreType)?.score ?? 100;
-  }
+  const getConductScore = useCallback(
+    (studentId: string, scoreType: ConductScoreType) =>
+      conductScores.find(
+        (score) =>
+          score.student_id === studentId && score.score_type === scoreType,
+      )?.score ?? 100,
+    [conductScores],
+  );
 
   async function updateConductScore(
     student: StudentForGrades,
@@ -841,7 +845,7 @@ export default function GradesPage() {
       const score = getConductScore(student.id, "behavior");
       return { student, score, label: conductLabel(score), status: score >= 75 ? "مستقر" : "يحتاج متابعة" };
     }),
-    [conductScores, students],
+    [getConductScore, students],
   );
 
   const attendanceRows = useMemo(
@@ -849,7 +853,7 @@ export default function GradesPage() {
       const score = getConductScore(student.id, "attendance");
       return { student, score, label: conductLabel(score), status: score >= 75 ? "منتظم" : "ضعيف المواظبة" };
     }),
-    [conductScores, students],
+    [getConductScore, students],
   );
 
   const pagedEntries = filteredEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

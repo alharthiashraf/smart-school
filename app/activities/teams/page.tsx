@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
@@ -116,16 +116,12 @@ export default function ActivityTeamsPage() {
   const [toast, setToast] = useState<ActivityToast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    if (currentSchool?.id) void loadData();
-  }, [currentSchool?.id]);
-
   function showToast(type: ActivityToast["type"], message: string) {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -145,7 +141,18 @@ export default function ActivityTeamsPage() {
     }
 
     setItems((data || []) as Team[]);
-  }
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      return;
+    }
+
+    void loadData();
+  }, [currentSchool?.id, loadData, schoolLoading]);
 
   function resetForm() {
     setForm(emptyForm);
