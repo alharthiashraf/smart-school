@@ -1,19 +1,23 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Download } from "lucide-react";
+
+import type { ButtonProps } from "./Button";
 import Button from "./Button";
 
-type ExportButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  icon?: ReactNode;
-  children?: ReactNode;
-};
+export type ExportButtonProps = Omit<ButtonProps, "variant">;
 
 export default function ExportButton({
   children = "تصدير",
-  icon = <Download className="h-4 w-4" />,
+  icon = <Download aria-hidden="true" className="h-4 w-4" />,
+  type = "button",
   ...props
 }: ExportButtonProps) {
   return (
-    <Button variant="export" icon={icon} {...props}>
+    <Button
+      type={type}
+      variant="export"
+      icon={icon}
+      {...props}
+    >
       {children}
     </Button>
   );

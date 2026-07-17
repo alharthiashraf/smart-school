@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { ArrowDownUp, Check } from "lucide-react";
 
 import DataTableEmpty from "./DataTableEmpty";
@@ -26,9 +32,9 @@ export type DataTableAction<T> = {
   disabled?: boolean;
 };
 
-type DataTableDensity = "comfortable" | "compact";
+export type DataTableDensity = "comfortable" | "compact";
 
-type DataTableProps<T> = {
+export type DataTableProps<T> = {
   data: T[];
   columns: DataTableColumn<T>[];
 
@@ -58,6 +64,13 @@ type DataTableProps<T> = {
   className?: string;
 };
 
+function normalizeSearchValue(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .trim()
+    .toLocaleLowerCase("ar");
+}
+
 export default function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
@@ -79,7 +92,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   selectable = false,
   getRowKey,
   density = "comfortable",
-  className = "",
+  className,
 }: DataTableProps<T>) {
   const [page, setPage] = useState(1);
   const [localSearch, setLocalSearch] = useState("");
@@ -88,12 +101,14 @@ export default function DataTable<T extends Record<string, unknown>>({
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
 
   const activeSearch = searchValue ?? localSearch;
+  const safePageSize = Math.max(1, pageSize);
 
   const getRowId = useCallback(
     (row: T, index: number) => {
       if (getRowKey) return getRowKey(row, index);
 
       const intrinsicId = row.id;
+
       if (typeof intrinsicId === "string" || typeof intrinsicId === "number") {
         return String(intrinsicId);
       }
@@ -109,13 +124,13 @@ export default function DataTable<T extends Record<string, unknown>>({
   );
 
   const filteredData = useMemo(() => {
-    const q = activeSearch.trim().toLowerCase();
+    const query = normalizeSearchValue(activeSearch);
 
-    if (!q || searchValue !== undefined) return data;
+    if (!query || searchValue !== undefined) return data;
 
     return data.filter((row) =>
       visibleColumns.some((column) =>
-        String(row[column.key] ?? "").toLowerCase().includes(q),
+        normalizeSearchValue(row[column.key]).includes(query),
       ),
     );
   }, [activeSearch, data, searchValue, visibleColumns]);
@@ -123,36 +138,65 @@ export default function DataTable<T extends Record<string, unknown>>({
   const sortedData = useMemo(() => {
     if (!sortKey) return filteredData;
 
-    return [...filteredData].sort((a, b) => {
-      const aValue = String(a[sortKey] ?? "");
-      const bValue = String(b[sortKey] ?? "");
+    return [...filteredData].sort((firstRow, secondRow) => {
+      const firstValue = String(firstRow[sortKey] ?? "");
+      const secondValue = String(secondRow[sortKey] ?? "");
 
-      return sortDirection === "asc"
-        ? aValue.localeCompare(bValue, "ar")
-        : bValue.localeCompare(aValue, "ar");
+      const comparison = firstValue.localeCompare(secondValue, "ar", {
+        numeric: true,
+        sensitivity: "base",
+      });
+
+      return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [filteredData, sortKey, sortDirection]);
+  }, [filteredData, sortDirection, sortKey]);
 
-  const paginatedData = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return sortedData.slice(start, start + pageSize);
-  }, [sortedData, page, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / safePageSize));
 
-  const selectedRows = useMemo(() => {
-    return data.filter((row, index) =>
-      selectedKeys.includes(getRowId(row, index)),
-    );
-  }, [data, getRowId, selectedKeys]);
+  useEffect(() => {
+    setPage((currentPage) => Math.min(Math.max(currentPage, 1), totalPages));
+  }, [totalPages]);
 
-  const pageStartIndex = (page - 1) * pageSize;
-  const allPageKeys = paginatedData.map((row, index) =>
-    getRowId(row, pageStartIndex + index),
+  const pageStartIndex = (page - 1) * safePageSize;
+
+  const paginatedData = useMemo(
+    () => sortedData.slice(pageStartIndex, pageStartIndex + safePageSize),
+    [pageStartIndex, safePageSize, sortedData],
   );
+
+  const selectedRows = useMemo(
+    () =>
+      data.filter((row, index) =>
+        selectedKeys.includes(getRowId(row, index)),
+      ),
+    [data, getRowId, selectedKeys],
+  );
+
+  const allPageKeys = useMemo(
+    () =>
+      paginatedData.map((row, index) =>
+        getRowId(row, pageStartIndex + index),
+      ),
+    [getRowId, pageStartIndex, paginatedData],
+  );
+
   const allPageSelected =
-    allPageKeys.length > 0 && allPageKeys.every((key) => selectedKeys.includes(key));
+    allPageKeys.length > 0 &&
+    allPageKeys.every((key) => selectedKeys.includes(key));
+
+  const hasToolbar = Boolean(
+    title ||
+      description ||
+      toolbar ||
+      filters ||
+      actions ||
+      searchable ||
+      bulkActions?.length,
+  );
 
   function setSearch(value: string) {
     setPage(1);
+    setSelectedKeys([]);
 
     if (onSearchChange) {
       onSearchChange(value);
@@ -164,7 +208,9 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   function toggleSort(key: string) {
     if (sortKey === key) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      setSortDirection((current) =>
+        current === "asc" ? "desc" : "asc",
+      );
     } else {
       setSortKey(key);
       setSortDirection("asc");
@@ -174,36 +220,32 @@ export default function DataTable<T extends Record<string, unknown>>({
   }
 
   function toggleRow(key: string) {
-    setSelectedKeys((prev) =>
-      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
+    setSelectedKeys((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
     );
   }
 
   function togglePageSelection() {
-    setSelectedKeys((prev) => {
+    setSelectedKeys((current) => {
       if (allPageSelected) {
-        return prev.filter((key) => !allPageKeys.includes(key));
+        return current.filter((key) => !allPageKeys.includes(key));
       }
 
-      return Array.from(new Set([...prev, ...allPageKeys]));
+      return Array.from(new Set([...current, ...allPageKeys]));
     });
   }
-
-  const hasToolbar =
-    title ||
-    description ||
-    toolbar ||
-    filters ||
-    actions ||
-    searchable ||
-    (bulkActions && bulkActions.length > 0);
 
   return (
     <section
       className={[
-        "overflow-hidden rounded-[24px] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
+        "overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-busy={loading}
     >
       {hasToolbar && (
         <DataTableToolbar
@@ -227,9 +269,15 @@ export default function DataTable<T extends Record<string, unknown>>({
       )}
 
       {loading ? (
-        <DataTableLoading columns={visibleColumns.length + (selectable ? 1 : 0)} rows={loadingRows} />
+        <DataTableLoading
+          columns={visibleColumns.length + (selectable ? 1 : 0)}
+          rows={loadingRows}
+        />
       ) : sortedData.length === 0 ? (
-        <DataTableEmpty title={emptyTitle} description={emptyDescription} />
+        <DataTableEmpty
+          title={emptyTitle}
+          description={emptyDescription}
+        />
       ) : (
         <>
           <div className="overflow-x-auto">
@@ -237,46 +285,69 @@ export default function DataTable<T extends Record<string, unknown>>({
               <thead>
                 <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)]">
                   {selectable && (
-                    <th className="w-12 px-4 py-4 text-right">
+                    <th scope="col" className="w-12 px-4 py-4 text-right">
                       <button
                         type="button"
+                        role="checkbox"
+                        aria-checked={allPageSelected}
+                        aria-label="تحديد جميع صفوف الصفحة"
                         onClick={togglePageSelection}
                         className={[
-                          "flex h-5 w-5 items-center justify-center rounded-md border transition",
+                          "flex h-5 w-5 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-card)]",
                           allPageSelected
-                            ? "border-[var(--app-teal)] bg-[var(--app-teal)] text-white"
+                            ? "border-[var(--app-primary)] bg-[var(--app-primary)] text-[var(--app-primary-foreground)]"
                             : "border-[var(--app-border)] bg-[var(--app-card)] text-transparent",
                         ].join(" ")}
-                        aria-label="تحديد الكل"
                       >
-                        <Check className="h-3.5 w-3.5" />
+                        <Check aria-hidden="true" className="h-3.5 w-3.5" />
                       </button>
                     </th>
                   )}
 
-                  {visibleColumns.map((column) => (
-                    <th
-                      key={String(column.key)}
-                      className={[
-                        "px-4 text-right text-xs font-black text-[var(--app-text-muted)]",
-                        density === "compact" ? "py-3" : "py-4",
-                        column.headerClassName ?? "",
-                      ].join(" ")}
-                    >
-                      {column.sortable ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleSort(String(column.key))}
-                          className="inline-flex items-center gap-2 transition hover:text-[var(--app-teal)]"
-                        >
-                          {column.header}
-                          <ArrowDownUp className="h-3.5 w-3.5 opacity-70" />
-                        </button>
-                      ) : (
-                        column.header
-                      )}
-                    </th>
-                  ))}
+                  {visibleColumns.map((column) => {
+                    const columnKey = String(column.key);
+                    const isActiveSort = sortKey === columnKey;
+
+                    return (
+                      <th
+                        key={columnKey}
+                        scope="col"
+                        aria-sort={
+                          isActiveSort
+                            ? sortDirection === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : undefined
+                        }
+                        className={[
+                          "px-4 text-right text-xs font-black text-[var(--app-text-muted)]",
+                          density === "compact" ? "py-3" : "py-4",
+                          column.headerClassName,
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        {column.sortable ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(columnKey)}
+                            className="inline-flex items-center gap-2 rounded-md transition hover:text-[var(--app-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary-soft)]"
+                          >
+                            {column.header}
+                            <ArrowDownUp
+                              aria-hidden="true"
+                              className={[
+                                "h-3.5 w-3.5",
+                                isActiveSort ? "opacity-100" : "opacity-60",
+                              ].join(" ")}
+                            />
+                          </button>
+                        ) : (
+                          column.header
+                        )}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -290,24 +361,28 @@ export default function DataTable<T extends Record<string, unknown>>({
                     <tr
                       key={rowKey}
                       className={[
-                        "border-b border-[var(--app-border)] transition hover:bg-[var(--app-teal-soft)]",
-                        selected ? "bg-[var(--app-teal-soft)]" : "",
-                      ].join(" ")}
+                        "border-b border-[var(--app-border)] transition last:border-b-0 hover:bg-[var(--app-primary-soft)]",
+                        selected ? "bg-[var(--app-primary-soft)]" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
                     >
                       {selectable && (
                         <td className="px-4 py-4 align-top">
                           <button
                             type="button"
+                            role="checkbox"
+                            aria-checked={selected}
+                            aria-label={`تحديد الصف ${absoluteIndex + 1}`}
                             onClick={() => toggleRow(rowKey)}
                             className={[
-                              "flex h-5 w-5 items-center justify-center rounded-md border transition",
+                              "flex h-5 w-5 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-card)]",
                               selected
-                                ? "border-[var(--app-teal)] bg-[var(--app-teal)] text-white"
+                                ? "border-[var(--app-primary)] bg-[var(--app-primary)] text-[var(--app-primary-foreground)]"
                                 : "border-[var(--app-border)] bg-[var(--app-card)] text-transparent",
                             ].join(" ")}
-                            aria-label="تحديد الصف"
                           >
-                            <Check className="h-3.5 w-3.5" />
+                            <Check aria-hidden="true" className="h-3.5 w-3.5" />
                           </button>
                         </td>
                       )}
@@ -318,8 +393,10 @@ export default function DataTable<T extends Record<string, unknown>>({
                           className={[
                             "px-4 align-top text-sm leading-7 text-[var(--app-text)]",
                             density === "compact" ? "py-3" : "py-4",
-                            column.className ?? "",
-                          ].join(" ")}
+                            column.className,
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
                         >
                           {column.render
                             ? column.render(row, index)
@@ -335,7 +412,7 @@ export default function DataTable<T extends Record<string, unknown>>({
 
           <DataTablePagination
             page={page}
-            pageSize={pageSize}
+            pageSize={safePageSize}
             total={sortedData.length}
             onPageChange={setPage}
           />

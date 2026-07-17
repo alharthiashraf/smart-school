@@ -1,18 +1,23 @@
 "use client";
 
 import type { SelectHTMLAttributes } from "react";
+import { useId } from "react";
 
-type SelectOption = {
+export type SelectOption = {
   label: string;
   value: string;
   disabled?: boolean;
 };
 
-type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> & {
+export type SelectProps = Omit<
+  SelectHTMLAttributes<HTMLSelectElement>,
+  "children"
+> & {
   label?: string;
   options: SelectOption[];
   placeholder?: string;
   error?: string;
+  hint?: string;
 };
 
 export default function Select({
@@ -20,25 +25,44 @@ export default function Select({
   options,
   placeholder = "اختر...",
   error,
-  className = "",
+  hint,
+  className,
+  id,
+  disabled,
   ...props
 }: SelectProps) {
+  const generatedId = useId();
+  const selectId = id ?? generatedId;
+
+  const errorId = error ? `${selectId}-error` : undefined;
+  const hintId = !error && hint ? `${selectId}-hint` : undefined;
+  const describedBy = errorId ?? hintId;
+
   return (
-    <label className="block">
+    <div className="block">
       {label && (
-        <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        <label
+          htmlFor={selectId}
+          className="mb-2 block text-sm font-black text-[var(--app-text)]"
+        >
           {label}
-        </span>
+        </label>
       )}
 
       <select
+        id={selectId}
+        disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={describedBy}
         className={[
-          "h-11 w-full rounded-2xl border bg-[var(--app-card)] px-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:ring-4",
+          "h-11 w-full rounded-2xl border bg-[var(--app-card)] px-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:ring-4 disabled:cursor-not-allowed disabled:opacity-60",
           error
             ? "border-[var(--app-destructive)] focus:border-[var(--app-destructive)] focus:ring-[var(--app-destructive-soft)]"
-            : "border-[var(--app-input)] focus:border-[var(--app-teal)] focus:ring-[var(--app-teal-soft)]",
+            : "border-[var(--app-input)] focus:border-[var(--app-primary)] focus:ring-[var(--app-primary-soft)]",
           className,
-        ].join(" ")}
+        ]
+          .filter(Boolean)
+          .join(" ")}
         {...props}
       >
         <option value="">{placeholder}</option>
@@ -54,11 +78,22 @@ export default function Select({
         ))}
       </select>
 
-      {error && (
-        <p className="mt-1 text-xs font-bold text-[var(--app-destructive)]">
+      {error ? (
+        <p
+          id={errorId}
+          role="alert"
+          className="mt-1 text-xs font-bold text-[var(--app-destructive)]"
+        >
           {error}
         </p>
-      )}
-    </label>
+      ) : hint ? (
+        <p
+          id={hintId}
+          className="mt-1 text-xs font-bold text-[var(--app-text-muted)]"
+        >
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }

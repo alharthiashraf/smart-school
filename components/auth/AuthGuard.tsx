@@ -1,17 +1,27 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import {
+  useEffect,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSchool } from "@/contexts/SchoolContext";
-import type { PermissionKey, SchoolRole } from "@/lib/permissions";
+import type {
+  PermissionKey,
+  SchoolRole,
+} from "@/lib/permissions";
 
-type AuthGuardProps = {
+export type AuthGuardProps = {
   children: ReactNode;
-  roles?: SchoolRole[];
-  permissions?: PermissionKey[];
+  roles?: readonly SchoolRole[];
+  permissions?: readonly PermissionKey[];
   requireAllPermissions?: boolean;
+  loadingFallback?: ReactNode;
+  unauthorizedFallback?: ReactNode;
 };
 
 export default function AuthGuard({
@@ -19,9 +29,16 @@ export default function AuthGuard({
   roles,
   permissions,
   requireAllPermissions = false,
+  loadingFallback,
+  unauthorizedFallback,
 }: AuthGuardProps) {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+
+  const {
+    user,
+    loading: authLoading,
+  } = useAuth();
+
   const {
     currentRole,
     loading: schoolLoading,
@@ -29,38 +46,51 @@ export default function AuthGuard({
     hasAllPermissions,
   } = useSchool();
 
-  const loading = authLoading || schoolLoading;
+  const loading =
+    authLoading || schoolLoading;
 
   const hasRoleAccess =
-    !roles || roles.length === 0 || (!!currentRole && roles.includes(currentRole));
+    !roles ||
+    roles.length === 0 ||
+    (
+      Boolean(currentRole) &&
+      roles.includes(currentRole as SchoolRole)
+    );
 
   const hasPermissionAccess =
     !permissions ||
     permissions.length === 0 ||
-    (requireAllPermissions
-      ? hasAllPermissions(permissions)
-      : hasAnyPermission(permissions));
+    (
+      requireAllPermissions
+        ? hasAllPermissions([...permissions])
+        : hasAnyPermission([...permissions])
+    );
 
-  const allowed = hasRoleAccess && hasPermissionAccess;
+  const allowed =
+    hasRoleAccess &&
+    hasPermissionAccess;
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/login");
     }
-  }, [authLoading, user, router]);
+  }, [
+    authLoading,
+    router,
+    user,
+  ]);
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-5 text-center shadow-sm">
-          <div className="text-sm font-black text-slate-800">
-            جاري التحقق من الصلاحيات...
+      <>
+        {loadingFallback ?? (
+          <div className="flex min-h-screen items-center justify-center bg-[var(--app-background)] px-4">
+            <div className="w-full max-w-md">
+              <PageLoader text="جاري التحقق من الصلاحيات..." />
+            </div>
           </div>
-          <div className="mt-2 text-xs font-bold text-slate-400">
-            لحظات فقط
-          </div>
-        </div>
-      </div>
+        )}
+      </>
     );
   }
 
@@ -70,16 +100,18 @@ export default function AuthGuard({
 
   if (!allowed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="max-w-md rounded-3xl border border-rose-200 bg-white p-6 text-center shadow-sm">
-          <div className="text-lg font-black text-rose-700">
-            لا تملك صلاحية الوصول
+      <>
+        {unauthorizedFallback ?? (
+          <div className="flex min-h-screen items-center justify-center bg-[var(--app-background)] px-4">
+            <div className="w-full max-w-lg">
+              <EmptyState
+                title="لا تملك صلاحية الوصول"
+                description="هذه الصفحة مخصصة لأدوار أو صلاحيات محددة داخل المدرسة الحالية."
+              />
+            </div>
           </div>
-          <p className="mt-3 text-sm leading-7 text-slate-500">
-            هذه الصفحة مخصصة لأدوار أو صلاحيات محددة داخل المدرسة الحالية.
-          </p>
-        </div>
-      </div>
+        )}
+      </>
     );
   }
 

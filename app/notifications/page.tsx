@@ -4,8 +4,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
-import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
@@ -29,7 +36,6 @@ import {
   HeartPulse,
   MailCheck,
   MessageSquareText,
-  Loader2,
   RefreshCcw,
   ShieldAlert,
   Sparkles,
@@ -121,7 +127,7 @@ type UnifiedNotification = {
   can_delete: boolean;
 };
 
-type NotificationInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type NotificationInsightTone = "green" | "gold" | "red" | "primary" | "neutral";
 
 type NotificationInsight = {
   title: string;
@@ -147,7 +153,7 @@ type SourceDistributionItem = {
 };
 
 
-const PAGE_ROLES: SchoolRole[] = [
+const PAGE_ROLES: readonly SchoolRole[] = [
   "super_admin",
   "school_admin",
   "vice_principal",
@@ -184,22 +190,33 @@ const SEVERITY_OPTIONS = [
 ];
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offset * 60 * 1000);
+
+  return localDate.toISOString().slice(0, 10);
 }
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleString("ar-SA", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("ar-SA", {
     dateStyle: "medium",
     timeStyle: "short",
-  });
+  }).format(date);
 }
 
 function getElapsedLabel(value?: string | null) {
   if (!value) return "—";
 
-  const diff = Date.now() - new Date(value).getTime();
+  const createdAt = new Date(value).getTime();
+  if (Number.isNaN(createdAt)) return "—";
+
+  const diff = Date.now() - createdAt;
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
@@ -257,11 +274,22 @@ function getSeverityLabel(severity: UnifiedNotification["severity"]) {
   return "متوسط";
 }
 
-function getSeverityStyle(severity: UnifiedNotification["severity"]) {
-  if (severity === "critical") return "bg-red-100 text-red-800";
-  if (severity === "high") return "bg-red-50 text-red-700";
-  if (severity === "medium") return "bg-[#C1B489]/20 text-[#15445A]";
-  return "bg-[#07A869]/10 text-[#07A869]";
+function getSeverityStyle(
+  severity: UnifiedNotification["severity"],
+) {
+  if (severity === "critical") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_18%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (severity === "high") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (severity === "medium") {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
 }
 
 function getSourceLabel(source: UnifiedNotification["source"]) {
@@ -274,12 +302,27 @@ function getSourceLabel(source: UnifiedNotification["source"]) {
 }
 
 function getSourceIcon(source: UnifiedNotification["source"]) {
-  if (source === "notifications") return <Bell size={18} />;
-  if (source === "alerts") return <AlertTriangle size={18} />;
-  if (source === "student_referrals") return <ClipboardCheck size={18} />;
-  if (source === "student_interventions") return <Target size={18} />;
-  if (source === "health_cases") return <HeartPulse size={18} />;
-  return <Bell size={18} />;
+  if (source === "notifications") {
+    return <Bell size={18} aria-hidden="true" />;
+  }
+
+  if (source === "alerts") {
+    return <AlertTriangle size={18} aria-hidden="true" />;
+  }
+
+  if (source === "student_referrals") {
+    return <ClipboardCheck size={18} aria-hidden="true" />;
+  }
+
+  if (source === "student_interventions") {
+    return <Target size={18} aria-hidden="true" />;
+  }
+
+  if (source === "health_cases") {
+    return <HeartPulse size={18} aria-hidden="true" />;
+  }
+
+  return <Bell size={18} aria-hidden="true" />;
 }
 
 function percentage(value: number, total: number) {
@@ -289,11 +332,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: NotificationInsightTone) {
   const tones: Record<NotificationInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -301,11 +349,11 @@ function insightTone(tone: NotificationInsightTone) {
 
 function progressTone(tone: NotificationInsightTone) {
   const tones: Record<NotificationInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -466,13 +514,24 @@ export default function NotificationsPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [selectedItem, setSelectedItem] = useState<UnifiedNotification | null>(null);
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    [],
+  );
 
   const fetchData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setItems([]);
+      setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
+      return;
+    }
 
     setLoading(true);
     setErrorMsg("");
@@ -546,8 +605,10 @@ export default function NotificationsPage() {
   }, [currentSchool?.id]);
 
   useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-  }, [currentSchool?.id, fetchData]);
+    if (schoolLoading) return;
+
+    void fetchData();
+  }, [fetchData, schoolLoading]);
 
   const filteredItems = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -595,15 +656,16 @@ export default function NotificationsPage() {
     const read = items.filter((item) => item.is_read).length;
     const now = new Date().getTime();
 
-const recent = items.filter((item) => {
-  if (!item.created_at) return false;
+    const recent = items.filter((item) => {
+      if (!item.created_at) return false;
 
-  return (
-    now -
-      new Date(item.created_at).getTime() <=
-    24 * 60 * 60 * 1000
-  );
-}).length;
+      const createdAt = new Date(item.created_at).getTime();
+
+      return (
+        !Number.isNaN(createdAt) &&
+        now - createdAt <= 24 * 60 * 60 * 1000
+      );
+    }).length;
     const coveredSources = new Set(items.map((item) => item.source)).size;
 
     const readRate = percentage(read, items.length);
@@ -656,7 +718,7 @@ const recent = items.filter((item) => {
         title: "تنبيهات حرجة",
         description: `يوجد ${stats.critical} تنبيه حرج يحتاج استجابة فورية.`,
         tone: "red",
-        icon: <ShieldAlert className="h-5 w-5" />,
+        icon: <ShieldAlert className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -665,7 +727,7 @@ const recent = items.filter((item) => {
         title: "تنبيهات غير مقروءة",
         description: `${stats.unread} تنبيه ما زال غير مقروء.`,
         tone: "gold",
-        icon: <Bell className="h-5 w-5" />,
+        icon: <Bell className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -673,8 +735,8 @@ const recent = items.filter((item) => {
       insights.push({
         title: "حالات تحتاج إجراء",
         description: `${stats.actionable} حالة تتطلب إجراءً أو متابعة.`,
-        tone: "blue",
-        icon: <ClipboardCheck className="h-5 w-5" />,
+        tone: "primary",
+        icon: <ClipboardCheck className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -682,8 +744,8 @@ const recent = items.filter((item) => {
       insights.push({
         title: "المصدر الأكثر نشاطًا",
         description: `${sourceDistribution[0].label} بعدد ${sourceDistribution[0].count} تنبيه.`,
-        tone: "teal",
-        icon: <BarChart3 className="h-5 w-5" />,
+        tone: "primary",
+        icon: <BarChart3 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -692,7 +754,7 @@ const recent = items.filter((item) => {
         title: "المركز مستقر",
         description: "لا توجد مؤشرات حرجة في التنبيهات الحالية.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -807,16 +869,14 @@ const recent = items.filter((item) => {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <PageContainer size="wide" className="space-y-5">
-          <Breadcrumb />
-
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
             variant="hero"
             title="التنبيهات"
-            description="مركز موحد يجمع التنبيهات العامة، الإحالات المفتوحة، التدخلات عالية الخطورة، والحالات الصحية النشطة في مكان واحد."
-            badge="مركز التنبيهات الموحد"
-            icon={<Bell size={18} />}
+            description="التنبيهات والإحالات والتدخلات والحالات الصحية."
+            badge="مركز التنبيهات"
+            icon={<Bell size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "التنبيهات" },
@@ -828,51 +888,38 @@ const recent = items.filter((item) => {
               { label: "غير مقروءة", value: stats.unread },
             ]}
             stats={[
-              { label: "الإجمالي", value: stats.total, icon: <Bell size={20} />, tone: "blue" },
+              { label: "الإجمالي", value: stats.total, icon: <Bell size={20} aria-hidden="true" />, tone: "primary" },
               { label: "غير مقروءة", value: stats.unread, icon: <EyeIcon />, tone: stats.unread > 0 ? "gold" : "green" },
-              { label: "حرجة", value: stats.critical, icon: <ShieldAlert size={20} />, tone: stats.critical > 0 ? "red" : "green" },
-              { label: "تحتاج إجراء", value: stats.actionable, icon: <ClipboardCheck size={20} />, tone: stats.actionable > 0 ? "teal" : "green" },
+              { label: "حرجة", value: stats.critical, icon: <ShieldAlert size={20} aria-hidden="true" />, tone: stats.critical > 0 ? "red" : "green" },
+              { label: "تحتاج إجراء", value: stats.actionable, icon: <ClipboardCheck size={20} aria-hidden="true" />, tone: stats.actionable > 0 ? "primary" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
-                  onClick={() => void fetchData()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <RefreshCcw size={16} />
+                <SecondaryButton onClick={() => void fetchData()}>
+                  <RefreshCcw size={16} aria-hidden="true" />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
                   onClick={() => void markAllAsRead()}
-                  disabled={updatingId === "all"}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                  loading={updatingId === "all"}
+                  disabled={stats.unread === 0}
                 >
-                  {updatingId === "all" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={16} />
-                  )}
-                  تحديد الكل كمقروء
-                </button>
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  قراءة الكل
+                </PrimaryButton>
               </>
             }
           />
 
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <ExecutiveCard
               title="حرجة"
               value={stats.critical}
               subtitle="تحتاج انتباهًا فوريًا"
-              icon={<ShieldAlert size={22} />}
+              icon={<ShieldAlert size={22} aria-hidden="true" />}
               tone={stats.critical > 0 ? "red" : "green"}
               progress={stats.total ? Math.round((stats.critical / stats.total) * 100) : 0}
             />
@@ -881,7 +928,7 @@ const recent = items.filter((item) => {
               title="مرتفعة"
               value={stats.high}
               subtitle="أولوية متابعة عالية"
-              icon={<AlertTriangle size={22} />}
+              icon={<AlertTriangle size={22} aria-hidden="true" />}
               tone={stats.high > 0 ? "red" : "green"}
               progress={stats.total ? Math.round((stats.high / stats.total) * 100) : 0}
             />
@@ -890,15 +937,15 @@ const recent = items.filter((item) => {
               title="تحتاج إجراء"
               value={stats.actionable}
               subtitle="إحالات وتدخلات وحالات صحية"
-              icon={<ClipboardCheck size={22} />}
-              tone="teal"
+              icon={<ClipboardCheck size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.total ? Math.round((stats.actionable / stats.total) * 100) : 0}
             />
           </section>
 
           <SummaryCard
             title="ملخص التنبيهات"
-            description="قراءة تنفيذية سريعة لحالة التنبيهات حسب الأهمية والمصدر وحالة القراءة."
+            description="ملخص حالة التنبيهات الحالية."
             tone={stats.critical > 0 || stats.high > 0 ? "gold" : "green"}
             items={[
               { label: "الإجمالي", value: stats.total },
@@ -908,7 +955,7 @@ const recent = items.filter((item) => {
               { label: "تحتاج إجراء", value: stats.actionable },
               { label: "المعروض بعد الفلترة", value: filteredItems.length },
             ]}
-            footer="تعرض هذه الصفحة تنبيهات من عدة مصادر دون تعديل الإحالات أو الحالات الصحية نفسها."
+            footer="تعرض التنبيهات من مصادر متعددة دون تعديل السجلات الأصلية."
           />
 
 
@@ -929,7 +976,7 @@ const recent = items.filter((item) => {
             <NotificationChannelPanel />
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -1014,16 +1061,16 @@ function NotificationCard({
   return (
     <div
       onClick={() => onOpen(item)}
-      className={`cursor-pointer rounded-[24px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${
+      className={`cursor-pointer rounded-[var(--app-radius-xl)] border p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-sm)] ${
         item.is_read
-          ? "border-slate-100 bg-slate-50"
-          : "border-[#C1B489]/30 bg-[#C1B489]/10"
+          ? "border-[var(--app-border)] bg-[var(--app-card-soft)]"
+          : "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]"
       }`}
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex-1">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-[#15445A]">
+            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
               {getSourceIcon(item.source)}
               {getSourceLabel(item.source)}
             </span>
@@ -1032,22 +1079,22 @@ function NotificationCard({
               {getSeverityLabel(item.severity)}
             </span>
 
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+            <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
               {item.status}
             </span>
 
             {!item.is_read && (
-              <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">
+              <span className="rounded-full bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-danger)]">
                 جديد
               </span>
             )}
           </div>
 
-          <h3 className="text-xl font-black text-[#15445A]">{item.title}</h3>
+          <h3 className="text-xl font-black text-[var(--app-text)]">{item.title}</h3>
 
-          <p className="mt-2 leading-7 text-slate-600">{item.message}</p>
+          <p className="mt-2 leading-7 text-[var(--app-text-muted)]">{item.message}</p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-subtle)]">
             <span>{formatDate(item.created_at)}</span>
             <span>•</span>
             <span>{getElapsedLabel(item.created_at)}</span>
@@ -1060,45 +1107,39 @@ function NotificationCard({
           <Link
             href={item.href}
             onClick={(event) => event.stopPropagation()}
-            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-bold text-[#15445A] hover:bg-slate-100"
+            className="inline-flex h-9 items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-3 text-sm font-bold text-[var(--app-text)] transition hover:bg-[var(--app-card-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
           >
-            <ExternalLink size={15} />
+            <ExternalLink size={15} aria-hidden="true" />
             فتح
           </Link>
 
-          {item.can_mark_read && !item.is_read && (
-            <button
-              type="button"
+          {item.can_mark_read && !item.is_read ? (
+            <PrimaryButton
+              size="sm"
               onClick={(event) => {
                 event.stopPropagation();
                 onMarkRead(item);
               }}
-              disabled={updatingId === item.id}
-              className="inline-flex items-center gap-2 rounded-2xl bg-[#07A869]/10 px-4 py-2 text-sm font-bold text-[#07A869] hover:bg-[#07A869]/15 disabled:opacity-50"
+              loading={updatingId === item.id}
             >
-              {updatingId === item.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 size={15} />
-              )}
+              <CheckCircle2 size={15} aria-hidden="true" />
               مقروء
-            </button>
-          )}
+            </PrimaryButton>
+          ) : null}
 
-          {item.can_delete && (
-            <button
-              type="button"
+          {item.can_delete ? (
+            <DangerButton
+              size="sm"
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete(item);
               }}
               disabled={updatingId === item.id}
-              className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              icon={<Trash2 size={15} aria-hidden="true" />}
             >
-              <Trash2 size={15} />
               حذف
-            </button>
-          )}
+            </DangerButton>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1106,45 +1147,33 @@ function NotificationCard({
 }
 
 function EyeIcon() {
-  return <Bell size={20} />;
+  return <Bell size={20} aria-hidden="true" />;
 }
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-      {text}
-    </div>
+    <EmptyState
+      title="لا توجد نتائج"
+      description={text}
+      icon={<Bell size={28} aria-hidden="true" />}
+    />
   );
 }
 
 function ToastBox({ toast }: { toast: Toast }) {
-  const isSuccess = toast.type === "success";
-
   return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex max-w-md items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        isSuccess ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15">
-        {isSuccess ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-      </span>
-      <span>{toast.message}</span>
+    <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+      {toast.type === "success" ? (
+        <SuccessBanner description={toast.message} />
+      ) : (
+        <ErrorState description={toast.message} />
+      )}
     </div>
   );
 }
 
 function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-        <p className="font-bold">جاري تحميل مركز التنبيهات...</p>
-      </div>
-    </div>
-  );
+  return <PageLoader text="جاري تحميل التنبيهات..." />;
 }
 
 
@@ -1162,19 +1191,19 @@ function NotificationExecutiveAnalytics({
   };
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
-        Notification Executive Analytics
+        المؤشرات التنفيذية
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         قراءة تنفيذية لجودة المتابعة وسرعة الاستجابة.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <NotificationMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} />} tone={health.level === "ممتاز" || health.level === "جيد" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
-        <NotificationMetric label="معدل القراءة" value={`${health.readRate}%`} icon={<MailCheck size={18} />} tone="blue" />
-        <NotificationMetric label="حرجة ومرتفعة" value={stats.critical + stats.high} icon={<ShieldAlert size={18} />} tone="red" />
-        <NotificationMetric label="تحتاج إجراء" value={stats.actionable} icon={<ClipboardCheck size={18} />} tone="teal" />
+        <NotificationMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} aria-hidden="true" />} tone={health.level === "ممتاز" || health.level === "جيد" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <NotificationMetric label="معدل القراءة" value={`${health.readRate}%`} icon={<MailCheck size={18} aria-hidden="true" />} tone="primary" />
+        <NotificationMetric label="حرجة ومرتفعة" value={stats.critical + stats.high} icon={<ShieldAlert size={18} aria-hidden="true" />} tone="red" />
+        <NotificationMetric label="تحتاج إجراء" value={stats.actionable} icon={<ClipboardCheck size={18} aria-hidden="true" />} tone="primary" />
       </div>
     </section>
   );
@@ -1186,10 +1215,10 @@ function NotificationSmartInsights({
   insights: NotificationInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <BrainCircuit size={20} />
-        AI Notification Insights
+        <BrainCircuit size={20} aria-hidden="true" />
+        الرؤى الذكية
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         ملاحظات آلية مبنية على التنبيهات الحالية.
@@ -1199,9 +1228,9 @@ function NotificationSmartInsights({
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1221,8 +1250,8 @@ function NotificationHealthPanel({
   health: NotificationHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Notification Health</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">صحة التنبيهات</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات القراءة والاستجابة وتغطية المصادر.
       </p>
@@ -1231,8 +1260,8 @@ function NotificationHealthPanel({
         <NotificationProgress label="معدل القراءة" value={health.readRate} tone="green" />
         <NotificationProgress label="الحرجة والمرتفعة" value={health.criticalRate} tone="red" />
         <NotificationProgress label="تحتاج إجراء" value={health.actionRate} tone="gold" />
-        <NotificationProgress label="حداثة التنبيهات" value={health.freshnessRate} tone="blue" />
-        <NotificationProgress label="تغطية المصادر" value={health.sourceCoverage} tone="teal" />
+        <NotificationProgress label="حداثة التنبيهات" value={health.freshnessRate} tone="primary" />
+        <NotificationProgress label="تغطية المصادر" value={health.sourceCoverage} tone="primary" />
       </div>
     </section>
   );
@@ -1246,10 +1275,10 @@ function NotificationSourcePanel({
   const max = Math.max(1, ...items.map((item) => item.count));
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <BarChart3 size={20} />
-        Source Distribution
+        <BarChart3 size={20} aria-hidden="true" />
+        توزيع المصادر
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         توزيع التنبيهات حسب المصدر.
@@ -1271,25 +1300,25 @@ function NotificationSourcePanel({
 
 function NotificationChannelPanel() {
   const channels = [
-    { label: "داخل المنصة", status: "مفعل", icon: <Bell size={18} />, tone: "green" as NotificationInsightTone },
-    { label: "البريد الإلكتروني", status: "جاهز للربط", icon: <MailCheck size={18} />, tone: "blue" as NotificationInsightTone },
+    { label: "داخل المنصة", status: "مفعل", icon: <Bell size={18} aria-hidden="true" />, tone: "green" as NotificationInsightTone },
+    { label: "البريد الإلكتروني", status: "جاهز للربط", icon: <MailCheck size={18} aria-hidden="true" />, tone: "primary" as NotificationInsightTone },
     { label: "SMS", status: "جاهز للربط", icon: <MessageSquareText size={18} />, tone: "gold" as NotificationInsightTone },
-    { label: "WhatsApp", status: "جاهز للربط", icon: <MessageSquareText size={18} />, tone: "teal" as NotificationInsightTone },
-    { label: "الجدولة", status: "واجهة جاهزة", icon: <CalendarClock size={18} />, tone: "blue" as NotificationInsightTone },
+    { label: "WhatsApp", status: "جاهز للربط", icon: <MessageSquareText size={18} />, tone: "primary" as NotificationInsightTone },
+    { label: "الجدولة", status: "واجهة جاهزة", icon: <CalendarClock size={18} aria-hidden="true" />, tone: "primary" as NotificationInsightTone },
   ];
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Channels & Delivery</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">قنوات الإرسال</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         حالة قنوات الإرسال والتكامل.
       </p>
 
       <div className="mt-5 space-y-3">
         {channels.map((item) => (
-          <div key={item.label} className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] p-4">
+          <div key={item.label} className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
             <div className="flex items-center gap-3">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${insightTone(item.tone)}`}>
+              <div className={`flex h-9 w-9 items-center justify-center rounded-[var(--app-radius-md)] ${insightTone(item.tone)}`}>
                 {item.icon}
               </div>
               <span className="font-black text-[var(--app-text)]">{item.label}</span>
@@ -1310,17 +1339,19 @@ function NotificationDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-overlay)_70%,transparent)] backdrop-blur-sm print:hidden">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Notification Drawer V2</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{item.title}</h2>
+            <p className="text-xs font-black text-[var(--app-accent)]">تفاصيل التنبيه</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">{item.title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
-            <XCircle size={20} />
-          </button>
+          <IconButton
+            icon={<XCircle size={20} aria-hidden="true" />}
+            label="إغلاق"
+            onClick={onClose}
+          />
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -1332,7 +1363,7 @@ function NotificationDrawer({
 
         <div className="mt-5 space-y-3">
           <NotificationDrawerSection
-            title="Overview"
+            title="الملخص"
             items={[
               `النوع: ${item.type}`,
               `تاريخ الإنشاء: ${formatDate(item.created_at)}`,
@@ -1340,11 +1371,11 @@ function NotificationDrawer({
             ]}
           />
           <NotificationDrawerSection
-            title="Message"
+            title="الرسالة"
             items={[item.message]}
           />
           <NotificationDrawerSection
-            title="Recommended Action"
+            title="الإجراء المقترح"
             items={[
               item.severity === "critical"
                 ? "استجابة فورية وتحديد مسؤول متابعة."
@@ -1371,8 +1402,8 @@ function NotificationMetric({
   tone: NotificationInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1396,8 +1427,17 @@ function NotificationProgress({
         <span>{label}</span>
         <span>{value}%</span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${Math.max(4, Math.min(100, value))}%` }} />
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={value}
+      >
+        <div
+          className={`h-full rounded-full ${progressTone(tone)}`}
+          style={{ width: `${Math.max(4, Math.min(100, value))}%` }}
+        />
       </div>
     </div>
   );
@@ -1421,7 +1461,7 @@ function NotificationCountProgress({
         <span>{value}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className="h-full rounded-full bg-[var(--app-teal)]" style={{ width: `${Math.max(4, width)}%` }} />
+        <div className="h-full rounded-full bg-[var(--app-primary)]" style={{ width: `${Math.max(4, width)}%` }} />
       </div>
     </div>
   );
@@ -1435,9 +1475,9 @@ function NotificationDrawerMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-base font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1450,11 +1490,11 @@ function NotificationDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">{item}</p>
         ))}
       </div>
     </div>

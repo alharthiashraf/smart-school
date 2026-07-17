@@ -12,6 +12,10 @@ import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import ErrorState from "@/components/ui/feedback/ErrorState";
 import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
 import PageLoader from "@/components/ui/loading/PageLoader";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -93,7 +97,7 @@ type ExportData = {
 
 type ReportGroupKey = "students" | "academic" | "operations" | "executive";
 
-type ReportColor = "blue" | "green" | "teal" | "gold" | "red" | "slate";
+type ReportColor = "primary" | "green" | "gold" | "red" | "neutral";
 
 type ReportCard = {
   title: string;
@@ -126,7 +130,7 @@ type Stats = {
   teacherSubjects: number;
 };
 
-type ReportInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type ReportInsightTone = "green" | "gold" | "red" | "primary";
 
 type ReportInsight = {
   title: string;
@@ -162,15 +166,13 @@ const REPORT_ROLES: SchoolRole[] = [
   "teacher",
 ];
 
-const BRAND = {
-  primary: "#15445A",
-  teal: "#0DA9A6",
-  blue: "#3D7EB9",
-  green: "#07A869",
-  gold: "#C1B489",
-};
-
-const CHART_COLORS = [BRAND.green, BRAND.blue, BRAND.teal, BRAND.gold, BRAND.primary];
+const CHART_COLORS = [
+  "var(--app-success)",
+  "var(--app-primary)",
+  "var(--app-accent)",
+  "var(--app-danger)",
+  "var(--app-text-muted)",
+];
 
 
 function textValue(row: AnyRow, keys: string[], fallback = "") {
@@ -239,31 +241,19 @@ function getTeacherName(row: AnyRow) {
 }
 
 async function safeRead(table: string, limit = 1000, schoolId?: string) {
+  if (!schoolId) return [];
+
   try {
-    let query = supabase.from(table).select("*").limit(limit);
+    const { data, error } = await supabase
+      .from(table)
+      .select("*")
+      .eq("school_id", schoolId)
+      .limit(limit);
 
-    if (schoolId) {
-      query = query.eq("school_id", schoolId);
-    }
+    if (error || !Array.isArray(data)) return [];
 
-    const { data, error } = await query;
-
-    if (!error) {
-      return Array.isArray(data) ? (data as unknown as AnyRow[]) : [];
-    }
-
-    if (schoolId) {
-      const fallback = await supabase.from(table).select("*").limit(limit);
-
-      if (!fallback.error) {
-        return Array.isArray(fallback.data) ? (fallback.data as unknown as AnyRow[]) : [];
-      }
-    }
-
-    console.warn(`reports table skipped: ${table}`, error.message);
-    return [];
-  } catch (error) {
-    console.warn(`reports table failed: ${table}`, error);
+    return data as unknown as AnyRow[];
+  } catch {
     return [];
   }
 }
@@ -275,11 +265,14 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: ReportInsightTone) {
   const tones: Record<ReportInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
   };
 
   return tones[tone];
@@ -287,11 +280,10 @@ function insightTone(tone: ReportInsightTone) {
 
 function progressTone(tone: ReportInsightTone) {
   const tones: Record<ReportInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
   };
 
   return tones[tone];
@@ -361,7 +353,7 @@ export default function ReportsPage() {
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
     window.setTimeout(() => setToast(null), 3000);
-  }, [currentSchool?.id]);
+  }, []);
 
   const fetchReportsData = useCallback(async () => {
     setLoading(true);
@@ -383,7 +375,7 @@ export default function ReportsPage() {
       safeRead("subjects", 500, currentSchool?.id),
       safeRead("student_attendance", 1200, currentSchool?.id),
       safeRead("student_grade_scores", 1200, currentSchool?.id),
-safeRead("student_conduct_scores", 1200, currentSchool?.id),
+      safeRead("student_conduct_scores", 1200, currentSchool?.id),
       safeRead("schedules", 700, currentSchool?.id),
       safeRead("teacher_subjects", 700, currentSchool?.id),
     ]);
@@ -558,7 +550,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
         title: "جاهزية التقارير منخفضة",
         description: `المؤشر العام الحالي ${health.overallScore}% ويحتاج استكمال البيانات.`,
         tone: "red",
-        icon: <AlertTriangle className="h-5 w-5" />,
+        icon: <AlertTriangle className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -567,7 +559,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
         title: "نتائج تحتاج متابعة",
         description: `يوجد ${gradeStats.weak} سجل درجات أقل من 60%.`,
         tone: "gold",
-        icon: <TrendingDown className="h-5 w-5" />,
+        icon: <TrendingDown className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -575,8 +567,8 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       items.push({
         title: "الحضور أقل من المستهدف",
         description: `نسبة الحضور الحالية ${attendanceStats.rate}%.`,
-        tone: "blue",
-        icon: <CalendarCheck className="h-5 w-5" />,
+        tone: "primary",
+        icon: <CalendarCheck className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -584,8 +576,8 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       items.push({
         title: "مؤشرات سلوك منخفضة",
         description: `يوجد ${conductStats.low} سجلًا يحتاج متابعة.`,
-        tone: "teal",
-        icon: <ShieldCheck className="h-5 w-5" />,
+        tone: "primary",
+        icon: <ShieldCheck className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -594,7 +586,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
         title: "مركز التقارير جاهز",
         description: "البيانات الأساسية متوفرة ويمكن إصدار التقارير.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -668,57 +660,57 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "الطلاب",
       value: stats.students,
       subtitle: "إجمالي الطلاب المسجلين",
-      icon: <Users size={24} />,
-      tone: "blue" as const,
+      icon: <Users size={24}  aria-hidden="true" />,
+      tone: "primary" as const,
     },
     {
       title: "المعلمون",
       value: stats.teachers,
       subtitle: "إجمالي المعلمين",
-      icon: <UserCog size={24} />,
-      tone: "teal" as const,
+      icon: <UserCog size={24}  aria-hidden="true" />,
+      tone: "primary" as const,
     },
     {
       title: "نسبة الحضور",
       value: `${attendanceStats.rate}%`,
       subtitle: `${attendanceStats.present} حاضر — ${attendanceStats.absent} غائب — ${attendanceStats.late} متأخر`,
-      icon: <CalendarCheck size={24} />,
+      icon: <CalendarCheck size={24}  aria-hidden="true" />,
       tone: attendanceStats.rate >= 85 ? ("green" as const) : ("gold" as const),
     },
     {
       title: "متوسط الدرجات",
       value: gradeStats.average ? `${gradeStats.average}%` : "—",
       subtitle: `${gradeStats.excellent} ممتاز — ${gradeStats.weak} يحتاج متابعة`,
-      icon: <BookOpen size={24} />,
+      icon: <BookOpen size={24}  aria-hidden="true" />,
       tone: gradeStats.average >= 85 ? ("green" as const) : ("gold" as const),
     },
     {
       title: "الفصول",
       value: stats.classrooms,
       subtitle: "الفصول والشعب المفعلة",
-      icon: <School size={24} />,
-      tone: "blue" as const,
+      icon: <School size={24}  aria-hidden="true" />,
+      tone: "primary" as const,
     },
     {
       title: "المواد",
       value: stats.subjects,
       subtitle: "المواد الدراسية المسجلة",
-      icon: <FileText size={24} />,
-      tone: "teal" as const,
+      icon: <FileText size={24}  aria-hidden="true" />,
+      tone: "primary" as const,
     },
     {
       title: "السلوك والمواظبة",
       value: conductStats.average ? `${conductStats.average}%` : "—",
       subtitle: `${conductStats.total} سجل — ${conductStats.low} يحتاج متابعة`,
-      icon: <ShieldCheck size={24} />,
+      icon: <ShieldCheck size={24}  aria-hidden="true" />,
       tone: conductStats.average >= 85 ? ("green" as const) : ("gold" as const),
     },
     {
       title: "الجداول",
       value: stats.schedules,
       subtitle: "حصص وجدولة مدرسية",
-      icon: <ClipboardList size={24} />,
-      tone: "blue" as const,
+      icon: <ClipboardList size={24}  aria-hidden="true" />,
+      tone: "primary" as const,
     },
   ];
 
@@ -749,25 +741,25 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       id: "students",
       title: "تقارير الطلاب",
       description: "الحضور والغياب والدرجات والسلوك والمتابعة الطلابية.",
-      icon: <Users size={24} />,
+      icon: <Users size={24}  aria-hidden="true" />,
     },
     {
       id: "academic",
       title: "التقارير الأكاديمية",
       description: "المعلمون والفصول والمواد والجداول والدرجات.",
-      icon: <GraduationCap size={24} />,
+      icon: <GraduationCap size={24}  aria-hidden="true" />,
     },
     {
       id: "operations",
       title: "التقارير التشغيلية",
       description: "الحضور والجداول والتكليفات والتشغيل اليومي.",
-      icon: <ClipboardList size={24} />,
+      icon: <ClipboardList size={24}  aria-hidden="true" />,
     },
     {
       id: "executive",
       title: "التقارير التنفيذية",
       description: "مؤشرات عامة للمدرسة وتقارير إدارية قابلة للتصدير.",
-      icon: <FileBarChart size={24} />,
+      icon: <FileBarChart size={24}  aria-hidden="true" />,
     },
   ];
 
@@ -776,9 +768,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير الطلاب",
       description: "قائمة الطلاب وبياناتهم الأساسية للمتابعة والطباعة.",
       href: "/students",
-      icon: <Users size={24} />,
+      icon: <Users size={24}  aria-hidden="true" />,
       badge: `${stats.students} طالب`,
-      color: "blue",
+      color: "primary",
       exportType: "students",
       group: "students",
       keywords: ["طلاب", "students"],
@@ -787,7 +779,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير الحضور",
       description: "مؤشرات الحضور والغياب والتأخر من سجلات الحضور.",
       href: "/attendance",
-      icon: <CalendarCheck size={24} />,
+      icon: <CalendarCheck size={24}  aria-hidden="true" />,
       badge: `${attendanceStats.rate}% حضور`,
       color: "green",
       exportType: "attendance",
@@ -798,9 +790,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير الدرجات",
       description: "متوسطات الدرجات والمتفوقون والمتعثرون.",
       href: "/grades",
-      icon: <BookOpen size={24} />,
+      icon: <BookOpen size={24}  aria-hidden="true" />,
       badge: gradeStats.average ? `${gradeStats.average}%` : "درجات",
-      color: "teal",
+      color: "primary",
       exportType: "grades",
       group: "students",
       keywords: ["درجات", "اختبارات"],
@@ -809,7 +801,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "السلوك والمواظبة",
       description: "درجات السلوك والمواظبة ومؤشرات المتابعة.",
       href: "/behavior",
-      icon: <ShieldCheck size={24} />,
+      icon: <ShieldCheck size={24}  aria-hidden="true" />,
       badge: `${stats.conduct} سجل`,
       color: "gold",
       exportType: "conduct",
@@ -820,9 +812,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير المعلمين",
       description: "بيانات المعلمين الأساسية والتخصصات والتكليفات.",
       href: "/teachers",
-      icon: <UserCog size={24} />,
+      icon: <UserCog size={24}  aria-hidden="true" />,
       badge: `${stats.teachers} معلم`,
-      color: "blue",
+      color: "primary",
       exportType: "teachers",
       group: "academic",
       keywords: ["معلمين", "معلمون"],
@@ -831,9 +823,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير الفصول",
       description: "توزيع الفصول والصفوف والشعب في المدرسة.",
       href: "/classrooms",
-      icon: <School size={24} />,
+      icon: <School size={24}  aria-hidden="true" />,
       badge: `${stats.classrooms} فصل`,
-      color: "teal",
+      color: "primary",
       exportType: "classrooms",
       group: "academic",
       keywords: ["فصول", "صفوف"],
@@ -842,7 +834,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير المواد",
       description: "المواد الدراسية وربطها بالصفوف والمراحل.",
       href: "/subjects",
-      icon: <FileText size={24} />,
+      icon: <FileText size={24}  aria-hidden="true" />,
       badge: `${stats.subjects} مادة`,
       color: "gold",
       exportType: "subjects",
@@ -853,9 +845,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "إسناد المعلمين",
       description: "المعلمون والمواد والفصول المسندة لهم.",
       href: "/teacher-subjects",
-      icon: <GraduationCap size={24} />,
+      icon: <GraduationCap size={24}  aria-hidden="true" />,
       badge: `${stats.teacherSubjects} إسناد`,
-      color: "blue",
+      color: "primary",
       exportType: "teacherSubjects",
       group: "academic",
       keywords: ["إسناد", "معلمين", "مواد"],
@@ -864,9 +856,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "الجداول الدراسية",
       description: "حصص المدرسة وجدول المعلمين والفصول.",
       href: "/schedules",
-      icon: <ClipboardList size={24} />,
+      icon: <ClipboardList size={24}  aria-hidden="true" />,
       badge: `${stats.schedules} حصة`,
-      color: "teal",
+      color: "primary",
       exportType: "schedules",
       group: "operations",
       keywords: ["جداول", "حصص"],
@@ -875,7 +867,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "تقرير الحضور التشغيلي",
       description: "تقرير سريع لحالة الحضور اليومية.",
       href: "/reports/attendance",
-      icon: <CalendarCheck size={24} />,
+      icon: <CalendarCheck size={24}  aria-hidden="true" />,
       badge: `${stats.attendance} سجل`,
       color: "green",
       exportType: "attendance",
@@ -886,9 +878,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "التقرير العام",
       description: "تقرير تنفيذي موحد يجمع أهم مؤشرات المدرسة.",
       href: "/reports",
-      icon: <FileBarChart size={24} />,
+      icon: <FileBarChart size={24}  aria-hidden="true" />,
       badge: "تنفيذي",
-      color: "slate",
+      color: "neutral",
       exportType: "general",
       group: "executive",
       keywords: ["عام", "تنفيذي", "إحصاءات"],
@@ -897,9 +889,9 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "التحليلات",
       description: "قراءة عامة لمؤشرات الأداء المدرسي.",
       href: "/analytics",
-      icon: <PieChartIcon size={24} />,
+      icon: <PieChartIcon size={24}  aria-hidden="true" />,
       badge: "تحليل",
-      color: "teal",
+      color: "primary",
       exportType: "general",
       group: "executive",
       keywords: ["تحليلات", "إحصاءات"],
@@ -908,7 +900,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
       title: "التقارير السريعة",
       description: "تصدير سريع للبيانات الأساسية بصيغ رسمية.",
       href: "/reports",
-      icon: <Sparkles size={24} />,
+      icon: <Sparkles size={24}  aria-hidden="true" />,
       badge: "سريع",
       color: "gold",
       exportType: "general",
@@ -1087,7 +1079,7 @@ safeRead("student_conduct_scores", 1200, currentSchool?.id),
 
   function addToQueue(report: ReportCard, format: "PDF" | "Excel") {
   const newItem: ReportQueueItem = {
-    id: `${report.group}-${report.title}-${format}-${Date.now()}`,
+    id: crypto.randomUUID(),
     title: report.title,
     group: report.group,
     format,
@@ -1189,9 +1181,9 @@ function runSmartSearch(command: string) {
           <PageHeader
             variant="hero"
             title="مركز التقارير"
-            description="مركز تنفيذي موحد للتقارير المدرسية يجمع البيانات التشغيلية والتحليلات ومؤشرات الأداء، مع تصدير رسمي PDF وExcel وقراءة سريعة لجودة البيانات."
+            description="مركز موحد للتقارير والتحليلات ومؤشرات الأداء مع تصدير PDF وExcel."
             badge="مركز التقارير المدرسية"
-            icon={<FileBarChart size={18} />}
+            icon={<FileBarChart size={18}  aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "التقارير" },
@@ -1203,48 +1195,40 @@ function runSmartSearch(command: string) {
               { label: "الفصل الدراسي", value: selectedSemester === "all" ? "الكل" : selectedSemester },
             ]}
             stats={[
-              { label: "الطلاب", value: stats.students, icon: <Users size={20} />, tone: "blue" },
-              { label: "المعلمون", value: stats.teachers, icon: <UserCog size={20} />, tone: "teal" },
-              { label: "نسبة الحضور", value: `${attendanceStats.rate}%`, icon: <CalendarCheck size={20} />, tone: attendanceStats.rate >= 85 ? "green" : "gold" },
-              { label: "متوسط الدرجات", value: gradeStats.average ? `${gradeStats.average}%` : "—", icon: <BookOpen size={20} />, tone: gradeStats.average >= 85 ? "green" : "gold" },
+              { label: "الطلاب", value: stats.students, icon: <Users size={20}  aria-hidden="true" />, tone: "primary" },
+              { label: "المعلمون", value: stats.teachers, icon: <UserCog size={20}  aria-hidden="true" />, tone: "primary" },
+              { label: "نسبة الحضور", value: `${attendanceStats.rate}%`, icon: <CalendarCheck size={20}  aria-hidden="true" />, tone: attendanceStats.rate >= 85 ? "green" : "gold" },
+              { label: "متوسط الدرجات", value: gradeStats.average ? `${gradeStats.average}%` : "—", icon: <BookOpen size={20}  aria-hidden="true" />, tone: gradeStats.average >= 85 ? "green" : "gold" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchReportsData()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<Printer size={17} aria-hidden="true" />}
                   onClick={() => window.print()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Printer size={17} />
                   طباعة
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={() => exportPDF("general")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <FileText size={17} />
                   PDF عام
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileSpreadsheet size={17} aria-hidden="true" />}
                   onClick={() => exportExcel("general")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <FileSpreadsheet size={17} />
                   Excel عام
-                </button>
+                </ExportButton>
               </>
             }
           />
@@ -1293,7 +1277,7 @@ function runSmartSearch(command: string) {
             <ReportsActionPlan recommendations={reportRecommendations} />
           </section>
 
-          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="mb-4">
               <h2 className="text-xl font-black text-[var(--app-text)]">
                 البحث الذكي في مركز التقارير
@@ -1305,28 +1289,26 @@ function runSmartSearch(command: string) {
 
             <div className="flex flex-wrap gap-2">
               {["تقارير الطلاب", "التقارير الأكاديمية", "التقارير التشغيلية", "التقارير التنفيذية"].map((command) => (
-                <button
+                <SecondaryButton
                   key={command}
-                  type="button"
                   onClick={() => runSmartSearch(command)}
-                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
                 >
                   {command}
-                </button>
+                </SecondaryButton>
               ))}
             </div>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-            <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
               <div className="mb-4 flex items-center gap-2">
-                <div className="rounded-2xl bg-[#15445A]/10 p-2 text-[#15445A]">
-                  <TrendingUp size={20} />
+                <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-text)]/10 p-2 text-[var(--app-text)]">
+                  <TrendingUp size={20}  aria-hidden="true" />
                 </div>
-                <h2 className="font-black text-[#15445A]">الملخص التنفيذي</h2>
+                <h2 className="font-black text-[var(--app-text)]">الملخص التنفيذي</h2>
               </div>
 
-              <p className="text-sm leading-7 text-slate-600">
+              <p className="text-sm leading-7 text-[var(--app-text-muted)]">
                 تعرض الصفحة صورة مختصرة عن حالة المدرسة من خلال مؤشرات الطلاب، المعلمين،
                 الحضور، الدرجات، السلوك، الجداول وإسناد المعلمين. يمكن استخدام الأزرار
                 السريعة لاستخراج تقرير تنفيذي أو تصدير كل تقرير بصيغة PDF أو Excel.
@@ -1339,12 +1321,12 @@ function runSmartSearch(command: string) {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
               <div className="mb-4 flex items-center gap-2">
-                <div className="rounded-2xl bg-[#0DA9A6]/10 p-2 text-[#0DA9A6]">
-                  <CheckCircle2 size={20} />
+                <div className="rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] p-2 text-[var(--app-primary)]">
+                  <CheckCircle2 size={20}  aria-hidden="true" />
                 </div>
-                <h2 className="font-black text-[#15445A]">جاهزية التقارير</h2>
+                <h2 className="font-black text-[var(--app-text)]">جاهزية التقارير</h2>
               </div>
 
               <div className="space-y-4">
@@ -1396,23 +1378,21 @@ function runSmartSearch(command: string) {
             onPrint={() => window.print()}
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-xl font-black text-[#15445A]">فلاتر متقدمة</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className="text-xl font-black text-[var(--app-text)]">فلاتر متقدمة</h2>
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   استخدم هذه الفلاتر عند تجهيز تقارير مخصصة لمرحلة أو فصل محدد.
                 </p>
               </div>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<X size={16} aria-hidden="true" />}
                 onClick={resetFilters}
-                className="inline-flex w-fit items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
               >
-                <X size={16} />
                 تصفير الفلاتر
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1444,27 +1424,27 @@ function runSmartSearch(command: string) {
           </section>
 
           <section className="flex flex-wrap gap-3 print:hidden">
-            <QuickAction icon={<RefreshCcw size={17} />} label="تحديث البيانات" onClick={() => void fetchReportsData()} />
-            <QuickAction icon={<Printer size={17} />} label="طباعة الصفحة" onClick={() => window.print()} />
-            <QuickAction icon={<FileText size={17} />} label="PDF عام" onClick={() => exportPDF("general")} primary />
-            <QuickAction icon={<FileSpreadsheet size={17} />} label="Excel عام" onClick={() => exportExcel("general")} />
-            <QuickAction icon={<Download size={17} />} label="تصدير الطلاب" onClick={() => exportExcel("students")} />
+            <QuickAction icon={<RefreshCcw size={17}  aria-hidden="true" />} label="تحديث البيانات" onClick={() => void fetchReportsData()} />
+            <QuickAction icon={<Printer size={17}  aria-hidden="true" />} label="طباعة الصفحة" onClick={() => window.print()} />
+            <QuickAction icon={<FileText size={17}  aria-hidden="true" />} label="PDF عام" onClick={() => exportPDF("general")} primary />
+            <QuickAction icon={<FileSpreadsheet size={17}  aria-hidden="true" />} label="Excel عام" onClick={() => exportExcel("general")} />
+            <QuickAction icon={<Download size={17}  aria-hidden="true" />} label="تصدير الطلاب" onClick={() => exportExcel("students")} />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-3">
-            <ChartCard title="مؤشرات تشغيلية" icon={<BarChart3 size={20} />}>
+            <ChartCard title="مؤشرات تشغيلية" icon={<BarChart3 size={20}  aria-hidden="true" />}>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={barData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }}  aria-hidden="true" />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="value" radius={[12, 12, 0, 0]} fill={BRAND.teal} />
+                  <Bar dataKey="value" radius={[12, 12, 0, 0]} fill="var(--app-primary)" />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="توزيع الحضور" icon={<PieChartIcon size={20} />}>
+            <ChartCard title="توزيع الحضور" icon={<PieChartIcon size={20}  aria-hidden="true" />}>
               {attendancePieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
@@ -1481,14 +1461,14 @@ function runSmartSearch(command: string) {
               )}
             </ChartCard>
 
-            <ChartCard title="المؤشر التنفيذي" icon={<LineChartIcon size={20} />}>
+            <ChartCard title="المؤشر التنفيذي" icon={<LineChartIcon size={20}  aria-hidden="true" />}>
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }}  aria-hidden="true" />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke={BRAND.primary} strokeWidth={3} dot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="value" stroke="var(--app-primary)" strokeWidth={3} dot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -1518,7 +1498,7 @@ function runSmartSearch(command: string) {
 
           {filteredReports.length === 0 && (
             <UiEmptyState
-              icon={<Search className="h-8 w-8" />}
+              icon={<Search className="h-8 w-8"  aria-hidden="true" />}
               title="لا توجد تقارير مطابقة"
               description="جرّب تغيير كلمات البحث أو نوع التقرير أو تصفير الفلاتر."
             />
@@ -1530,23 +1510,23 @@ function runSmartSearch(command: string) {
             onClear={() => setReportQueue([])}
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-xl font-black text-[#15445A]">آخر التقارير</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className="text-xl font-black text-[var(--app-text)]">آخر التقارير</h2>
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   ملخص سريع للتقارير المتاحة حسب الفلاتر الحالية.
                 </p>
               </div>
 
-              <span className="w-fit rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+              <span className="w-fit rounded-full bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text-muted)]">
                 {latestReports.length} تقارير ظاهرة
               </span>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-100">
+            <div className="overflow-hidden rounded-[var(--app-radius-lg)] border border-[var(--app-border)]">
               <table className="w-full min-w-[760px] text-right text-sm">
-                <thead className="bg-slate-50 text-slate-500">
+                <thead className="bg-[var(--app-card-soft)] text-[var(--app-text-muted)]">
                   <tr>
                     <th className="p-4">اسم التقرير</th>
                     <th className="p-4">المجال</th>
@@ -1556,34 +1536,34 @@ function runSmartSearch(command: string) {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-[var(--app-border)]">
                   {latestReports.map((report) => (
-                    <tr key={`${report.group}-${report.title}`} className="hover:bg-slate-50">
-                      <td className="p-4 font-black text-[#15445A]">{report.title}</td>
-                      <td className="p-4 text-slate-500">{groupLabel(report.group)}</td>
-                      <td className="p-4 text-slate-500">{lastUpdate}</td>
+                    <tr key={`${report.group}-${report.title}`} className="hover:bg-[var(--app-card-soft)]">
+                      <td className="p-4 font-black text-[var(--app-text)]">{report.title}</td>
+                      <td className="p-4 text-[var(--app-text-muted)]">{groupLabel(report.group)}</td>
+                      <td className="p-4 text-[var(--app-text-muted)]">{lastUpdate}</td>
                       <td className="p-4">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#07A869]/10 px-3 py-1 text-xs font-bold text-[#07A869]">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] px-3 py-1 text-xs font-bold text-[var(--app-success)]">
+                          <CheckCircle2 className="h-3.5 w-3.5"  aria-hidden="true" />
                           جاهز
                         </span>
                       </td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-2">
-                          <Link href={report.href} className="rounded-xl bg-[#15445A] px-3 py-2 text-xs font-bold text-white">
+                          <Link href={report.href} className="rounded-[var(--app-radius-md)] bg-[var(--app-text)] px-3 py-2 text-xs font-bold text-[var(--app-text-inverse)]">
                             عرض
                           </Link>
                           <button
                             type="button"
                             onClick={() => exportPDF(report.exportType)}
-                            className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"
+                            className="rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] px-3 py-2 text-xs font-bold text-[var(--app-danger)]"
                           >
                             PDF
                           </button>
                           <button
                             type="button"
                             onClick={() => exportExcel(report.exportType)}
-                            className="rounded-xl bg-[#07A869]/10 px-3 py-2 text-xs font-bold text-[#07A869]"
+                            className="rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] px-3 py-2 text-xs font-bold text-[var(--app-success)]"
                           >
                             Excel
                           </button>
@@ -1594,7 +1574,7 @@ function runSmartSearch(command: string) {
 
                   {latestReports.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-500">
+                      <td colSpan={5} className="p-8 text-center text-[var(--app-text-muted)]">
                         لا توجد تقارير مطابقة للفلاتر الحالية.
                       </td>
                     </tr>
@@ -1638,17 +1618,18 @@ function QuickAction({
   onClick: () => void;
   primary?: boolean;
 }) {
+  if (primary) {
+    return (
+      <PrimaryButton icon={icon} onClick={onClick}>
+        {label}
+      </PrimaryButton>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        primary ? "bg-[#15445A] text-white" : "border border-slate-100 bg-white text-[#15445A]"
-      }`}
-    >
-      {icon}
+    <SecondaryButton icon={icon} onClick={onClick}>
       {label}
-    </button>
+    </SecondaryButton>
   );
 }
 
@@ -1662,10 +1643,10 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4 flex items-center gap-2">
-        <div className="rounded-2xl bg-[#0DA9A6]/10 p-2 text-[#0DA9A6]">{icon}</div>
-        <h2 className="font-black text-[#15445A]">{title}</h2>
+        <div className="rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] p-2 text-[var(--app-primary)]">{icon}</div>
+        <h2 className="font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </div>
@@ -1674,10 +1655,10 @@ function ChartCard({
 
 function NoChartData() {
   return (
-    <div className="flex h-[280px] items-center justify-center rounded-[24px] bg-slate-50 text-center">
+    <div className="flex h-[280px] items-center justify-center rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] text-center">
       <div>
-        <PieChartIcon className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-        <p className="text-sm font-bold text-slate-500">لا توجد بيانات كافية للرسم البياني</p>
+        <PieChartIcon className="mx-auto mb-3 h-8 w-8 text-[var(--app-text-subtle)]"  aria-hidden="true" />
+        <p className="text-sm font-bold text-[var(--app-text-muted)]">لا توجد بيانات كافية للرسم البياني</p>
       </div>
     </div>
   );
@@ -1699,20 +1680,20 @@ function ReportGroupCard({
   onQueue: (report: ReportCard, format: "PDF" | "Excel") => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#15445A]/10 text-[#15445A]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-text)]/10 text-[var(--app-text)]">
             {group.icon}
           </div>
 
           <div>
-            <h2 className="text-2xl font-black text-[#15445A]">{group.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">{group.description}</p>
+            <h2 className="text-2xl font-black text-[var(--app-text)]">{group.title}</h2>
+            <p className="mt-1 text-sm leading-6 text-[var(--app-text-muted)]">{group.description}</p>
           </div>
         </div>
 
-        <span className="w-fit rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+        <span className="w-fit rounded-full bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text-muted)]">
           {reports.length} تقارير
         </span>
       </div>
@@ -1746,83 +1727,98 @@ function ReportLinkCard({
   onPreview: (report: ReportCard) => void;
   onQueue: (report: ReportCard, format: "PDF" | "Excel") => void;
 }) {
-  const colors = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-    gold: "bg-[#C1B489]/20 text-[#15445A]",
-    red: "bg-red-50 text-red-700",
-    slate: "bg-slate-100 text-slate-700",
+  const colors: Record<ReportColor, string> = {
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-text)]",
+
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text)]",
   };
 
   return (
-    <article className="rounded-[24px] border border-slate-100 bg-slate-50 p-4 transition hover:-translate-y-1 hover:bg-white hover:shadow-md">
+    <article className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:-translate-y-1 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
       <div className="flex items-start gap-3">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colors[report.color]}`}>
+        <div
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${colors[report.color]}`}
+        >
           {report.icon}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <h3 className="font-black text-[#15445A]">{report.title}</h3>
-            <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600">
+            <h3 className="font-black text-[var(--app-text)]">
+              {report.title}
+            </h3>
+
+            <span className="w-fit rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
               {report.badge}
             </span>
           </div>
 
-          <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">{report.description}</p>
+          <p className="mt-2 min-h-12 text-sm leading-6 text-[var(--app-text-muted)]">
+            {report.description}
+          </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onPreview(report)}
-              className="inline-flex items-center gap-1 rounded-xl bg-[var(--app-blue-soft)] px-3 py-2 text-xs font-bold text-[var(--app-blue)] hover:opacity-80"
+              className="inline-flex items-center gap-1 rounded-[var(--app-radius-md)] bg-[var(--app-primary-soft)] px-3 py-2 text-xs font-bold text-[var(--app-primary)] hover:opacity-80"
             >
-              <Eye size={14} />
+              <Eye size={14} aria-hidden="true" />
               معاينة
             </button>
 
             <Link
               href={report.href}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#15445A] px-3 py-2 text-xs font-bold text-white hover:bg-[#0DA9A6]"
+              className="inline-flex items-center gap-1 rounded-[var(--app-radius-md)] bg-[var(--app-text)] px-3 py-2 text-xs font-bold text-[var(--app-text-inverse)] hover:bg-[var(--app-primary)]"
             >
-              <Eye size={14} />
+              <Eye size={14} aria-hidden="true" />
               عرض
             </Link>
 
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+              className="inline-flex items-center gap-1 rounded-[var(--app-radius-md)] bg-[var(--app-card)] px-3 py-2 text-xs font-bold text-[var(--app-text)] hover:bg-[var(--app-card-soft)]"
             >
-              <Printer size={14} />
+              <Printer size={14} aria-hidden="true" />
               طباعة
             </button>
 
             <button
               type="button"
               onClick={() => onPDF(report.exportType)}
-              className="inline-flex items-center gap-1 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
+              className="inline-flex items-center gap-1 rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] px-3 py-2 text-xs font-bold text-[var(--app-danger)]"
             >
-              <FileText size={14} />
+              <FileText size={14} aria-hidden="true" />
               PDF
             </button>
 
             <button
               type="button"
               onClick={() => onExcel(report.exportType)}
-              className="inline-flex items-center gap-1 rounded-xl bg-[#07A869]/10 px-3 py-2 text-xs font-bold text-[#07A869] hover:bg-emerald-100"
+              className="inline-flex items-center gap-1 rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] px-3 py-2 text-xs font-bold text-[var(--app-success)]"
             >
-              <FileSpreadsheet size={14} />
+              <FileSpreadsheet size={14} aria-hidden="true" />
               Excel
             </button>
 
             <button
               type="button"
               onClick={() => onQueue(report, "PDF")}
-              className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-200"
+              className="inline-flex items-center gap-1 rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] px-3 py-2 text-xs font-bold text-[var(--app-text)]"
             >
-              <Download size={14} />
+              <Download size={14} aria-hidden="true" />
               قائمة التصدير
             </button>
           </div>
@@ -1831,12 +1827,11 @@ function ReportLinkCard({
     </article>
   );
 }
-
 function MiniInsight({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1845,11 +1840,19 @@ function ProgressMetric({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs font-black">
-        <span className="text-slate-500">{label}</span>
-        <span className="text-[#15445A]">{value}%</span>
+        <span className="text-[var(--app-text-muted)]">{label}</span>
+        <span className="text-[var(--app-text)]">{value}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-[#0DA9A6]" style={{ width: `${value}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+        <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.max(0, Math.min(100, value))}
+          className="h-full rounded-full bg-[var(--app-primary)]"
+          style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+        />
       </div>
     </div>
   );
@@ -1869,7 +1872,7 @@ function ReportsExecutiveAnalytics({
   gradeAverage: number;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
           Reports Executive Analytics
@@ -1880,10 +1883,10 @@ function ReportsExecutiveAnalytics({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ReportsMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} />} tone={health.level === "جاهز" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
-        <ReportsMetric label="جاهزية البيانات" value={`${health.dataReadiness}%`} icon={<CheckCircle2 size={18} />} tone="blue" />
-        <ReportsMetric label="تغطية التقارير" value={`${health.reportingCoverage}%`} icon={<FileBarChart size={18} />} tone="teal" />
-        <ReportsMetric label="الجودة التشغيلية" value={`${health.operationalQuality}%`} icon={<Activity size={18} />} tone="gold" />
+        <ReportsMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18}  aria-hidden="true" />} tone={health.level === "جاهز" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <ReportsMetric label="جاهزية البيانات" value={`${health.dataReadiness}%`} icon={<CheckCircle2 size={18}  aria-hidden="true" />} tone="primary" />
+        <ReportsMetric label="تغطية التقارير" value={`${health.reportingCoverage}%`} icon={<FileBarChart size={18}  aria-hidden="true" />} tone="primary" />
+        <ReportsMetric label="الجودة التشغيلية" value={`${health.operationalQuality}%`} icon={<Activity size={18}  aria-hidden="true" />} tone="gold" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1902,10 +1905,10 @@ function ReportsSmartInsights({
   insights: ReportInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
+          <BrainCircuit size={20}  aria-hidden="true" />
           AI Report Insights
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1917,9 +1920,9 @@ function ReportsSmartInsights({
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1941,15 +1944,15 @@ function ReportsHealthPanel({
   health: ReportHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">Reports Health</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات الجاهزية والجودة والتغطية.
       </p>
 
       <div className="mt-5 space-y-4">
-        <ReportsProgress label="جاهزية البيانات" value={health.dataReadiness} total={100} tone="blue" suffix="%" />
-        <ReportsProgress label="تغطية التقارير" value={health.reportingCoverage} total={100} tone="teal" suffix="%" />
+        <ReportsProgress label="جاهزية البيانات" value={health.dataReadiness} total={100} tone="primary" suffix="%" />
+        <ReportsProgress label="تغطية التقارير" value={health.reportingCoverage} total={100} tone="primary" suffix="%" />
         <ReportsProgress label="الجودة الأكاديمية" value={health.academicQuality} total={100} tone="green" suffix="%" />
         <ReportsProgress label="الجودة التشغيلية" value={health.operationalQuality} total={100} tone="gold" suffix="%" />
       </div>
@@ -1971,7 +1974,7 @@ function ReportsRiskPanel({
   totalStudents: number;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">Report Risk Engine</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات تحتاج إبرازًا في التقارير التنفيذية.
@@ -1980,11 +1983,11 @@ function ReportsRiskPanel({
       <div className="mt-5 space-y-4">
         <ReportsProgress label="درجات ضعيفة" value={risk.weakGrades} total={Math.max(1, totalStudents)} tone="red" />
         <ReportsProgress label="سلوك منخفض" value={risk.lowConduct} total={Math.max(1, totalStudents)} tone="gold" />
-        <ReportsProgress label="غياب" value={risk.absences} total={Math.max(1, totalStudents)} tone="blue" />
-        <ReportsProgress label="تأخر" value={risk.lateness} total={Math.max(1, totalStudents)} tone="teal" />
+        <ReportsProgress label="غياب" value={risk.absences} total={Math.max(1, totalStudents)} tone="primary" />
+        <ReportsProgress label="تأخر" value={risk.lateness} total={Math.max(1, totalStudents)} tone="primary" />
       </div>
 
-      <div className="mt-4 rounded-2xl bg-[var(--app-card-soft)] p-4">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
         <p className="text-xs font-bold text-[var(--app-text-muted)]">بيانات أساسية ناقصة</p>
         <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{risk.missingCoreData}</p>
       </div>
@@ -1998,9 +2001,9 @@ function ReportsActionPlan({
   recommendations: string[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Target size={20} />
+        <Target size={20}  aria-hidden="true" />
         Report Action Plan
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -2011,9 +2014,9 @@ function ReportsActionPlan({
         {recommendations.map((item, index) => (
           <div
             key={`${index}-${item}`}
-            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--app-radius-md)] bg-[var(--app-primary-soft)] text-sm font-black text-[var(--app-primary)]">
               {index + 1}
             </span>
             <p className="text-sm leading-7 text-[var(--app-text)]">{item}</p>
@@ -2032,7 +2035,7 @@ function ReportsQueue({
   onClear: () => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-[var(--app-text)]">قائمة التصدير</h2>
@@ -2045,7 +2048,7 @@ function ReportsQueue({
           <button
             type="button"
             onClick={onClear}
-            className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600"
+            className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text-muted)]"
           >
             مسح القائمة
           </button>
@@ -2053,13 +2056,13 @@ function ReportsQueue({
       </div>
 
       {items.length === 0 ? (
-        <p className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-sm text-[var(--app-text-muted)]">
+        <p className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-sm text-[var(--app-text-muted)]">
           لم تتم إضافة تقارير بعد.
         </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => (
-            <div key={item.id} className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+            <div key={item.id} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
               <p className="font-black text-[var(--app-text)]">{item.title}</p>
               <p className="mt-1 text-xs text-[var(--app-text-muted)]">
                 {groupLabel(item.group)} · {item.format}
@@ -2089,16 +2092,16 @@ function ReportPreviewDrawer({
   onExcel: (type: ExportType) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-overlay)_72%,transparent)] backdrop-blur-sm print:hidden">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-3xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-3xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Report Preview V2</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{report.title}</h2>
+            <p className="text-xs font-black text-[var(--app-accent)]">Report Preview V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">{report.title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
-            <X size={20} />
+          <button type="button" onClick={onClose} className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]">
+            <X size={20}  aria-hidden="true" />
           </button>
         </div>
 
@@ -2106,33 +2109,33 @@ function ReportPreviewDrawer({
           <button
             type="button"
             onClick={() => onPDF(report.exportType)}
-            className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-black text-red-700"
+            className="rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] px-4 py-2 text-sm font-black text-[var(--app-danger)]"
           >
             تصدير PDF
           </button>
           <button
             type="button"
             onClick={() => onExcel(report.exportType)}
-            className="rounded-2xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700"
+            className="rounded-[var(--app-radius-lg)] bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700"
           >
             تصدير Excel
           </button>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
+        <div className="overflow-x-auto rounded-[var(--app-radius-lg)] border border-[var(--app-border)]">
           <table className="w-full min-w-[700px] text-right text-sm">
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="bg-[var(--app-card-soft)] text-[var(--app-text-muted)]">
               <tr>
                 {data.headers.map((header) => (
                   <th key={header} className="p-3">{header}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--app-border)]">
               {data.rows.slice(0, 20).map((row, index) => (
                 <tr key={index}>
                   {row.map((cell, cellIndex) => (
-                    <td key={cellIndex} className="p-3 text-slate-600">
+                    <td key={cellIndex} className="p-3 text-[var(--app-text-muted)]">
                       {cell === null || cell === undefined || cell === "" ? "—" : String(cell)}
                     </td>
                   ))}
@@ -2142,7 +2145,7 @@ function ReportPreviewDrawer({
           </table>
         </div>
 
-        <p className="mt-4 text-xs font-bold text-slate-400">
+        <p className="mt-4 text-xs font-bold text-[var(--app-text-subtle)]">
           يتم عرض أول 20 صفًا فقط في المعاينة، بينما يشمل التصدير جميع البيانات.
         </p>
       </aside>
@@ -2162,8 +2165,8 @@ function ReportsMetric({
   tone: ReportInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -2180,7 +2183,7 @@ function ReportsInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>

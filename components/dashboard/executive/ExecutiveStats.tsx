@@ -1,29 +1,52 @@
 import type { ReactNode } from "react";
+
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import KpiCard from "@/components/ui/cards/KpiCard";
 
-type ExecutiveStatItem = {
+export type ExecutiveStatItem = {
   title: string;
   value: string | number;
   subtitle?: string;
   caption?: string;
   icon?: ReactNode;
-  tone?: "primary" | "teal" | "green" | "blue" | "gold" | "red";
+  tone?:
+    | "primary"
+    | "teal"
+    | "green"
+    | "blue"
+    | "gold"
+    | "red";
   large?: boolean;
   progress?: number;
   loading?: boolean;
 };
 
-type ExecutiveStatsProps = {
+export type ExecutiveStatsProps = {
   items: ExecutiveStatItem[];
+  className?: string;
 };
 
-export default function ExecutiveStats({ items }: ExecutiveStatsProps) {
-  const largeItems = items.filter((item) => item.large).slice(0, 2);
-  const smallItems = items.filter((item) => !item.large);
+export default function ExecutiveStats({
+  items,
+  className = "",
+}: ExecutiveStatsProps) {
+  const largeItems = items
+    .filter((item) => item.large)
+    .slice(0, 2);
+
+  const smallItems = items.filter(
+    (item) => !item.large,
+  );
 
   return (
-    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+    <section
+      className={[
+        "grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {largeItems.map((item) => (
           <ExecutiveCard
@@ -32,7 +55,7 @@ export default function ExecutiveStats({ items }: ExecutiveStatsProps) {
             value={item.value}
             subtitle={item.subtitle}
             icon={item.icon}
-            tone={item.tone || "teal"}
+            tone={item.tone ?? "teal"}
             progress={item.progress}
             loading={item.loading}
           />
@@ -45,9 +68,11 @@ export default function ExecutiveStats({ items }: ExecutiveStatsProps) {
             key={item.title}
             title={item.title}
             value={item.value}
-            caption={item.caption || item.subtitle}
+            caption={
+              item.caption ?? item.subtitle
+            }
             icon={item.icon}
-            tone={item.tone || "teal"}
+            tone={item.tone ?? "teal"}
             loading={item.loading}
           />
         ))}

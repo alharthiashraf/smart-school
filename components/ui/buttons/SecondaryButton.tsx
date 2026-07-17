@@ -1,29 +1,19 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonProps } from "./Button";
 import Button from "./Button";
 
-type SecondaryButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  icon?: ReactNode;
-  children: ReactNode;
-  tone?: "default" | "dark" | "warning" | "danger";
-};
+export type SecondaryButtonProps = Omit<ButtonProps, "variant">;
 
 export default function SecondaryButton({
-  icon,
   children,
-  tone = "default",
+  type = "button",
   ...props
 }: SecondaryButtonProps) {
-  const variant =
-    tone === "danger"
-      ? "danger"
-      : tone === "warning"
-        ? "export"
-        : tone === "dark"
-          ? "primary"
-          : "secondary";
-
   return (
-    <Button variant={variant} icon={icon} {...props}>
+    <Button
+      type={type}
+      variant="secondary"
+      {...props}
+    >
       {children}
     </Button>
   );

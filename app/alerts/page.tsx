@@ -22,13 +22,19 @@ import {
 } from "lucide-react";
 
 import AppShell from "@/components/layout/AppShell";
-import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import DangerButton from "@/components/ui/buttons/DangerButton";
 import StatCard from "@/components/ui/cards/StatCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
 
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
@@ -452,7 +458,7 @@ export default function AlertsPage() {
 
       if (failedSources.length > 0) {
         setErrorMsg(
-          `تعذر تحميل بعض المصادر: ${failedSources.join("، ")}. إذا ظهر Permission denied فشغّل أوامر GRANT في Supabase.`,
+          `تعذر تحميل: ${failedSources.join("، ")}.`,
         );
       } else {
         setErrorMsg("");
@@ -485,10 +491,16 @@ export default function AlertsPage() {
   ]);
 
   useEffect(() => {
-    if (currentSchool?.id) {
-      void fetchData();
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
+      return;
     }
-  }, [currentSchool?.id, fetchData]);
+
+    void fetchData();
+  }, [currentSchool?.id, fetchData, schoolLoading]);
 
   useEffect(() => {
     if (!currentSchool?.id) return;
@@ -682,14 +694,13 @@ export default function AlertsPage() {
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
         <PageContainer className="space-y-5" size="wide">
-          <Breadcrumb />
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
             variant="hero"
             title="مركز التنبيهات"
-            description="مركز عمليات موحد للتنبيهات، الإشعارات، الإحالات الطلابية، التدخلات، والحالات الصحية."
-            badge="Alerts Center Enterprise"
+            description="متابعة التنبيهات والإحالات والحالات الصحية."
+            badge="مركز التنبيهات"
             icon={<Bell size={18} />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
@@ -703,57 +714,51 @@ export default function AlertsPage() {
             ]}
             actions={
               <>
-                <button
-                  type="button"
-                  onClick={() => void fetchData()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <RefreshCcw size={17} />
+                <SecondaryButton onClick={() => void fetchData()}>
+                  <RefreshCcw size={17} aria-hidden="true" />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
                   onClick={() => void markAllAsRead()}
                   disabled={stats.unread === 0 || workingId === "all"}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                  loading={workingId === "all"}
                 >
-                  {workingId === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 size={17} />}
+                  <CheckCircle2 size={17} aria-hidden="true" />
                   قراءة الكل
-                </button>
+                </PrimaryButton>
               </>
             }
           />
 
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
-          {sourceErrors.length > 0 && events.length > 0 && (
-            <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold text-amber-800">
-              تم عرض البيانات المتاحة، وتعذر تحميل: {sourceErrors.join("، ")}.
-            </div>
-          )}
+          {sourceErrors.length > 0 && events.length > 0 ? (
+            <SummaryCard
+              title="مصادر غير متاحة"
+              description={`تعذر تحميل: ${sourceErrors.join("، ")}.`}
+              tone="gold"
+              items={[{ label: "الحالة", value: "تم عرض البيانات المتاحة" }]}
+            />
+          ) : null}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="إجمالي الأحداث" value={stats.total} icon={<Activity size={22} />} tone="blue" />
+            <StatCard title="إجمالي الأحداث" value={stats.total} icon={<Activity size={22} />} tone="primary" />
             <StatCard title="الإحالات المفتوحة" value={stats.referralsOpen} icon={<FileWarning size={22} />} tone={stats.referralsOpen ? "gold" : "green"} />
-            <StatCard title="التدخلات النشطة" value={stats.interventionsActive} icon={<UsersRound size={22} />} tone="blue" />
+            <StatCard title="التدخلات النشطة" value={stats.interventionsActive} icon={<UsersRound size={22} />} tone="primary" />
             <StatCard title="الحالات الصحية المفتوحة" value={stats.healthOpen} icon={<HeartPulse size={22} />} tone={stats.healthOpen ? "red" : "green"} />
           </section>
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard title="التنبيهات" value={stats.alerts} icon={<AlertTriangle size={22} />} tone="gold" />
-            <StatCard title="الإشعارات" value={stats.notifications} icon={<Bell size={22} />} tone="blue" />
+            <StatCard title="الإشعارات" value={stats.notifications} icon={<Bell size={22} />} tone="primary" />
             <StatCard title="غير مقروءة" value={stats.unread} icon={<Clock3 size={22} />} tone={stats.unread ? "gold" : "green"} />
             <StatCard title="حرجة أو عاجلة" value={stats.critical} icon={<ShieldAlert size={22} />} tone={stats.critical ? "red" : "green"} />
           </section>
 
           <SummaryCard
             title="ملخص مركز التنبيهات"
-            description="يعرض هذا الملخص قراءة موحدة لجميع مصادر المخاطر والمتابعة داخل المدرسة."
+            description="ملخص موحد لمصادر المتابعة."
             tone={stats.critical || stats.referralsOpen || stats.healthOpen ? "gold" : "green"}
             items={[
               { label: "الإجمالي", value: stats.total },
@@ -763,10 +768,10 @@ export default function AlertsPage() {
               { label: "الحالات الصحية", value: stats.healthOpen },
               { label: "غير مقروءة", value: stats.unread },
             ]}
-            footer="يتم تحديث المركز تلقائيًا عبر Supabase Realtime عند إضافة أو تعديل أي حدث."
+            footer="تحديث تلقائي عبر Supabase Realtime."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -804,15 +809,15 @@ export default function AlertsPage() {
             />
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-2xl font-black text-[#15445A]">Timeline مركز التنبيهات</h2>
-                <p className="text-sm font-bold text-slate-500">
-                  سجل موحد مرتب حسب أحدث حدث من جميع مصادر المتابعة.
+                <h2 className="text-2xl font-black text-[var(--app-text)]">سجل التنبيهات</h2>
+                <p className="text-sm font-bold text-[var(--app-text-muted)]">
+                  أحدث الأحداث من جميع المصادر.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text-muted)]">
                 <Search size={14} />
                 {filteredEvents.length} نتيجة
               </div>
@@ -828,7 +833,7 @@ export default function AlertsPage() {
                   return (
                     <div
                       key={`${event.source}-${event.id}`}
-                      className={`rounded-[28px] border p-5 transition hover:-translate-y-0.5 hover:shadow-sm ${cardTone(event)}`}
+                      className={`rounded-[var(--app-radius-xl)] border p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-sm)] ${cardTone(event)}`}
                     >
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex gap-3">
@@ -836,28 +841,28 @@ export default function AlertsPage() {
 
                           <div>
                             <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-black text-[#15445A]">{event.title}</h3>
+                              <h3 className="text-lg font-black text-[var(--app-text)]">{event.title}</h3>
                               <SourceBadge source={event.source} />
                               <StatusBadge status={event.status} />
                               <PriorityBadge priority={event.priority} />
                               {event.is_read === false && (
-                                <span className="rounded-full bg-[#C1B489] px-3 py-1 text-xs font-black text-[#15445A]">
+                                <span className="rounded-full bg-[var(--app-accent)] px-3 py-1 text-xs font-black text-[var(--app-accent-foreground)]">
                                   جديد
                                 </span>
                               )}
                             </div>
 
-                            <p className="text-sm leading-7 text-slate-600">
+                            <p className="text-sm leading-7 text-[var(--app-text-muted)]">
                               {event.description || "لا توجد تفاصيل إضافية."}
                             </p>
 
-                            <p className="mt-2 text-xs font-bold text-slate-400">
+                            <p className="mt-2 text-xs font-bold text-[var(--app-text-subtle)]">
                               الطالب: {student?.full_name || "غير مرتبط بطالب"} —{" "}
                               {student?.classroom_name || student?.classroom || "—"}
                               {student?.section ? ` - ${student.section}` : ""}
                             </p>
 
-                            <p className="mt-1 text-xs text-slate-400">
+                            <p className="mt-1 text-xs text-[var(--app-text-subtle)]">
                               {formatDate(event.created_at)}
                             </p>
                           </div>
@@ -867,35 +872,34 @@ export default function AlertsPage() {
                           {event.student_id && (
                             <Link
                               href={`/counselor/student/${event.student_id}`}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-200"
+                              className="inline-flex h-10 items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] transition hover:bg-[var(--app-card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
                             >
-                              <UserRoundSearch size={16} />
+                              <UserRoundSearch size={16} aria-hidden="true" />
                               فتح الطالب
                             </Link>
                           )}
 
                           {event.is_read === false && (
-                            <button
-                              type="button"
+                            <PrimaryButton
+                              size="sm"
                               onClick={() => void markAsRead(event)}
                               disabled={workingId === event.id}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+                              loading={workingId === event.id}
                             >
-                              {workingId === event.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 size={16} />}
+                              <CheckCircle2 size={16} aria-hidden="true" />
                               مقروء
-                            </button>
+                            </PrimaryButton>
                           )}
 
                           {(event.source === "alerts" || event.source === "notifications") && (
-                            <button
-                              type="button"
+                            <DangerButton
+                              size="sm"
                               onClick={() => void deleteEvent(event)}
                               disabled={workingId === event.id}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                              icon={<Trash2 size={16} aria-hidden="true" />}
                             >
-                              <Trash2 size={16} />
                               حذف
-                            </button>
+                            </DangerButton>
                           )}
                         </div>
                       </div>
@@ -913,41 +917,41 @@ export default function AlertsPage() {
 
 function cardTone(event: UnifiedAlertEvent) {
   if (event.severity === "critical" || event.priority === "urgent") {
-    return "border-red-100 bg-red-50/40";
+    return "border-[color-mix(in_srgb,var(--app-danger)_18%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_6%,transparent)]";
   }
 
   if (event.is_read === false) {
-    return "border-[#C1B489]/40 bg-[#C1B489]/10";
+    return "border-[color-mix(in_srgb,var(--app-accent)_36%,var(--app-border))] bg-[var(--app-accent)]/10";
   }
 
-  return "border-slate-100 bg-white";
+  return "border-[var(--app-border)] bg-[var(--app-card)]";
 }
 
 function EventIcon({ event }: { event: UnifiedAlertEvent }) {
-  const base = "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl";
+  const base = "flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)]";
 
   if (event.source === "health_cases") {
-    return <div className={`${base} bg-emerald-50 text-emerald-700`}><Stethoscope size={22} /></div>;
+    return <div className={`${base} bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]`}><Stethoscope size={22} /></div>;
   }
 
   if (event.source === "student_referrals") {
-    return <div className={`${base} bg-red-50 text-red-700`}><FileWarning size={22} /></div>;
+    return <div className={`${base} bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]`}><FileWarning size={22} /></div>;
   }
 
   if (event.source === "student_interventions") {
-    return <div className={`${base} bg-blue-50 text-blue-700`}><UsersRound size={22} /></div>;
+    return <div className={`${base} bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]`}><UsersRound size={22} /></div>;
   }
 
   if (event.source === "notifications") {
-    return <div className={`${base} bg-violet-50 text-violet-700`}><Bell size={22} /></div>;
+    return <div className={`${base} bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]`}><Bell size={22} /></div>;
   }
 
-  return <div className={`${base} bg-amber-50 text-amber-700`}><AlertTriangle size={22} /></div>;
+  return <div className={`${base} bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] text-[var(--app-accent-foreground)]`}><AlertTriangle size={22} /></div>;
 }
 
 function SourceBadge({ source }: { source: EventSource }) {
   return (
-    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+    <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
       {SOURCE_LABELS[source]}
     </span>
   );
@@ -957,7 +961,7 @@ function StatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
 
   return (
-    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+    <span className="rounded-full bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
       {STATUS_LABELS[status] || status}
     </span>
   );
@@ -968,12 +972,12 @@ function PriorityBadge({ priority }: { priority: Priority | null }) {
 
   const style =
     priority === "urgent"
-      ? "bg-red-50 text-red-700"
+      ? "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
       : priority === "high"
-        ? "bg-orange-50 text-orange-700"
+        ? "bg-[color-mix(in_srgb,var(--app-warning)_12%,transparent)] text-[var(--app-warning-foreground)]"
         : priority === "low"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-amber-50 text-amber-700";
+          ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
+          : "bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] text-[var(--app-accent-foreground)]";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>
@@ -984,32 +988,26 @@ function PriorityBadge({ priority }: { priority: Priority | null }) {
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-500">
-      {text}
-    </div>
+    <EmptyState
+      title="لا توجد نتائج"
+      description={text}
+      icon={<Search size={28} aria-hidden="true" />}
+    />
   );
 }
 
 function ToastBox({ toast }: { toast: Toast }) {
   return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-lg ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-      {toast.message}
+    <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))]">
+      {toast.type === "success" ? (
+        <SuccessBanner description={toast.message} />
+      ) : (
+        <ErrorState description={toast.message} />
+      )}
     </div>
   );
 }
 
 function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-[#15445A]" />
-        جاري تحميل مركز التنبيهات...
-      </div>
-    </div>
-  );
+  return <PageLoader text="جاري تحميل مركز التنبيهات..." />;
 }

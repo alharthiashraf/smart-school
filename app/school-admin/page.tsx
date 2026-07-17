@@ -84,7 +84,7 @@ type QuickLink = {
   description: string;
   href: string;
   icon: ElementType;
-  tone: "blue" | "green" | "gold" | "red" | "slate" | "teal";
+  tone: "blue" | "green" | "gold" | "red" | "slate" | "primary";
 };
 
 type CountResult = {
@@ -103,14 +103,14 @@ const QUICK_LINKS: QuickLink[] = [
   { title: "الطلاب", description: "إدارة بيانات الطلاب والفصول والسجل المدرسي.", href: "/students", icon: Users, tone: "blue" },
   { title: "المعلمون", description: "إدارة المعلمين والملفات وإسناد المواد.", href: "/teachers", icon: GraduationCap, tone: "green" },
   { title: "الفصول", description: "إنشاء الفصول وربطها بالمراحل والطلاب.", href: "/classrooms", icon: Building2, tone: "gold" },
-  { title: "المواد", description: "إدارة المواد الدراسية وربطها بالصفوف.", href: "/subjects", icon: BookOpen, tone: "teal" },
+  { title: "المواد", description: "إدارة المواد الدراسية وربطها بالصفوف.", href: "/subjects", icon: BookOpen, tone: "primary" },
   { title: "إسناد المعلمين", description: "ربط المعلم بالمادة والصف والفصل.", href: "/teacher-subjects", icon: ClipboardCheck, tone: "green" },
   { title: "الجداول", description: "متابعة الجداول الدراسية والحصص اليومية.", href: "/schedules", icon: CalendarDays, tone: "blue" },
   { title: "الحضور والغياب", description: "متابعة حضور الطلاب والغياب والتأخر.", href: "/attendance", icon: CheckCircle2, tone: "green" },
   { title: "الدرجات", description: "متابعة الرصد والتحليل ومتوسطات الأداء.", href: "/grades", icon: BarChart3, tone: "blue" },
   { title: "السلوك والمواظبة", description: "متابعة الملاحظات السلوكية والانضباط.", href: "/behavior", icon: AlertTriangle, tone: "red" },
   { title: "التقارير", description: "تقارير تشغيلية وتنفيذية للمدرسة.", href: "/reports", icon: FileText, tone: "slate" },
-  { title: "التحليلات", description: "لوحات مؤشرات وتحليل الأداء العام.", href: "/analytics", icon: TrendingUp, tone: "teal" },
+  { title: "التحليلات", description: "لوحات مؤشرات وتحليل الأداء العام.", href: "/analytics", icon: TrendingUp, tone: "primary" },
   { title: "المستخدمون", description: "إدارة حسابات المستخدمين والصلاحيات.", href: "/users", icon: UserCheck, tone: "gold" },
   { title: "الإعدادات", description: "إعدادات المدرسة والفصول والصلاحيات.", href: "/settings", icon: Settings, tone: "slate" },
 ];
@@ -253,25 +253,25 @@ function translateTable(tableName?: string | null) {
 
 function toneColor(tone: QuickLink["tone"]) {
   const colors: Record<QuickLink["tone"], string> = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-    gold: "bg-[#C1B489]/20 text-[#15445A]",
-    red: "bg-red-50 text-red-700",
-    slate: "bg-slate-100 text-slate-700",
-    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
+    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    slate: "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+    primary: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
   };
 
   return colors[tone];
 }
 
 export default function SchoolAdminPage() {
-  const schoolContext = useSchool() as any;
-
-  const currentSchool = schoolContext?.currentSchool || schoolContext?.school || schoolContext?.selectedSchool || null;
-  const currentRole = schoolContext?.currentRole || currentSchool?.role || null;
-  const academicYear = schoolContext?.academicYear || currentSchool?.academicYearName || "العام الدراسي";
-  const semester = schoolContext?.semester || currentSchool?.semester || "الفصل الدراسي";
-  const schoolLoading = Boolean(schoolContext?.loading);
+  const {
+    currentSchool,
+    currentRole,
+    academicYear,
+    semester,
+    loading: schoolLoading,
+  } = useSchool();
 
   const [stats, setStats] = useState<AdminStats>({
     students: 0,
@@ -460,7 +460,7 @@ export default function SchoolAdminPage() {
             ]}
             stats={[
               { label: "الطلاب", value: stats.students, icon: <Users size={20} />, tone: "blue" },
-              { label: "المعلمون", value: stats.teachers, icon: <GraduationCap size={20} />, tone: "teal" },
+              { label: "المعلمون", value: stats.teachers, icon: <GraduationCap size={20} />, tone: "primary" },
               { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <CheckCircle2 size={20} />, tone: attendanceRate >= 85 ? "green" : "gold" },
               { label: "تنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
             ]}
@@ -469,7 +469,7 @@ export default function SchoolAdminPage() {
                 <button
                   type="button"
                   onClick={() => void loadPage()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-primary)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <RefreshCcw size={16} />
                   تحديث
@@ -477,7 +477,7 @@ export default function SchoolAdminPage() {
 
                 <Link
                   href="/notifications"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-[var(--app-primary-foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <Bell size={16} />
                   التنبيهات
@@ -485,7 +485,7 @@ export default function SchoolAdminPage() {
 
                 <Link
                   href="/search"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-[var(--app-primary-foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <Search size={16} />
                   البحث
@@ -495,14 +495,14 @@ export default function SchoolAdminPage() {
           />
 
           {errorMsg && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
+            <div className="rounded-[28px] border border-[var(--app-destructive)]/20 bg-[var(--app-destructive-soft)] p-5 text-sm font-bold text-[var(--app-destructive)]">
               {errorMsg}
             </div>
           )}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <ExecutiveCard title="الطلاب" value={stats.students} icon={<Users size={22} />} tone="blue" subtitle="إجمالي الطلاب" progress={stats.students > 0 ? 100 : 0} />
-            <ExecutiveCard title="المعلمون" value={stats.teachers} icon={<GraduationCap size={22} />} tone="teal" subtitle="إجمالي المعلمين" progress={stats.teachers > 0 ? 100 : 0} />
+            <ExecutiveCard title="المعلمون" value={stats.teachers} icon={<GraduationCap size={22} />} tone="primary" subtitle="إجمالي المعلمين" progress={stats.teachers > 0 ? 100 : 0} />
             <ExecutiveCard title="الفصول" value={stats.classrooms} icon={<Building2 size={22} />} tone="gold" subtitle="الفصول والشعب" progress={stats.classrooms > 0 ? 100 : 0} />
             <ExecutiveCard title="الحضور اليوم" value={`${attendanceRate}%`} icon={<CheckCircle2 size={22} />} tone={attendanceRate >= 85 ? "green" : "gold"} subtitle="نسبة الحضور" progress={attendanceRate} />
             <ExecutiveCard title="تنبيهات" value={stats.unreadNotifications} icon={<Bell size={22} />} tone={stats.unreadNotifications > 0 ? "red" : "green"} subtitle="غير مقروءة" progress={stats.unreadNotifications > 0 ? Math.min(100, stats.unreadNotifications * 10) : 0} />
@@ -511,7 +511,7 @@ export default function SchoolAdminPage() {
           <SummaryCard
             title="ملخص حالة المدرسة اليوم"
             description="قراءة تنفيذية للمؤشرات التشغيلية التي تحتاج متابعة يومية من مدير المدرسة."
-            tone={riskTone as any}
+            tone={riskTone}
             items={[
               { label: "حاضر", value: stats.presentToday },
               { label: "غائب", value: stats.absentToday },
@@ -537,25 +537,25 @@ export default function SchoolAdminPage() {
                 <MiniInfo label="سجلات الدرجات" value={stats.scoreRows} icon={<Database size={18} />} />
               </div>
 
-              <div className="mt-5 rounded-[24px] bg-slate-50 p-5">
+              <div className="mt-5 rounded-[24px] bg-[var(--app-card-soft)] p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="font-black text-[#15445A]">مستوى المتابعة اليومي</p>
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${riskTone === "green" ? "bg-[#07A869]/10 text-[#07A869]" : riskTone === "gold" ? "bg-[#C1B489]/20 text-[#15445A]" : "bg-red-50 text-red-700"}`}>
+                  <p className="font-black text-[var(--app-primary)]">مستوى المتابعة اليومي</p>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${riskTone === "green" ? "bg-[var(--app-green-soft)] text-[var(--app-green)]" : riskTone === "gold" ? "bg-[var(--app-accent-soft)] text-[var(--app-primary)]" : "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]"}`}>
                     {riskLabel}
                   </span>
                 </div>
 
                 <ProgressBar value={riskPercent} />
 
-                <p className="mt-3 text-sm leading-7 text-slate-500">
+                <p className="mt-3 text-sm leading-7 text-[var(--app-text-muted)]">
                   يحسب المؤشر من الغياب والتأخر والملاحظات السلوكية والزيارات الصحية والتنبيهات غير المقروءة.
                 </p>
               </div>
 
-              <div className="mt-5 rounded-[24px] bg-slate-50 p-5">
+              <div className="mt-5 rounded-[24px] bg-[var(--app-card-soft)] p-5">
                 <div className="mb-4">
-                  <p className="font-black text-[#15445A]">اتجاه الحضور آخر 7 أيام</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">قراءة مختصرة للحضور والغياب والتأخر.</p>
+                  <p className="font-black text-[var(--app-primary)]">اتجاه الحضور آخر 7 أيام</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">قراءة مختصرة للحضور والغياب والتأخر.</p>
                 </div>
 
                 <AttendanceTrend data={attendanceTrend} />
@@ -568,17 +568,17 @@ export default function SchoolAdminPage() {
               ) : (
                 <div className="space-y-3">
                   {notifications.map((item) => (
-                    <Link key={item.id} href="/notifications" className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm">
+                    <Link key={item.id} href="/notifications" className="block rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-sm">
                       <div className="mb-1 flex items-center justify-between gap-2">
-                        <h3 className="line-clamp-1 font-black text-[#15445A]">{item.title || "تنبيه"}</h3>
-                        {item.is_read === false && <span className="h-2.5 w-2.5 rounded-full bg-red-500" />}
+                        <h3 className="line-clamp-1 font-black text-[var(--app-primary)]">{item.title || "تنبيه"}</h3>
+                        {item.is_read === false && <span className="h-2.5 w-2.5 rounded-full bg-[var(--app-destructive-soft)]0" />}
                       </div>
 
-                      <p className="line-clamp-2 text-sm leading-7 text-slate-500">
+                      <p className="line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
                         {item.body || item.message || "لا توجد تفاصيل."}
                       </p>
 
-                      <p className="mt-2 text-xs font-bold text-slate-400">{formatDateTime(item.created_at)}</p>
+                      <p className="mt-2 text-xs font-bold text-[var(--app-text-muted)]">{formatDateTime(item.created_at)}</p>
                     </Link>
                   ))}
                 </div>
@@ -601,11 +601,11 @@ export default function SchoolAdminPage() {
               ) : (
                 <div className="space-y-3">
                   {auditLogs.map((log) => (
-                    <div key={log.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                      <p className="font-black text-[#15445A]">
+                    <div key={log.id} className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+                      <p className="font-black text-[var(--app-primary)]">
                         {translateAction(log.action)} في {translateTable(log.table_name)}
                       </p>
-                      <p className="mt-2 text-xs font-bold text-slate-400">{formatDateTime(log.created_at)}</p>
+                      <p className="mt-2 text-xs font-bold text-[var(--app-text-muted)]">{formatDateTime(log.created_at)}</p>
                     </div>
                   ))}
                 </div>
@@ -628,12 +628,12 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--app-primary)]/10 text-[var(--app-primary)]">
           {icon}
         </div>
-        <h2 className="text-2xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-2xl font-black text-[var(--app-primary)]">{title}</h2>
       </div>
 
       {children}
@@ -643,12 +643,12 @@ function Panel({
 
 function MiniInfo({ label, value, icon }: { label: string; value: string | number; icon: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-      <div className="mb-2 flex items-center gap-2 text-[#0DA9A6]">
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3">
+      <div className="mb-2 flex items-center gap-2 text-[var(--app-primary)]">
         {icon}
-        <p className="text-xs font-black text-slate-500">{label}</p>
+        <p className="text-xs font-black text-[var(--app-text-muted)]">{label}</p>
       </div>
-      <p className="text-lg font-black text-[#15445A]">{value}</p>
+      <p className="text-lg font-black text-[var(--app-primary)]">{value}</p>
     </div>
   );
 }
@@ -659,16 +659,16 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
   return (
     <Link
       href={link.href}
-      className="group rounded-[24px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+      className="group rounded-[24px] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-md"
     >
       <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition ${toneColor(link.tone)}`}>
         <Icon size={24} />
       </div>
 
-      <h3 className="text-lg font-black text-[#15445A]">{link.title}</h3>
-      <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-500">{link.description}</p>
+      <h3 className="text-lg font-black text-[var(--app-primary)]">{link.title}</h3>
+      <p className="mt-3 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">{link.description}</p>
 
-      <div className="mt-5 rounded-2xl bg-white px-4 py-3 text-center text-sm font-black text-[#15445A] transition group-hover:bg-[#15445A] group-hover:text-white">
+      <div className="mt-5 rounded-2xl bg-[var(--app-card)] px-4 py-3 text-center text-sm font-black text-[var(--app-primary)] transition group-hover:bg-[var(--app-primary)] group-hover:text-[var(--app-primary-foreground)]">
         فتح
       </div>
     </Link>
@@ -677,10 +677,10 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
 
 function ProgressBar({ value }: { value: number }) {
   const safeValue = Math.max(0, Math.min(100, value));
-  const color = safeValue >= 75 ? "bg-red-600" : safeValue >= 40 ? "bg-[#C1B489]" : "bg-[#07A869]";
+  const color = safeValue >= 75 ? "bg-[var(--app-destructive)]" : safeValue >= 40 ? "bg-[var(--app-accent)]" : "bg-[var(--app-green)]";
 
   return (
-    <div className="h-4 overflow-hidden rounded-full bg-slate-200">
+    <div className="h-4 overflow-hidden rounded-full bg-[var(--app-border)]">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${safeValue}%` }} />
     </div>
   );
@@ -698,11 +698,11 @@ function AttendanceTrend({ data }: { data: AttendanceTrendItem[] }) {
 
         return (
           <div key={item.date} className="grid grid-cols-[70px_1fr] items-center gap-3">
-            <span className="text-xs font-black text-slate-500">{label}</span>
+            <span className="text-xs font-black text-[var(--app-text-muted)]">{label}</span>
             <div className="space-y-1">
-              <ChartBar value={item.present} max={maxValue} label="حضور" className="bg-[#07A869]" />
-              <ChartBar value={item.absent} max={maxValue} label="غياب" className="bg-red-600" />
-              <ChartBar value={item.late} max={maxValue} label="تأخر" className="bg-[#C1B489]" />
+              <ChartBar value={item.present} max={maxValue} label="حضور" className="bg-[var(--app-green)]" />
+              <ChartBar value={item.absent} max={maxValue} label="غياب" className="bg-[var(--app-destructive)]" />
+              <ChartBar value={item.late} max={maxValue} label="تأخر" className="bg-[var(--app-accent)]" />
             </div>
           </div>
         );
@@ -726,10 +726,10 @@ function ChartBar({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--app-card)]">
         <div className={`h-full rounded-full ${className}`} style={{ width: `${width}%` }} />
       </div>
-      <span className="w-16 text-xs font-bold text-slate-500">
+      <span className="w-16 text-xs font-bold text-[var(--app-text-muted)]">
         {label}: {value}
       </span>
     </div>
@@ -738,7 +738,7 @@ function ChartBar({
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
+    <div className="rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-6 text-center text-sm font-bold text-[var(--app-text-muted)]">
       {text}
     </div>
   );
@@ -747,8 +747,8 @@ function EmptyBox({ text }: { text: string }) {
 function LoadingBox() {
   return (
     <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+      <div className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-8 text-center text-[var(--app-text-muted)] shadow-sm">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--app-primary)]/10 text-[var(--app-primary)]">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
         <p className="font-bold">جاري تحميل بوابة مدير المدرسة...</p>

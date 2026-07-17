@@ -146,7 +146,7 @@ type Conflict = {
   periodNumber: number;
 };
 
-type ScheduleInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type ScheduleInsightTone = "green" | "gold" | "red" | "blue" | "primary";
 
 type ScheduleInsight = {
   title: string;
@@ -298,7 +298,7 @@ function insightTone(tone: ScheduleInsightTone) {
     gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
     red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
     blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    primary: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
   };
 
   return tones[tone];
@@ -310,7 +310,7 @@ function progressTone(tone: ScheduleInsightTone) {
     gold: "bg-[var(--app-accent)]",
     red: "bg-[var(--app-destructive)]",
     blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    primary: "bg-[var(--app-primary)]",
   };
 
   return tones[tone];
@@ -850,7 +850,7 @@ export default function SchedulesPage() {
       items.push({
         title: "توازن الأيام",
         description: `${busiestDay.day} هو الأكثر ازدحامًا، و${quietestDay.day} هو الأقل.`,
-        tone: "teal",
+        tone: "primary",
         icon: <Activity className="h-5 w-5" />,
       });
     }
@@ -1342,31 +1342,31 @@ export default function SchedulesPage() {
           stats={[
             { label: "إجمالي الحصص", value: stats.total, icon: <CalendarDays size={20} />, tone: "blue" },
             { label: "المعلمون", value: stats.teachers, icon: <UserRound size={20} />, tone: "green" },
-            { label: "الفصول", value: stats.classrooms, icon: <School size={20} />, tone: "teal" },
+            { label: "الفصول", value: stats.classrooms, icon: <School size={20} />, tone: "primary" },
             { label: "التعارضات", value: stats.conflicts, icon: <AlertTriangle size={20} />, tone: stats.conflicts > 0 ? "red" : "green" },
           ]}
           actions={
             <>
               {canManage && (
-                <button type="button" onClick={generateAutoSchedule} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60">
+                <button type="button" onClick={generateAutoSchedule} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-accent)] px-4 text-sm font-black text-[var(--app-primary)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60">
                   <Bot size={17} />
                   إنشاء ذكي
                 </button>
               )}
               {canManage && (
-                <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-primary)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                   <Upload size={17} />
                   استيراد
                   <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importExcel(file); event.currentTarget.value = ""; }} />
                 </label>
               )}
-              <button type="button" onClick={exportExcel} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <button type="button" onClick={exportExcel} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-primary)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <Download size={17} /> Excel
               </button>
-              <button type="button" onClick={exportPDF} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <button type="button" onClick={exportPDF} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <Printer size={17} /> PDF
               </button>
-              <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60">
+              <button type="button" onClick={() => void loadData()} disabled={loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60">
                 <RefreshCcw size={17} className={loading ? "animate-spin" : ""} /> تحديث
               </button>
             </>
@@ -1409,7 +1409,7 @@ export default function SchedulesPage() {
             value={stats.classrooms}
             subtitle="فصول مشمولة"
             icon={<School size={22} />}
-            tone="teal"
+            tone="primary"
           />
           <ExecutiveCard
             title="التعارضات"
@@ -1477,7 +1477,7 @@ export default function SchedulesPage() {
                 key={command}
                 type="button"
                 onClick={() => runSmartSearch(command)}
-                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-primary)] hover:text-[var(--app-primary)]"
               >
                 {command}
               </button>
@@ -1486,13 +1486,13 @@ export default function SchedulesPage() {
         </section>
 
         {conflicts.length > 0 && (
-          <Section title="تقرير التعارضات" description="تعارضات تحتاج مراجعة قبل اعتماد الجدول." icon={<AlertTriangle size={20} />} className="border-red-100 bg-red-50">
+          <Section title="تقرير التعارضات" description="تعارضات تحتاج مراجعة قبل اعتماد الجدول." icon={<AlertTriangle size={20} />} className="border-[var(--app-destructive)]/20 bg-[var(--app-destructive-soft)]">
             <div className="grid gap-3 md:grid-cols-2">
               {conflicts.slice(0, 8).map((conflict) => (
-                <div key={conflict.id} className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                  <p className="font-black text-red-700">{conflict.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">{conflict.description}</p>
-                  <p className="mt-2 text-xs font-bold text-slate-400">{conflict.dayName} · الحصة {conflict.periodNumber}</p>
+                <div key={conflict.id} className="rounded-2xl bg-[var(--app-card)] px-4 py-3 shadow-sm">
+                  <p className="font-black text-[var(--app-destructive)]">{conflict.title}</p>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">{conflict.description}</p>
+                  <p className="mt-2 text-xs font-bold text-[var(--app-text-muted)]">{conflict.dayName} · الحصة {conflict.periodNumber}</p>
                 </div>
               ))}
             </div>
@@ -1509,7 +1509,7 @@ export default function SchedulesPage() {
               <button
                 type="button"
                 onClick={() => setFormOpen(false)}
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                className="rounded-2xl bg-[var(--app-card-soft)] px-4 py-2 text-sm font-bold text-[var(--app-text)] transition hover:bg-[var(--app-card-soft)]"
               >
                 إخفاء
               </button>
@@ -1526,7 +1526,7 @@ export default function SchedulesPage() {
                       teacher_subject_id: event.target.value,
                     }))
                   }
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#C1B489] xl:col-span-2"
+                  className="rounded-2xl border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-[var(--app-accent)] xl:col-span-2"
                 >
                   <option value="">اختر إسناد المعلم والمادة</option>
                   {activeAssignments.map((assignment) => (
@@ -1544,7 +1544,7 @@ export default function SchedulesPage() {
                       day_name: event.target.value,
                     }))
                   }
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                 >
                   {DAYS.map((day) => (
                     <option key={day} value={day}>
@@ -1561,7 +1561,7 @@ export default function SchedulesPage() {
                       period_number: event.target.value,
                     }))
                   }
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                 >
                   {PERIODS.map((period) => (
                     <option key={period} value={period}>
@@ -1598,7 +1598,7 @@ export default function SchedulesPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="mt-5 flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+                className="mt-5 flex items-center gap-2 rounded-2xl bg-[var(--app-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
               >
                 <Save size={16} />
                 {saving ? "جاري الحفظ..." : "حفظ الحصة"}
@@ -1611,7 +1611,7 @@ export default function SchedulesPage() {
           <button
             type="button"
             onClick={() => setFormOpen(true)}
-            className="flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white print:hidden"
+            className="flex items-center gap-2 rounded-2xl bg-[var(--app-primary)] px-5 py-3 text-sm font-bold text-white print:hidden"
           >
             <Plus size={16} />
             إظهار نموذج إضافة حصة
@@ -1649,11 +1649,11 @@ export default function SchedulesPage() {
           onExportExcel={exportExcel}
           onExportPDF={exportPDF}
           actions={
-            <div className="flex rounded-2xl bg-slate-100 p-1">
-              <button type="button" onClick={() => setViewMode("week")} className={`rounded-xl px-4 py-2 text-sm font-black transition ${viewMode === "week" ? "bg-[#15445A] text-white" : "text-slate-600 hover:bg-white"}`}>
+            <div className="flex rounded-2xl bg-[var(--app-card-soft)] p-1">
+              <button type="button" onClick={() => setViewMode("week")} className={`rounded-xl px-4 py-2 text-sm font-black transition ${viewMode === "week" ? "bg-[var(--app-primary)] text-white" : "text-[var(--app-text-muted)] hover:bg-[var(--app-card)]"}`}>
                 عرض أسبوعي
               </button>
-              <button type="button" onClick={() => setViewMode("table")} className={`rounded-xl px-4 py-2 text-sm font-black transition ${viewMode === "table" ? "bg-[#15445A] text-white" : "text-slate-600 hover:bg-white"}`}>
+              <button type="button" onClick={() => setViewMode("table")} className={`rounded-xl px-4 py-2 text-sm font-black transition ${viewMode === "table" ? "bg-[var(--app-primary)] text-white" : "text-[var(--app-text-muted)] hover:bg-[var(--app-card)]"}`}>
                 جدول بيانات
               </button>
             </div>
@@ -1730,13 +1730,13 @@ function WeeklySchedule({
         <table className="w-full min-w-[1050px] border-separate border-spacing-2 text-sm">
           <thead>
             <tr>
-              <th className="rounded-2xl bg-slate-100 p-3 text-right font-black text-slate-600">
+              <th className="rounded-2xl bg-[var(--app-card-soft)] p-3 text-right font-black text-[var(--app-text-muted)]">
                 الحصة
               </th>
               {DAYS.map((day) => (
                 <th
                   key={day}
-                  className="rounded-2xl bg-[#15445A] p-3 font-black text-white shadow-sm"
+                  className="rounded-2xl bg-[var(--app-primary)] p-3 font-black text-white shadow-sm"
                 >
                   {day}
                 </th>
@@ -1747,7 +1747,7 @@ function WeeklySchedule({
           <tbody>
             {PERIODS.map((period) => (
               <tr key={period}>
-                <td className="rounded-2xl bg-slate-100 p-3 text-center font-black text-slate-700">
+                <td className="rounded-2xl bg-[var(--app-card-soft)] p-3 text-center font-black text-[var(--app-text)]">
                   {period}
                 </td>
 
@@ -1762,7 +1762,7 @@ function WeeklySchedule({
                         const id = event.dataTransfer.getData("schedule-id");
                         if (id) void onMove(id, day, period);
                       }}
-                      className="h-36 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-2 align-top transition hover:bg-white"
+                      className="h-36 rounded-[22px] border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-2 align-top transition hover:bg-[var(--app-card)]"
                     >
                       {items.map((item) => (
                         <div
@@ -1772,20 +1772,20 @@ function WeeklySchedule({
                             event.dataTransfer.setData("schedule-id", item.id)
                           }
                           onClick={() => onSelect(item)}
-                          className="mb-2 cursor-pointer rounded-[18px] border border-slate-100 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#0DA9A6]/30 hover:shadow-md"
+                          className="mb-2 cursor-pointer rounded-[18px] border border-[var(--app-border)] bg-[var(--app-card)] p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--app-primary)]/30 hover:shadow-md"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <div className="flex items-center gap-1 text-xs font-black text-[#15445A]">
+                              <div className="flex items-center gap-1 text-xs font-black text-[var(--app-primary)]">
                                 {canManage && <GripVertical size={13} />}
                                 {item.subjectName}
                               </div>
 
-                              <p className="mt-1 text-xs font-bold text-slate-500">
+                              <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
                                 {item.teacherName}
                               </p>
 
-                              <p className="mt-1 text-[11px] font-bold text-slate-400">
+                              <p className="mt-1 text-[11px] font-bold text-[var(--app-text-muted)]">
                                 {item.classroomName} · {item.roomName}
                               </p>
                             </div>
@@ -1793,8 +1793,13 @@ function WeeklySchedule({
                             {canManage && (
                               <button
                                 type="button"
-                                onClick={() => void onRemove(item.id)}
-                                className="rounded-lg bg-red-50 p-1 text-red-600 hover:bg-red-100"
+                                aria-label={`حذف حصة ${item.subjectName}`}
+                                title="حذف الحصة"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void onRemove(item.id);
+                                }}
+                                className="rounded-lg bg-[var(--app-destructive-soft)] p-1 text-[var(--app-destructive)] hover:bg-[var(--app-destructive-soft)]"
                               >
                                 <Trash2 size={13} />
                               </button>
@@ -1840,7 +1845,7 @@ function ScheduleTable({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1050px]">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+            <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)] text-right text-sm text-[var(--app-text-muted)]">
               <th className="rounded-r-2xl px-4 py-3">المعلم</th>
               <th className="px-4 py-3">المادة</th>
               <th className="px-4 py-3">الفصل</th>
@@ -1859,20 +1864,20 @@ function ScheduleTable({
               <tr
                 key={row.id}
                 onClick={() => onSelect(row)}
-                className="cursor-pointer border-b border-slate-50 text-sm transition hover:bg-slate-50"
+                className="cursor-pointer border-b border-[var(--app-border)] text-sm transition hover:bg-[var(--app-card-soft)]"
               >
                 <td className="px-4 py-3">
-                  <div className="font-black text-[#15445A]">
+                  <div className="font-black text-[var(--app-primary)]">
                     {row.teacherName}
                   </div>
-                  <div className="mt-1 text-xs text-slate-400">
+                  <div className="mt-1 text-xs text-[var(--app-text-muted)]">
                     {row.teacherEmail}
                   </div>
                 </td>
                 <td className="px-4 py-3">{row.subjectName}</td>
                 <td className="px-4 py-3">
                   {row.classroomName}
-                  <div className="mt-1 text-xs text-slate-400">
+                  <div className="mt-1 text-xs text-[var(--app-text-muted)]">
                     {row.gradeName} - {row.sectionName}
                   </div>
                 </td>
@@ -1884,13 +1889,18 @@ function ScheduleTable({
                   {canManage ? (
                     <button
                       type="button"
-                      onClick={() => void onRemove(row.id)}
-                      className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                      aria-label={`حذف حصة ${row.subjectName}`}
+                      title="حذف الحصة"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onRemove(row.id);
+                      }}
+                      className="rounded-xl bg-[var(--app-destructive-soft)] p-2 text-[var(--app-destructive)] hover:bg-[var(--app-destructive-soft)]"
                     >
                       <Trash2 size={16} />
                     </button>
                   ) : (
-                    <span className="text-xs font-bold text-slate-400">
+                    <span className="text-xs font-bold text-[var(--app-text-muted)]">
                       عرض فقط
                     </span>
                   )}
@@ -1902,7 +1912,7 @@ function ScheduleTable({
       </div>
 
       <div className="mt-5 flex items-center justify-between">
-        <p className="text-sm text-slate-500">صفحة {page} من {totalPages}</p>
+        <p className="text-sm text-[var(--app-text-muted)]">صفحة {page} من {totalPages}</p>
 
         <div className="flex items-center gap-2">
           <button
@@ -1932,7 +1942,7 @@ function ToastBox({ toast }: { toast: Toast }) {
   return (
     <div
       className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+        toast.type === "success" ? "bg-[var(--app-green)]" : "bg-[var(--app-destructive)]"
       }`}
     >
       <span>{toast.message}</span>
@@ -1957,14 +1967,14 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+      className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
     />
   );
 }
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-[28px] border border-dashed border-slate-200 bg-white p-10 text-center text-sm font-bold text-slate-500">
+    <div className="rounded-[28px] border border-dashed border-[var(--app-border)] bg-[var(--app-card)] p-10 text-center text-sm font-bold text-[var(--app-text-muted)]">
       {text}
     </div>
   );
@@ -1972,8 +1982,8 @@ function EmptyBox({ text }: { text: string }) {
 
 function LoadingBox({ text }: { text: string }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
+    <div className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-6 text-center text-[var(--app-text-muted)] shadow-sm">
+      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[var(--app-primary)]" />
       {text}
     </div>
   );
@@ -2015,7 +2025,7 @@ function ScheduleExecutiveAnalytics({
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ScheduleMetric label="اكتمال الجدولة" value={`${health.completionRate}%`} icon={<Gauge size={18} />} tone="green" />
         <ScheduleMetric label="الخانات الفارغة" value={health.emptySlots} icon={<CalendarDays size={18} />} tone="blue" />
-        <ScheduleMetric label="القاعات المستخدمة" value={roomUtilization.length} icon={<School size={18} />} tone="teal" />
+        <ScheduleMetric label="القاعات المستخدمة" value={roomUtilization.length} icon={<School size={18} />} tone="primary" />
         <ScheduleMetric label="التعارضات" value={stats.conflicts} icon={<AlertTriangle size={18} />} tone={stats.conflicts > 0 ? "red" : "green"} />
       </div>
 
@@ -2074,7 +2084,7 @@ function ScheduleHealthPanel({ health }: { health: ScheduleHealth }) {
       <div className="mt-5 space-y-4">
         <ScheduleProgress label="اكتمال الجدولة" value={health.completionRate} total={100} tone="green" suffix="%" />
         <ScheduleProgress label="توازن الأيام" value={health.balanceScore} total={100} tone="blue" suffix="%" />
-        <ScheduleProgress label="تغطية القاعات" value={health.roomCoverage} total={100} tone="teal" suffix="%" />
+        <ScheduleProgress label="تغطية القاعات" value={health.roomCoverage} total={100} tone="primary" suffix="%" />
         <ScheduleProgress label="نسبة التعارض" value={health.conflictRate} total={100} tone="red" suffix="%" />
       </div>
     </section>
@@ -2170,13 +2180,13 @@ function ScheduleDrawer({
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Schedule Drawer V2</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{row.subjectName}</h2>
+            <p className="text-xs font-black text-[var(--app-accent)]">Schedule Drawer V2</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-primary)]">{row.subjectName}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+          <button type="button" onClick={onClose} className="rounded-xl bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]">
             <XCircle size={20} />
           </button>
         </div>
@@ -2301,20 +2311,20 @@ function ScheduleMiniList({ title, items }: { title: string; items: string[] }) 
 
 function DrawerMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-lg font-black text-[#15445A]">{value}</p>
+    <div className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-lg font-black text-[var(--app-primary)]">{value}</p>
     </div>
   );
 }
 
 function DrawerSection({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-primary)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">{item}</p>
         ))}
       </div>
     </div>

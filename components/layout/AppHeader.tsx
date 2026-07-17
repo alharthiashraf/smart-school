@@ -3,15 +3,15 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { supabase } from "@/lib/supabase";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 import { useSchool } from "@/contexts/SchoolContext";
 import type { SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
 import {
   HeaderBrand,
-  HeaderSearch,
   HeaderNotifications,
-  HeaderSchoolInfo,
+  HeaderSearch,
   HeaderUserMenu,
 } from "./header";
 
@@ -32,8 +32,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/teacher-subjects": "إسناد المعلمين",
   "/schedules": "الجداول الدراسية",
   "/attendance": "الحضور والغياب",
-  "/grades": "الدرجات",
   "/grades/analyzer": "تحليل الدرجات",
+  "/grades": "الدرجات",
   "/behavior": "السلوك والمواظبة",
   "/reports": "التقارير",
   "/analytics": "التحليلات",
@@ -61,29 +61,51 @@ const ROLE_NAME_MAP: Record<SchoolRole, string> = {
 };
 
 function getPageTitle(pathname: string) {
-  const matched = Object.keys(PAGE_TITLES)
-    .filter((path) => pathname === path || pathname.startsWith(`${path}/`))
-    .sort((a, b) => b.length - a.length)[0];
+  const matchedPath = Object.keys(PAGE_TITLES)
+    .filter(
+      (path) =>
+        pathname === path ||
+        pathname.startsWith(`${path}/`),
+    )
+    .sort(
+      (firstPath, secondPath) =>
+        secondPath.length - firstPath.length,
+    )[0];
 
-  return matched ? PAGE_TITLES[matched] : "منصة المدرسة الذكية";
+  return matchedPath
+    ? PAGE_TITLES[matchedPath]
+    : "منصة المدرسة الذكية";
 }
 
 export default function AppHeader() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { currentSchool, currentRole, academicYear, semester } = useSchool();
+  const {
+    currentSchool,
+    currentRole,
+    academicYear,
+    semester,
+  } = useSchool();
 
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [notificationsCount, setNotificationsCount] = useState(0);
+  const [notificationsCount, setNotificationsCount] =
+    useState(0);
+
   const [user, setUser] = useState<HeaderUser>({
     full_name: "مستخدم",
     email: "",
   });
 
-  const pageTitle = useMemo(() => getPageTitle(pathname), [pathname]);
-  const roleName = currentRole ? ROLE_NAME_MAP[currentRole] : "مستخدم";
+  const pageTitle = useMemo(
+    () => getPageTitle(pathname),
+    [pathname],
+  );
+
+  const roleName = currentRole
+    ? ROLE_NAME_MAP[currentRole]
+    : "مستخدم";
 
   const loadAuthUser = useCallback(async () => {
     const {
@@ -91,7 +113,9 @@ export default function AppHeader() {
       error,
     } = await supabase.auth.getUser();
 
-    if (error || !authUser) return;
+    if (error || !authUser) {
+      return;
+    }
 
     setUser({
       full_name:
@@ -111,7 +135,10 @@ export default function AppHeader() {
 
     const { count, error } = await supabase
       .from("notifications")
-      .select("id", { count: "exact", head: true })
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
       .eq("school_id", currentSchool.id)
       .eq("is_read", false);
 
@@ -131,25 +158,59 @@ export default function AppHeader() {
     void loadNotificationsCount();
   }, [loadNotificationsCount]);
 
-  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  function submitSearch(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
-    const text = query.trim();
-    if (!text) return;
+    const normalizedQuery = query.trim();
 
-    router.push(`/search?q=${encodeURIComponent(text)}`);
+    if (!normalizedQuery) {
+      return;
+    }
+
+    router.push(
+      `/search?q=${encodeURIComponent(normalizedQuery)}`,
+    );
   }
 
   async function logout() {
-    const ok = window.confirm("هل تريد تسجيل الخروج؟");
-    if (!ok) return;
+    const confirmed = window.confirm(
+      "هل تريد تسجيل الخروج؟",
+    );
 
-    await supabase.auth.signOut();
+    if (!confirmed) {
+      return;
+    }
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      window.alert(
+        "تعذر تسجيل الخروج، حاول مرة أخرى.",
+      );
+      return;
+    }
+
     router.replace("/login");
+    router.refresh();
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--app-border)] bg-[var(--app-card)]/90 text-[var(--app-text)] backdrop-blur-xl">
+    <header
+      className="
+        sticky top-0 z-40
+        border-b border-[var(--app-border)]
+        bg-[var(--app-header)]/95
+        text-[var(--app-text)]
+        shadow-[var(--app-shadow-sm)]
+        backdrop-blur-xl
+      "
+    >
       <div className="flex min-h-16 items-center gap-3 px-3 sm:px-4 lg:px-6">
         <HeaderBrand
           title={pageTitle}
@@ -164,19 +225,25 @@ export default function AppHeader() {
           onSubmit={submitSearch}
         />
 
-        <HeaderNotifications count={notificationsCount} />
+        <div className="mr-auto flex items-center gap-2">
+          <ThemeToggle />
 
-        <HeaderSchoolInfo />
+          <HeaderNotifications
+            count={notificationsCount}
+          />
 
-        <HeaderUserMenu
-          user={user}
-          roleName={roleName}
-          schoolName={currentSchool?.school_name}
-          open={menuOpen}
-          onToggle={() => setMenuOpen((value) => !value)}
-          onClose={() => setMenuOpen(false)}
-          onLogout={logout}
-        />
+          <HeaderUserMenu
+            user={user}
+            roleName={roleName}
+            schoolName={currentSchool?.school_name}
+            open={menuOpen}
+            onToggle={() =>
+              setMenuOpen((current) => !current)
+            }
+            onClose={() => setMenuOpen(false)}
+            onLogout={logout}
+          />
+        </div>
       </div>
     </header>
   );

@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import { CheckCircle2, AlertTriangle, XCircle, Clock3, Info } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Info,
+  XCircle,
+} from "lucide-react";
 
 export type StatusBadgeTone =
   | "default"
@@ -10,7 +16,7 @@ export type StatusBadgeTone =
   | "info"
   | "gray";
 
-type StatusBadgeProps = {
+export type StatusBadgeProps = {
   children: ReactNode;
   tone?: StatusBadgeTone;
   icon?: ReactNode;
@@ -20,62 +26,75 @@ type StatusBadgeProps = {
   className?: string;
 };
 
-const styles: Record<
-  StatusBadgeTone,
-  {
-    solid: string;
-    outlined: string;
-    dot: string;
-    icon: ReactNode;
-  }
-> = {
+type StatusBadgeStyle = {
+  solid: string;
+  outlined: string;
+  dot: string;
+  icon: ReactNode;
+};
+
+const styles: Record<StatusBadgeTone, StatusBadgeStyle> = {
   default: {
-    solid: "bg-slate-100 text-slate-700",
-    outlined: "border border-slate-300 text-slate-700 bg-white",
-    dot: "bg-slate-500",
-    icon: <Info size={14} />,
+    solid:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+    outlined:
+      "border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-muted)]",
+    dot: "bg-[var(--app-text-muted)]",
+    icon: <Info aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 
   primary: {
-    solid: "bg-indigo-100 text-indigo-700",
-    outlined: "border border-indigo-300 text-indigo-700 bg-white",
-    dot: "bg-indigo-600",
-    icon: <Info size={14} />,
+    solid:
+      "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+    outlined:
+      "border border-[var(--app-primary)]/30 bg-[var(--app-card)] text-[var(--app-primary)]",
+    dot: "bg-[var(--app-primary)]",
+    icon: <Info aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 
   success: {
-    solid: "bg-emerald-100 text-emerald-700",
-    outlined: "border border-emerald-300 text-emerald-700 bg-white",
-    dot: "bg-emerald-600",
-    icon: <CheckCircle2 size={14} />,
+    solid:
+      "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    outlined:
+      "border border-[var(--app-green)]/30 bg-[var(--app-card)] text-[var(--app-green)]",
+    dot: "bg-[var(--app-green)]",
+    icon: <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 
   warning: {
-    solid: "bg-amber-100 text-amber-700",
-    outlined: "border border-amber-300 text-amber-700 bg-white",
-    dot: "bg-amber-500",
-    icon: <AlertTriangle size={14} />,
+    solid:
+      "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    outlined:
+      "border border-[var(--app-accent)]/30 bg-[var(--app-card)] text-[var(--app-accent)]",
+    dot: "bg-[var(--app-accent)]",
+    icon: <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 
   danger: {
-    solid: "bg-red-100 text-red-700",
-    outlined: "border border-red-300 text-red-700 bg-white",
-    dot: "bg-red-600",
-    icon: <XCircle size={14} />,
+    solid:
+      "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    outlined:
+      "border border-[var(--app-destructive)]/30 bg-[var(--app-card)] text-[var(--app-destructive)]",
+    dot: "bg-[var(--app-destructive)]",
+    icon: <XCircle aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 
   info: {
-    solid: "bg-sky-100 text-sky-700",
-    outlined: "border border-sky-300 text-sky-700 bg-white",
-    dot: "bg-sky-500",
-    icon: <Info size={14} />,
+    solid:
+      "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    outlined:
+      "border border-[var(--app-blue)]/30 bg-[var(--app-card)] text-[var(--app-blue)]",
+    dot: "bg-[var(--app-blue)]",
+    icon: <Info aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 
   gray: {
-    solid: "bg-gray-100 text-gray-700",
-    outlined: "border border-gray-300 text-gray-700 bg-white",
-    dot: "bg-gray-500",
-    icon: <Clock3 size={14} />,
+    solid:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+    outlined:
+      "border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-muted)]",
+    dot: "bg-[var(--app-text-muted)]",
+    icon: <Clock3 aria-hidden="true" className="h-3.5 w-3.5" />,
   },
 };
 
@@ -86,7 +105,7 @@ export default function StatusBadge({
   outlined = false,
   dot = false,
   rounded = true,
-  className = "",
+  className,
 }: StatusBadgeProps) {
   const style = styles[tone];
 
@@ -94,18 +113,30 @@ export default function StatusBadge({
     <span
       className={[
         "inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold transition-all",
-        rounded ? "rounded-full" : "rounded-lg",
+        rounded
+          ? "rounded-full"
+          : "rounded-[var(--app-radius-md)]",
         outlined ? style.outlined : style.solid,
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {dot && (
         <span
-          className={`h-2 w-2 rounded-full ${style.dot}`}
+          aria-hidden="true"
+          className={[
+            "h-2 w-2 shrink-0 rounded-full",
+            style.dot,
+          ].join(" ")}
         />
       )}
 
-      {!dot && (icon ?? style.icon)}
+      {!dot && (
+        <span aria-hidden="true" className="shrink-0">
+          {icon ?? style.icon}
+        </span>
+      )}
 
       <span>{children}</span>
     </span>

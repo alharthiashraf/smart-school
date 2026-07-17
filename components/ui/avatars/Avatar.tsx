@@ -1,8 +1,9 @@
+import Image from "next/image";
 import { User } from "lucide-react";
 
-type AvatarSize = "sm" | "md" | "lg" | "xl";
+export type AvatarSize = "sm" | "md" | "lg" | "xl";
 
-type AvatarProps = {
+export type AvatarProps = {
   name?: string;
   src?: string | null;
   size?: AvatarSize;
@@ -16,42 +17,63 @@ const sizeClasses: Record<AvatarSize, string> = {
   xl: "h-16 w-16 text-xl",
 };
 
+const imageSizes: Record<AvatarSize, number> = {
+  sm: 32,
+  md: 40,
+  lg: 48,
+  xl: 64,
+};
+
 function getInitials(name?: string) {
   if (!name) return "";
 
   return name
     .trim()
     .split(/\s+/)
+    .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0])
+    .map((part) => part.charAt(0))
     .join("")
-    .toUpperCase();
+    .toLocaleUpperCase("ar");
 }
 
 export default function Avatar({
   name,
   src,
   size = "md",
-  className = "",
+  className,
 }: AvatarProps) {
   const initials = getInitials(name);
+  const accessibleName = name?.trim() || "المستخدم";
 
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-emerald-50 font-black text-emerald-700 shadow-sm ${sizeClasses[size]} ${className}`}
-      title={name}
+      className={[
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--app-border)] bg-[var(--app-primary-soft)] font-black text-[var(--app-primary)] shadow-sm",
+        sizeClasses[size],
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      title={accessibleName}
+      aria-label={accessibleName}
     >
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={src}
-          alt={name || "Avatar"}
+          alt={accessibleName}
+          width={imageSizes[size]}
+          height={imageSizes[size]}
           className="h-full w-full object-cover"
+          sizes={`${imageSizes[size]}px`}
         />
       ) : initials ? (
-        <span>{initials}</span>
+        <span aria-hidden="true">{initials}</span>
       ) : (
-        <User className="h-1/2 w-1/2" />
+        <User
+          aria-hidden="true"
+          className="h-1/2 w-1/2"
+        />
       )}
     </div>
   );

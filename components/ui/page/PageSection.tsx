@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { Loader2 } from "lucide-react";
 
-type PageSectionProps = {
+export type PageSectionProps = {
   title?: string;
   description?: string;
   icon?: ReactNode;
@@ -24,25 +25,35 @@ export default function PageSection({
   badge,
   actions,
   children,
-  className = "",
+  className,
   loading = false,
   loadingText = "جاري التحميل...",
   empty = false,
   emptyTitle = "لا توجد بيانات",
-  emptyDescription = "لم يتم العثور على محتوى لعرضه حالياً.",
+  emptyDescription = "لم يتم العثور على محتوى لعرضه حاليًا.",
 }: PageSectionProps) {
+  const hasHeader = Boolean(
+    title || description || actions || icon || badge,
+  );
+
   return (
     <section
       className={[
-        "rounded-[24px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm",
+        "rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-busy={loading}
     >
-      {(title || description || actions || icon || badge) && (
+      {hasHeader && (
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             {icon && (
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-teal-soft)] text-[var(--app-teal)]">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-primary-soft)] text-[var(--app-primary)]"
+                aria-hidden="true"
+              >
                 {icon}
               </div>
             )}
@@ -54,6 +65,7 @@ export default function PageSection({
                     {title}
                   </h2>
                 )}
+
                 {badge}
               </div>
 
@@ -65,17 +77,35 @@ export default function PageSection({
             </div>
           </div>
 
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {actions}
+            </div>
+          )}
         </div>
       )}
 
       {loading ? (
-        <div className="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] text-sm font-bold text-[var(--app-text-muted)]">
+        <div
+          className="flex min-h-[160px] items-center justify-center rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text-muted)]"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2
+            aria-hidden="true"
+            className="ml-2 h-5 w-5 animate-spin text-[var(--app-primary)]"
+          />
           {loadingText}
         </div>
       ) : empty ? (
-        <div className="flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-center">
-          <p className="text-sm font-black text-[var(--app-text)]">{emptyTitle}</p>
+        <div
+          className="flex min-h-[160px] flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-center"
+          role="status"
+        >
+          <p className="text-sm font-black text-[var(--app-text)]">
+            {emptyTitle}
+          </p>
+
           <p className="mt-1 max-w-md text-xs leading-6 text-[var(--app-text-muted)]">
             {emptyDescription}
           </p>

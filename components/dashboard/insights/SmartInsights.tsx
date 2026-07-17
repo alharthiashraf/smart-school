@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
+import { Sparkles } from "lucide-react";
+
+import { BaseCard } from "@/components/ui/cards";
 import { EmptyState } from "@/components/ui/empty-state";
 
-export type SmartInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+export type SmartInsightTone =
+  | "primary"
+  | "green"
+  | "gold"
+  | "red"
+  | "neutral";
 
 export type SmartInsightItem = {
   title: string;
@@ -10,50 +18,86 @@ export type SmartInsightItem = {
   icon: ReactNode;
 };
 
-type SmartInsightsProps = {
-  insights: SmartInsightItem[];
+export type SmartInsightsProps = {
+  insights: readonly SmartInsightItem[];
+  title?: string;
+  description?: string;
+  className?: string;
 };
 
-const tones: Record<SmartInsightTone, string> = {
-  green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-  gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-  red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-  blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-  teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+const TONE_CLASSES: Record<SmartInsightTone, string> = {
+  primary:
+    "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+  green:
+    "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+  gold:
+    "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+  red:
+    "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+  neutral:
+    "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
 };
 
-export default function SmartInsights({ insights }: SmartInsightsProps) {
+export default function SmartInsights({
+  insights,
+  title = "الرؤى الذكية",
+  description = "أهم الملاحظات الحالية.",
+  className = "",
+}: SmartInsightsProps) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-lg font-black">Smart Insights</h2>
-        <p className="mt-1 text-sm leading-6 text-[var(--app-text-muted)]">
-          توصيات ومؤشرات ذكية مبنية على بيانات اليوم.
-        </p>
-      </div>
+    <BaseCard
+      as="section"
+      padding="md"
+      className={className}
+      aria-labelledby="smart-insights-title"
+    >
+      <header className="mb-4">
+        <h2
+          id="smart-insights-title"
+          className="text-lg font-black text-[var(--app-text)]"
+        >
+          {title}
+        </h2>
+
+        {description ? (
+          <p className="mt-1 text-sm leading-6 text-[var(--app-text-muted)]">
+            {description}
+          </p>
+        ) : null}
+      </header>
 
       {insights.length === 0 ? (
-        <EmptyState title="لا توجد توصيات" description="لا توجد مؤشرات تحتاج إجراء حالياً." />
+        <EmptyState
+          title="لا توجد رؤى"
+          description="لا توجد ملاحظات حالية."
+          icon={<Sparkles className="h-7 w-7" aria-hidden="true" />}
+        />
       ) : (
-        <div className="space-y-3">
+        <ul className="space-y-3" aria-label={title}>
           {insights.map((insight) => (
-            <div
-              key={insight.title}
-              className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
-            >
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${tones[insight.tone]}`}>
-                {insight.icon}
-              </div>
-              <div>
-                <p className="text-sm font-black">{insight.title}</p>
-                <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
-                  {insight.description}
-                </p>
-              </div>
-            </div>
+            <li key={`${insight.title}-${insight.description}`}>
+              <article className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]">
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${TONE_CLASSES[insight.tone]}`}
+                  aria-hidden="true"
+                >
+                  {insight.icon}
+                </span>
+
+                <div className="min-w-0">
+                  <h3 className="text-sm font-black text-[var(--app-text)]">
+                    {insight.title}
+                  </h3>
+
+                  <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+                    {insight.description}
+                  </p>
+                </div>
+              </article>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </section>
+    </BaseCard>
   );
 }

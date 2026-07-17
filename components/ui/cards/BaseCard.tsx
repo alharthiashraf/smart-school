@@ -1,22 +1,69 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type {
+  ComponentPropsWithoutRef,
+  ComponentPropsWithRef,
+  ElementType,
+  ReactElement,
+  ReactNode,
+} from "react";
 
-type BaseCardVariant = "default" | "soft" | "elevated" | "interactive";
-type BaseCardPadding = "none" | "sm" | "md" | "lg";
+export type BaseCardVariant =
+  | "default"
+  | "soft"
+  | "elevated"
+  | "interactive"
+  | "hero";
 
-type BaseCardProps = HTMLAttributes<HTMLElement> & {
-  children: ReactNode;
-  as?: "div" | "article" | "section";
+export type BaseCardPadding =
+  | "none"
+  | "sm"
+  | "md"
+  | "lg";
+
+type BaseCardOwnProps = {
+  children?: ReactNode;
   variant?: BaseCardVariant;
   padding?: BaseCardPadding;
   hoverable?: boolean;
 };
 
+export type BaseCardProps<
+  TElement extends ElementType = "div",
+> = BaseCardOwnProps & {
+  as?: TElement;
+  ref?: ComponentPropsWithRef<TElement>["ref"];
+} & Omit<
+    ComponentPropsWithoutRef<TElement>,
+    keyof BaseCardOwnProps | "as"
+  >;
+
 const variants: Record<BaseCardVariant, string> = {
-  default: "border-[var(--app-border)] bg-[var(--app-card)] shadow-sm",
-  soft: "border-[var(--app-border)] bg-[var(--app-card-soft)] shadow-sm",
-  elevated: "border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-soft)]",
-  interactive:
-    "border-[var(--app-border)] bg-[var(--app-card)] shadow-sm hover:-translate-y-1 hover:shadow-[var(--app-shadow)]",
+  default:
+    "border-[var(--app-border)] bg-[var(--app-card)] shadow-sm",
+
+  soft:
+    "border-[var(--app-border)] bg-[var(--app-card-soft)] shadow-sm",
+
+  elevated:
+    "border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-soft)]",
+
+  interactive: [
+    "border-[var(--app-border)]",
+    "bg-[var(--app-card)]",
+    "shadow-sm",
+    "hover:-translate-y-1",
+    "hover:border-[var(--app-accent)]",
+    "hover:shadow-[var(--app-shadow)]",
+  ].join(" "),
+
+  hero: [
+    "border-transparent",
+    "bg-gradient-to-l",
+    "from-[var(--app-primary)]",
+    "via-[var(--app-primary-hover)]",
+    "to-[var(--app-primary-dark)]",
+    "text-[var(--app-primary-foreground)]",
+    "shadow-[var(--app-shadow)]",
+  ].join(" "),
 };
 
 const paddings: Record<BaseCardPadding, string> = {
@@ -26,25 +73,36 @@ const paddings: Record<BaseCardPadding, string> = {
   lg: "p-6",
 };
 
-export default function BaseCard({
+export default function BaseCard<
+  TElement extends ElementType = "div",
+>({
   children,
-  as = "div",
+  as,
+  ref,
   variant = "default",
   padding = "md",
   hoverable = false,
-  className = "",
+  className,
   ...props
-}: BaseCardProps) {
-  const Component = as;
+}: BaseCardProps<TElement>): ReactElement {
+  const Component = (as ?? "div") as ElementType;
+
+  const resolvedVariant: BaseCardVariant =
+    hoverable && variant !== "hero"
+      ? "interactive"
+      : variant;
 
   return (
     <Component
+      ref={ref}
       className={[
-        "rounded-[var(--app-radius-xl)] border text-[var(--app-text)] transition-all duration-200",
-        variants[hoverable ? "interactive" : variant],
+        "group rounded-[var(--app-radius-xl)] border text-[var(--app-text)] transition-all duration-200",
+        variants[resolvedVariant],
         paddings[padding],
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
       {...props}
     >
       {children}

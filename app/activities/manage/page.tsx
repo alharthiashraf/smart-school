@@ -7,23 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-
-import AppShell from "@/components/layout/AppShell";
-import PageHeader from "@/components/ui/page/PageHeader";
-import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import { EmptyState } from "@/components/ui/empty-state";
-import { PageLoader } from "@/components/ui/loading";
-import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
-import ErrorState from "@/components/ui/feedback/ErrorState";
-import UiPrimaryButton from "@/components/ui/buttons/PrimaryButton";
-import UiSecondaryButton from "@/components/ui/buttons/SecondaryButton";
-import RoleGuard from "@/components/auth/RoleGuard";
-import { type SchoolRole } from "@/lib/permissions";
-import { supabase } from "@/lib/supabase";
-import { useSchool } from "@/contexts/SchoolContext";
-import { exportTableToPDF } from "@/lib/exports/pdf";
-import { exportTableToExcel } from "@/lib/exports/excel";
-
 import {
   CalendarDays,
   CheckCircle2,
@@ -38,8 +21,29 @@ import {
   XCircle,
 } from "lucide-react";
 
-type ActivityToast = { type: "success" | "error"; message: string };
+import RoleGuard from "@/components/auth/RoleGuard";
+import AppShell from "@/components/layout/AppShell";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageSection from "@/components/ui/page/PageSection";
 
+import { useSchool } from "@/contexts/SchoolContext";
+import { exportTableToExcel } from "@/lib/exports/excel";
+import { exportTableToPDF } from "@/lib/exports/pdf";
+import type { SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type ActivityToast = {
+  type: "success" | "error";
+  message: string;
+};
 
 type Activity = {
   id: string;
@@ -78,11 +82,11 @@ const PAGE_ROLES: SchoolRole[] = [
   "activity_leader",
 ];
 
-const emptyForm: FormState = {
+const EMPTY_FORM: FormState = {
   title: "",
-  activity_type: "ط«ظ‚ط§ظپظٹ",
+  activity_type: "ثقافي",
   description: "",
-  status: "ظ†ط´ط·",
+  status: "نشط",
   start_date: "",
   end_date: "",
   location: "",
@@ -92,58 +96,70 @@ const emptyForm: FormState = {
 };
 
 const ACTIVITY_TYPES = [
-  "ط«ظ‚ط§ظپظٹ",
-  "ط±ظٹط§ط¶ظٹ",
-  "ط¹ظ„ظ…ظٹ",
-  "ظƒط´ظپظٹ",
-  "طھط·ظˆط¹ظٹ",
-  "ظپظ†ظٹ",
-  "ط§ط¬طھظ…ط§ط¹ظٹ",
-  "ظ…ظ‡ط§ط±ظٹ",
-  "ظˆط·ظ†ظٹ",
-  "طµط­ظٹ",
-];
+  "ثقافي",
+  "رياضي",
+  "علمي",
+  "كشفي",
+  "تطوعي",
+  "فني",
+  "اجتماعي",
+  "مهاري",
+  "وطني",
+  "صحي",
+] as const;
 
-const STATUS_OPTIONS = ["ظ†ط´ط·", "ظ‚ظٹط¯ ط§ظ„طھط®ط·ظٹط·", "ظ…ظ†ظپط°", "ظ…ط¤ط¬ظ„", "ظ…ظ„ط؛ظٹ"];
+const STATUS_OPTIONS = [
+  "نشط",
+  "قيد التخطيط",
+  "منفذ",
+  "مؤجل",
+  "ملغي",
+] as const;
 
 function formatDate(value?: string | null) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
-  return new Date(value).toLocaleDateString("ar-SA", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ar-SA", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  });
+  }).format(date);
 }
 
-function statusStyle(status?: string | null) {
+function getStatusClass(status?: string | null) {
   const value = String(status || "");
 
-  if (["ظ†ط´ط·", "ظ…ظ†ظپط°", "ظ…ط¹طھظ…ط¯"].includes(value)) {
-    return "bg-emerald-50 text-emerald-700";
+  if (["نشط", "منفذ", "معتمد"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
 
-  if (["ظ‚ظٹط¯ ط§ظ„طھط®ط·ظٹط·", "ظ…ط¤ط¬ظ„"].includes(value)) {
-    return "bg-amber-50 text-amber-700";
+  if (["قيد التخطيط", "مؤجل"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-warning)_14%,transparent)] text-[var(--app-warning-foreground)]";
   }
 
-  if (["ظ…ظ„ط؛ظٹ", "ظ…ط±ظپظˆط¶"].includes(value)) {
-    return "bg-red-50 text-red-700";
+  if (["ملغي", "مرفوض"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
   }
 
-  return "bg-blue-50 text-blue-700";
+  return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
 }
 
 export default function ActivitiesManagePage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
   const [items, setItems] = useState<Activity[]>([]);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ط§ظ„ظƒظ„");
-  const [typeFilter, setTypeFilter] = useState("ط§ظ„ظƒظ„");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [typeFilter, setTypeFilter] = useState("الكل");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -151,43 +167,23 @@ export default function ActivitiesManagePage() {
   const [toast, setToast] = useState<ActivityToast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const showToast = useCallback(
+    (type: ActivityToast["type"], message: string) => {
+      setToast({ type, message });
 
-    return items.filter((item) => {
-      const text = `
-        ${item.title || ""}
-        ${item.activity_name || ""}
-        ${item.activity_type || ""}
-        ${item.status || ""}
-        ${item.location || ""}
-        ${item.supervisor_name || ""}
-        ${item.target_group || ""}
-        ${item.description || ""}
-        ${item.notes || ""}
-      `.toLowerCase();
-
-      const matchesSearch = !q || text.includes(q);
-      const matchesStatus =
-        statusFilter === "ط§ظ„ظƒظ„" || item.status === statusFilter;
-      const matchesType =
-        typeFilter === "ط§ظ„ظƒظ„" || item.activity_type === typeFilter;
-
-      return matchesSearch && matchesStatus && matchesType;
-    });
-  }, [items, search, statusFilter, typeFilter]);
-
-  const stats = useMemo(() => {
-    return {
-      total: items.length,
-      active: items.filter((item) => item.status === "ظ†ط´ط·").length,
-      done: items.filter((item) => item.status === "ظ…ظ†ظپط°").length,
-      planning: items.filter((item) => item.status === "ظ‚ظٹط¯ ط§ظ„طھط®ط·ظٹط·").length,
-    };
-  }, [items]);
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    [],
+  );
 
   const loadData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setErrorMsg("");
@@ -202,40 +198,79 @@ export default function ActivitiesManagePage() {
 
     if (error) {
       setErrorMsg(error.message);
+      setItems([]);
       return;
     }
 
-    setItems((data || []) as Activity[]);
+    setItems((data ?? []) as Activity[]);
   }, [currentSchool?.id]);
 
   useEffect(() => {
-    if (!schoolLoading && !currentSchool?.id) {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
       setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
       return;
     }
 
-    if (currentSchool?.id) {
-      void loadData();
-    }
+    void loadData();
   }, [currentSchool?.id, loadData, schoolLoading]);
 
-  function showToast(type: ActivityToast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  function resetForm() {
-    setForm(emptyForm);
+    return items.filter((item) => {
+      const searchableText = [
+        item.title,
+        item.activity_name,
+        item.activity_type,
+        item.status,
+        item.location,
+        item.supervisor_name,
+        item.target_group,
+        item.description,
+        item.notes,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !query || searchableText.includes(query);
+
+      const matchesStatus =
+        statusFilter === "الكل" || item.status === statusFilter;
+
+      const matchesType =
+        typeFilter === "الكل" || item.activity_type === typeFilter;
+
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [items, search, statusFilter, typeFilter]);
+
+  const stats = useMemo(
+    () => ({
+      total: items.length,
+      active: items.filter((item) => item.status === "نشط").length,
+      done: items.filter((item) => item.status === "منفذ").length,
+      planning: items.filter((item) => item.status === "قيد التخطيط").length,
+    }),
+    [items],
+  );
+
+  const resetForm = useCallback(() => {
+    setForm(EMPTY_FORM);
     setShowForm(false);
-  }
+  }, []);
 
-  function editItem(item: Activity) {
+  const editItem = useCallback((item: Activity) => {
     setForm({
       id: item.id,
       title: item.title || item.activity_name || "",
-      activity_type: item.activity_type || "ط«ظ‚ط§ظپظٹ",
+      activity_type: item.activity_type || "ثقافي",
       description: item.description || "",
-      status: item.status || "ظ†ط´ط·",
+      status: item.status || "نشط",
       start_date: item.start_date || "",
       end_date: item.end_date || "",
       location: item.location || "",
@@ -245,16 +280,16 @@ export default function ActivitiesManagePage() {
     });
 
     setShowForm(true);
-  }
+  }, []);
 
-  async function saveItem() {
+  const saveItem = useCallback(async () => {
     if (!currentSchool?.id) {
-      showToast("error", "ظ„ظ… ظٹطھظ… طھط­ط¯ظٹط¯ ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط­ط§ظ„ظٹط©");
+      showToast("error", "تعذر تحديد المدرسة.");
       return;
     }
 
     if (!form.title.trim()) {
-      showToast("error", "ط§ظƒطھط¨ ط§ط³ظ… ط§ظ„ظ†ط´ط§ط· ط£ظˆظ„ط§ظ‹");
+      showToast("error", "أدخل اسم النشاط.");
       return;
     }
 
@@ -291,48 +326,56 @@ export default function ActivitiesManagePage() {
       return;
     }
 
-    showToast("success", form.id ? "طھظ… طھط­ط¯ظٹط« ط§ظ„ظ†ط´ط§ط·" : "طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظ†ط´ط§ط·");
+    showToast(
+      "success",
+      form.id ? "تم تحديث النشاط." : "تمت إضافة النشاط.",
+    );
+
     resetForm();
     void loadData();
-  }
+  }, [currentSchool?.id, form, loadData, resetForm, showToast]);
 
-  async function deleteItem(item: Activity) {
-    if (!currentSchool?.id) return;
+  const deleteItem = useCallback(
+    async (item: Activity) => {
+      if (!currentSchool?.id) return;
 
-    const title = item.title || item.activity_name || "ظ†ط´ط§ط·";
-    const ok = window.confirm(`ظ‡ظ„ طھط±ظٹط¯ ط­ط°ظپ ط§ظ„ظ†ط´ط§ط·: ${title}طں`);
+      const title = item.title || item.activity_name || "نشاط";
+      const confirmed = window.confirm(`حذف النشاط "${title}"؟`);
 
-    if (!ok) return;
+      if (!confirmed) return;
 
-    const { error } = await supabase
-      .from("activities")
-      .delete()
-      .eq("id", item.id)
-      .eq("school_id", currentSchool.id);
+      const { error } = await supabase
+        .from("activities")
+        .delete()
+        .eq("id", item.id)
+        .eq("school_id", currentSchool.id);
 
-    if (error) {
-      showToast("error", error.message);
-      return;
-    }
+      if (error) {
+        showToast("error", error.message);
+        return;
+      }
 
-    showToast("success", "طھظ… ط­ط°ظپ ط§ظ„ظ†ط´ط§ط·");
-    void loadData();
-  }
+      showToast("success", "تم حذف النشاط.");
+      void loadData();
+    },
+    [currentSchool?.id, loadData, showToast],
+  );
 
-  async function exportExcel() {
+  const exportExcel = useCallback(async () => {
     await exportTableToExcel({
-      title: "ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط©",
+      title: "إدارة الأنشطة",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة الأنشطة المدرسية",
       headers: [
-        "ط§ظ„ظ†ط´ط§ط·",
-        "ط§ظ„ظ†ظˆط¹",
-        "ط§ظ„ط­ط§ظ„ط©",
-        "طھط§ط±ظٹط® ط§ظ„ط¨ط¯ط§ظٹط©",
-        "طھط§ط±ظٹط® ط§ظ„ظ†ظ‡ط§ظٹط©",
-        "ط§ظ„ظ…ظˆظ‚ط¹",
-        "ط§ظ„ظ…ط´ط±ظپ",
-        "ط§ظ„ظپط¦ط©",
+        "النشاط",
+        "النوع",
+        "الحالة",
+        "تاريخ البداية",
+        "تاريخ النهاية",
+        "الموقع",
+        "المشرف",
+        "الفئة",
       ],
       rows: filteredItems.map((item) => [
         item.title || item.activity_name || "-",
@@ -347,15 +390,23 @@ export default function ActivitiesManagePage() {
       fileName: "activities.xlsx",
     });
 
-    showToast("success", "طھظ… طھطµط¯ظٹط± Excel");
-  }
+    showToast("success", "تم تصدير Excel.");
+  }, [currentSchool?.school_name, filteredItems, showToast]);
 
-  function exportPDF() {
+  const exportPDF = useCallback(() => {
     exportTableToPDF({
-      title: "ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط©",
-      headers: ["ط§ظ„ظ†ط´ط§ط·", "ط§ظ„ظ†ظˆط¹", "ط§ظ„ط­ط§ظ„ط©", "ط§ظ„ط¨ط¯ط§ظٹط©", "ط§ظ„ظ†ظ‡ط§ظٹط©", "ط§ظ„ظ…ط´ط±ظپ"],
+      title: "إدارة الأنشطة",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة الأنشطة المدرسية",
+      headers: [
+        "النشاط",
+        "النوع",
+        "الحالة",
+        "البداية",
+        "النهاية",
+        "المشرف",
+      ],
       rows: filteredItems.map((item) => [
         item.title || item.activity_name || "-",
         item.activity_type || "-",
@@ -367,14 +418,26 @@ export default function ActivitiesManagePage() {
       fileName: "activities.pdf",
     });
 
-    showToast("success", "طھظ… طھط¬ظ‡ظٹط² PDF");
-  }
+    showToast("success", "تم تجهيز PDF.");
+  }, [currentSchool?.school_name, filteredItems, showToast]);
+
+  const activeProgress = stats.total
+    ? Math.round((stats.active / stats.total) * 100)
+    : 0;
+
+  const doneProgress = stats.total
+    ? Math.round((stats.done / stats.total) * 100)
+    : 0;
+
+  const planningProgress = stats.total
+    ? Math.round((stats.planning / stats.total) * 100)
+    : 0;
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <PageLoader text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©..." />
+          <PageLoader text="جاري تحميل الأنشطة..." />
         </AppShell>
       </RoleGuard>
     );
@@ -392,159 +455,300 @@ export default function ActivitiesManagePage() {
 
           <PageHeader
             variant="hero"
-            title="ط¥ط¯ط§ط±ط© ط§ظ„ط£ظ†ط´ط·ط©"
-            description="ط¥ط¶ط§ظپط© ظˆطھط¹ط¯ظٹظ„ ظˆظ…طھط§ط¨ط¹ط© ط§ظ„ط£ظ†ط´ط·ط© ط§ظ„ظ…ط¯ط±ط³ظٹط© ظˆط§ظ„ط®ط·ط· ظˆط§ظ„ط¨ط±ط§ظ…ط¬ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            badge="بوابة رائد النشاط"
-            icon={<Sparkles size={18} />}
+            title="إدارة الأنشطة"
+            description="إضافة الأنشطة ومتابعتها."
+            badge="رائد النشاط"
+            icon={<Sparkles size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الأنشطة", href: "/activities" },
               { label: "إدارة الأنشطة" },
             ]}
             stats={[
-              { label: "الإجمالي", value: stats.total, icon: <Sparkles size={20} />, tone: "blue" },
-              { label: "النشطة", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "المنفذة", value: stats.done, icon: <CalendarDays size={20} />, tone: "gold" },
-              { label: "قيد التخطيط", value: stats.planning, icon: <Loader2 size={20} />, tone: "primary" },
+              {
+                label: "الإجمالي",
+                value: stats.total,
+                icon: <Sparkles size={20} aria-hidden="true" />,
+                tone: "primary",
+              },
+              {
+                label: "النشطة",
+                value: stats.active,
+                icon: <CheckCircle2 size={20} aria-hidden="true" />,
+                tone: "green",
+              },
+              {
+                label: "المنفذة",
+                value: stats.done,
+                icon: <CalendarDays size={20} aria-hidden="true" />,
+                tone: "gold",
+              },
+              {
+                label: "قيد التخطيط",
+                value: stats.planning,
+                icon: <Loader2 size={20} aria-hidden="true" />,
+                tone: "primary",
+              },
             ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
-                  <Plus size={16} />
-                  ط¥ط¶ط§ظپط© ظ†ط´ط§ط·
+                  <Plus size={16} aria-hidden="true" />
+                  إضافة
                 </PrimaryButton>
 
                 <SecondaryButton onClick={() => void loadData()}>
-                  <RefreshCcw size={16} />
-                  طھط­ط¯ظٹط«
+                  <RefreshCcw size={16} aria-hidden="true" />
+                  تحديث
                 </SecondaryButton>
               </>
             }
           />
 
-          {errorMsg && <ErrorState description={errorMsg} />}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ExecutiveCard title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط£ظ†ط´ط·ط©" value={stats.total} subtitle="كل الأنشطة" icon={<Sparkles size={22} />} tone="blue" progress={stats.total > 0 ? 100 : 0} />
-            <ExecutiveCard title="ط£ظ†ط´ط·ط© ظ†ط´ط·ط©" value={stats.active} subtitle="نشطة حاليًا" icon={<CheckCircle2 size={22} />} tone="green" progress={stats.total ? Math.round((stats.active / stats.total) * 100) : 0} />
-            <ExecutiveCard title="ظ…ظ†ظپط°ط©" value={stats.done} subtitle="أنشطة منفذة" icon={<CalendarDays size={22} />} tone="gold" progress={stats.total ? Math.round((stats.done / stats.total) * 100) : 0} />
-            <ExecutiveCard title="ظ‚ظٹط¯ ط§ظ„طھط®ط·ظٹط·" value={stats.planning} subtitle="قيد التخطيط" icon={<Loader2 size={22} />} tone="primary" progress={stats.total ? Math.round((stats.planning / stats.total) * 100) : 0} />
+          <section
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="مؤشرات الأنشطة"
+          >
+            <ExecutiveCard
+              title="الإجمالي"
+              value={stats.total}
+              subtitle="كل الأنشطة"
+              icon={<Sparkles size={22} aria-hidden="true" />}
+              tone="primary"
+              progress={stats.total > 0 ? 100 : 0}
+            />
+
+            <ExecutiveCard
+              title="النشطة"
+              value={stats.active}
+              subtitle="حاليًا"
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
+              tone="green"
+              progress={activeProgress}
+            />
+
+            <ExecutiveCard
+              title="المنفذة"
+              value={stats.done}
+              subtitle="مكتملة"
+              icon={<CalendarDays size={22} aria-hidden="true" />}
+              tone="gold"
+              progress={doneProgress}
+            />
+
+            <ExecutiveCard
+              title="قيد التخطيط"
+              value={stats.planning}
+              subtitle="تحتاج إعداد"
+              icon={<Loader2 size={22} aria-hidden="true" />}
+              tone="primary"
+              progress={planningProgress}
+            />
           </section>
 
-          {showForm && (
-            <ActivityPanel title={form.id ? "طھط¹ط¯ظٹظ„ ظ†ط´ط§ط·" : "ط¥ط¶ط§ظپط© ظ†ط´ط§ط·"} icon={<Edit size={22} />}>
+          {showForm ? (
+            <PageSection
+              title={form.id ? "تعديل نشاط" : "إضافة نشاط"}
+              icon={<Edit size={22} aria-hidden="true" />}
+            >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <ActivityInput label="ط§ط³ظ… ط§ظ„ظ†ط´ط§ط·" value={form.title} onChange={(value) => setForm({ ...form, title: value })} />
-                <ActivitySelect label="ظ†ظˆط¹ ط§ظ„ظ†ط´ط§ط·" value={form.activity_type} options={ACTIVITY_TYPES} onChange={(value) => setForm({ ...form, activity_type: value })} />
-                <ActivitySelect label="ط§ظ„ط­ط§ظ„ط©" value={form.status} options={STATUS_OPTIONS} onChange={(value) => setForm({ ...form, status: value })} />
-                <ActivityInput label="طھط§ط±ظٹط® ط§ظ„ط¨ط¯ط§ظٹط©" type="date" value={form.start_date} onChange={(value) => setForm({ ...form, start_date: value })} />
-                <ActivityInput label="طھط§ط±ظٹط® ط§ظ„ظ†ظ‡ط§ظٹط©" type="date" value={form.end_date} onChange={(value) => setForm({ ...form, end_date: value })} />
-                <ActivityInput label="ط§ظ„ظ…ظˆظ‚ط¹" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
-                <ActivityInput label="ط§ظ„ظ…ط´ط±ظپ" value={form.supervisor_name} onChange={(value) => setForm({ ...form, supervisor_name: value })} />
-                <ActivityInput label="ط§ظ„ظپط¦ط© ط§ظ„ظ…ط³طھظ‡ط¯ظپط©" value={form.target_group} onChange={(value) => setForm({ ...form, target_group: value })} />
-              </div>
+                <Field
+                  label="اسم النشاط"
+                  value={form.title}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, title: value }))
+                  }
+                  required
+                />
 
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ActivityTextarea label="ظˆطµظپ ط§ظ„ظ†ط´ط§ط·" value={form.description} onChange={(value) => setForm({ ...form, description: value })} />
-                <ActivityTextarea label="ظ…ظ„ط§ط­ط¸ط§طھ" value={form.notes} onChange={(value) => setForm({ ...form, notes: value })} />
-              </div>
+                <SelectField
+                  label="النوع"
+                  value={form.activity_type}
+                  options={ACTIVITY_TYPES}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      activity_type: value,
+                    }))
+                  }
+                />
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <PrimaryButton onClick={() => void saveItem()} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 size={16} />}
-                  ط­ظپط¸
-                </PrimaryButton>
+                <SelectField
+                  label="الحالة"
+                  value={form.status}
+                  options={STATUS_OPTIONS}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, status: value }))
+                  }
+                />
 
-                <SecondaryButton onClick={resetForm}>
-                  <XCircle size={16} />
-                  ط¥ظ„ط؛ط§ط،
-                </SecondaryButton>
-              </div>
-            </ActivityPanel>
-          )}
+                <Field
+                  label="تاريخ البداية"
+                  type="date"
+                  value={form.start_date}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      start_date: value,
+                    }))
+                  }
+                />
 
-          <ActivityPanel title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px_auto_auto]">
-              <div className="relative">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ط¨ط­ط« ظپظٹ ط§ظ„ط£ظ†ط´ط·ط©..."
-                  className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+                <Field
+                  label="تاريخ النهاية"
+                  type="date"
+                  value={form.end_date}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      end_date: value,
+                    }))
+                  }
+                />
+
+                <Field
+                  label="الموقع"
+                  value={form.location}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      location: value,
+                    }))
+                  }
+                />
+
+                <Field
+                  label="المشرف"
+                  value={form.supervisor_name}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      supervisor_name: value,
+                    }))
+                  }
+                />
+
+                <Field
+                  label="الفئة المستهدفة"
+                  value={form.target_group}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      target_group: value,
+                    }))
+                  }
                 />
               </div>
 
-              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]">
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط£ظ†ظˆط§ط¹</option>
-                {ACTIVITY_TYPES.map((item) => <option key={item}>{item}</option>)}
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <TextAreaField
+                  label="الوصف"
+                  value={form.description}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      description: value,
+                    }))
+                  }
+                />
+
+                <TextAreaField
+                  label="ملاحظات"
+                  value={form.notes}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      notes: value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <PrimaryButton
+                  onClick={() => void saveItem()}
+                  loading={saving}
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  حفظ
+                </PrimaryButton>
+
+                <SecondaryButton onClick={resetForm}>
+                  <XCircle size={16} aria-hidden="true" />
+                  إلغاء
+                </SecondaryButton>
+              </div>
+            </PageSection>
+          ) : null}
+
+          <PageSection
+            title="البحث والتصفية"
+            icon={<Search size={22} aria-hidden="true" />}
+          >
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px_auto_auto]">
+              <SearchField value={search} onChange={setSearch} />
+
+              <select
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                aria-label="تصفية حسب نوع النشاط"
+                className={fieldClassName}
+              >
+                <option value="الكل">كل الأنواع</option>
+                {ACTIVITY_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
 
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]">
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ</option>
-                {STATUS_OPTIONS.map((item) => <option key={item}>{item}</option>)}
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                aria-label="تصفية حسب الحالة"
+                className={fieldClassName}
+              >
+                <option value="الكل">كل الحالات</option>
+                {STATUS_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
 
-              <SecondaryButton onClick={() => void exportExcel()}>Excel</SecondaryButton>
+              <SecondaryButton onClick={() => void exportExcel()}>
+                Excel
+              </SecondaryButton>
 
               <SecondaryButton onClick={exportPDF}>
-                <FileText size={16} />
+                <FileText size={16} aria-hidden="true" />
                 PDF
               </SecondaryButton>
             </div>
-          </ActivityPanel>
+          </PageSection>
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            aria-label="قائمة الأنشطة"
+          >
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <EmptyState title="لا توجد بيانات" description="ظ„ط§ طھظˆط¬ط¯ ط£ظ†ط´ط·ط© ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState
+                  title="لا توجد نتائج"
+                  description="غيّر البحث أو أضف نشاطًا."
+                  icon={<Search size={28} aria-hidden="true" />}
+                />
               </div>
             ) : (
               filteredItems.map((item) => (
-                <div key={item.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(item.status)}`}>
-                      {item.status || "ط؛ظٹط± ظ…ط­ط¯ط¯"}
-                    </span>
-
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                      {item.activity_type || "ظ†ط´ط§ط·"}
-                    </span>
-                  </div>
-
-                  <h3 className="text-xl font-black text-[#0f1f3d]">
-                    {item.title || item.activity_name || "ظ†ط´ط§ط· ظ…ط¯ط±ط³ظٹ"}
-                  </h3>
-
-                  <p className="mt-2 line-clamp-2 text-sm leading-7 text-slate-500">
-                    {item.description || "ظ„ط§ ظٹظˆط¬ط¯ ظˆطµظپ."}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                    <ActivityInfo label="ط§ظ„ط¨ط¯ط§ظٹط©" value={formatDate(item.start_date)} />
-                    <ActivityInfo label="ط§ظ„ظ†ظ‡ط§ظٹط©" value={formatDate(item.end_date)} />
-                    <ActivityInfo label="ط§ظ„ظ…ظˆظ‚ط¹" value={item.location || "â€”"} />
-                    <ActivityInfo label="ط§ظ„ظ…ط´ط±ظپ" value={item.supervisor_name || "â€”"} />
-                  </div>
-
-                  {item.notes && (
-                    <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm leading-7 text-slate-600">
-                      {item.notes}
-                    </p>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <SecondaryButton onClick={() => editItem(item)}>
-                      <Edit size={15} />
-                      طھط¹ط¯ظٹظ„
-                    </SecondaryButton>
-
-                    <DangerButton onClick={() => void deleteItem(item)}>
-                      <Trash2 size={15} />
-                      ط­ط°ظپ
-                    </DangerButton>
-                  </div>
-                </div>
+                <ActivityCard
+                  key={item.id}
+                  item={item}
+                  onEdit={editItem}
+                  onDelete={deleteItem}
+                />
               ))
             )}
           </section>
@@ -554,76 +758,133 @@ export default function ActivitiesManagePage() {
   );
 }
 
+const fieldClassName =
+  "h-11 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]";
 
-function ActivityPanel({
-  title,
-  icon,
-  children,
+function SearchField({
+  value,
+  onChange,
 }: {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          {icon}
-        </div>
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
-      </div>
-      {children}
-    </section>
+    <div className="relative">
+      <Search
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-subtle)]"
+        size={18}
+        aria-hidden="true"
+      />
+
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="بحث..."
+        aria-label="البحث في الأنشطة"
+        className={`${fieldClassName} pr-10`}
+      />
+    </div>
   );
 }
 
-function ActivityInput({
+function ActivityCard({
+  item,
+  onEdit,
+  onDelete,
+}: {
+  item: Activity;
+  onEdit: (item: Activity) => void;
+  onDelete: (item: Activity) => Promise<void>;
+}) {
+  return (
+    <article className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-black ${getStatusClass(
+            item.status,
+          )}`}
+        >
+          {item.status || "غير محدد"}
+        </span>
+
+        <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
+          {item.activity_type || "نشاط"}
+        </span>
+      </div>
+
+      <h3 className="text-xl font-black text-[var(--app-text)]">
+        {item.title || item.activity_name || "نشاط مدرسي"}
+      </h3>
+
+      <p className="mt-2 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
+        {item.description || "لا يوجد وصف."}
+      </p>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+        <InfoBox label="البداية" value={formatDate(item.start_date)} />
+        <InfoBox label="النهاية" value={formatDate(item.end_date)} />
+        <InfoBox label="الموقع" value={item.location || "—"} />
+        <InfoBox label="المشرف" value={item.supervisor_name || "—"} />
+      </div>
+
+      {item.notes ? (
+        <p className="mt-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3 text-sm leading-7 text-[var(--app-text-muted)]">
+          {item.notes}
+        </p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <SecondaryButton size="sm" onClick={() => onEdit(item)}>
+          <Edit size={15} aria-hidden="true" />
+          تعديل
+        </SecondaryButton>
+
+        <DangerButton
+          size="sm"
+          onClick={() => void onDelete(item)}
+          icon={<Trash2 size={15} aria-hidden="true" />}
+        >
+          حذف
+        </DangerButton>
+      </div>
+    </article>
+  );
+}
+
+function Field({
   label,
   value,
   onChange,
   type = "text",
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  required?: boolean;
 }) {
+  const id = `activity-field-${label}`;
+
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-black text-[#15445A]">{label}</span>
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
       <input
+        id={id}
         type={type}
         value={value}
+        required={required}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+        className={fieldClassName}
       />
     </label>
   );
 }
 
-function ActivityTextarea({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-black text-[#15445A]">{label}</span>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={4}
-        className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
-      />
-    </label>
-  );
-}
-
-function ActivitySelect({
+function SelectField({
   label,
   value,
   options,
@@ -631,74 +892,68 @@ function ActivitySelect({
 }: {
   label: string;
   value: string;
-  options: string[];
+  options: readonly string[];
   onChange: (value: string) => void;
 }) {
+  const id = `activity-select-${label}`;
+
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-black text-[#15445A]">{label}</span>
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
       <select
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+        className={fieldClassName}
       >
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={option} value={option}>
+            {option}
+          </option>
         ))}
       </select>
     </label>
   );
 }
 
-function ActivityInfo({ label, value }: { label: string; value: string }) {
+function TextAreaField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = `activity-textarea-${label}`;
+
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 line-clamp-1 font-black text-[#15445A]">{value}</p>
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className={`${fieldClassName} h-auto resize-none py-3`}
+      />
+    </label>
+  );
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 line-clamp-1 font-black text-[var(--app-text)]">
+        {value}
+      </p>
     </div>
-  );
-}
-
-function PrimaryButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <UiPrimaryButton type="button" onClick={onClick} disabled={disabled}>
-      {children}
-    </UiPrimaryButton>
-  );
-}
-
-function SecondaryButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <UiSecondaryButton type="button" onClick={onClick} disabled={disabled}>
-      {children}
-    </UiSecondaryButton>
-  );
-}
-
-function DangerButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 transition hover:bg-red-100"
-    >
-      {children}
-    </button>
   );
 }

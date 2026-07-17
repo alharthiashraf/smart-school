@@ -1,2 +1,6 @@
 export { default } from "../PortalLink";
-export type { PortalCard } from "../PortalLink";
+
+export type {
+  PortalLinkItem,
+  PortalLinkProps,
+} from "../PortalLink";

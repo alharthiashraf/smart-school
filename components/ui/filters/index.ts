@@ -1,2 +1,7 @@
 export { default as Filters } from "./filters";
-export { default as SearchFilter } from "./SearchFilter";
+export type { FiltersProps } from "./filters";
+
+export { default as SearchFilter } from "../inputs/SearchInput";
+export type {
+  SearchInputProps as SearchFilterProps,
+} from "../inputs/SearchInput";

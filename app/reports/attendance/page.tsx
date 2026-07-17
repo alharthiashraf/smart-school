@@ -9,6 +9,17 @@ import {
 } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
+import SharedExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -17,23 +28,17 @@ import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
-  AlertCircle,
   BarChart3,
   CalendarCheck,
   CalendarDays,
-  CheckCircle2,
   Clock,
-  Download,
   FileSpreadsheet,
   FileText,
-  Loader2,
   PieChart as PieChartIcon,
   Printer,
   RefreshCcw,
-  Search,
   ShieldCheck,
   TrendingUp,
-  Users,
   UserCheck,
   X,
   XCircle,
@@ -117,13 +122,22 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
 };
 
 const STATUS_STYLES: Record<AttendanceStatus, string> = {
-  present: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  absent: "bg-red-50 text-red-700 border-red-100",
-  late: "bg-amber-50 text-amber-700 border-amber-100",
-  excused: "bg-blue-50 text-blue-700 border-blue-100",
+  present:
+    "border-[color-mix(in_srgb,var(--app-success)_26%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+  absent:
+    "border-[color-mix(in_srgb,var(--app-danger)_26%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+  late:
+    "border-[color-mix(in_srgb,var(--app-accent)_32%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+  excused:
+    "border-[color-mix(in_srgb,var(--app-primary)_26%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
 };
 
-const CHART_COLORS = ["#07A869", "#EF4444", "#F59E0B", "#3D7EB9"];
+const CHART_COLORS = [
+  "var(--app-success)",
+  "var(--app-danger)",
+  "var(--app-accent)",
+  "var(--app-primary)",
+];
 
 function todayISO() {
   const now = new Date();
@@ -162,19 +176,17 @@ function getErrorMessage(error: unknown, fallback: string) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`attendance report query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`attendance report query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -340,9 +352,7 @@ export default function AttendanceReportPage() {
       return;
     }
 
-    queueMicrotask(() => {
-      void fetchReport();
-    });
+    void fetchReport();
   }, [currentSchool?.id, fetchReport, schoolLoading]);
 
   const teachers = useMemo(() => {
@@ -431,12 +441,16 @@ export default function AttendanceReportPage() {
     return { total, present, absent, late, excused, rate, risk };
   }, [filteredRows]);
 
-  const statusPieData = [
-    { name: "حاضر", value: stats.present },
-    { name: "غائب", value: stats.absent },
-    { name: "متأخر", value: stats.late },
-    { name: "معذور", value: stats.excused },
-  ].filter((item) => item.value > 0);
+  const statusPieData = useMemo(
+    () =>
+      [
+        { name: "حاضر", value: stats.present },
+        { name: "غائب", value: stats.absent },
+        { name: "متأخر", value: stats.late },
+        { name: "معذور", value: stats.excused },
+      ].filter((item) => item.value > 0),
+    [stats.absent, stats.excused, stats.late, stats.present],
+  );
 
   const classBarData = useMemo(() => {
     const map = new Map<
@@ -505,49 +519,49 @@ export default function AttendanceReportPage() {
     {
       title: "نسبة الحضور",
       value: `${stats.rate}%`,
-      description: `${stats.present} حاضر من أصل ${stats.total} سجل`,
-      icon: <UserCheck size={24} />,
+      subtitle: `${stats.present} حاضر من أصل ${stats.total} سجل`,
+      icon: <UserCheck size={24} aria-hidden="true" />,
       tone:
         stats.rate >= 90
           ? ("green" as const)
           : stats.rate >= 75
-            ? ("amber" as const)
+            ? ("gold" as const)
             : ("red" as const),
     },
     {
       title: "الغياب",
       value: stats.absent,
-      description: "طلاب مسجلون كغياب في الفترة المحددة",
-      icon: <XCircle size={24} />,
+      subtitle: "حالات الغياب في الفترة المحددة",
+      icon: <XCircle size={24} aria-hidden="true" />,
       tone:
         stats.absent === 0
           ? ("green" as const)
           : stats.absent <= 5
-            ? ("amber" as const)
+            ? ("gold" as const)
             : ("red" as const),
     },
     {
       title: "التأخر",
       value: stats.late,
-      description: "حالات تأخر تحتاج متابعة يومية",
-      icon: <Clock size={24} />,
+      subtitle: "حالات تأخر تحتاج متابعة يومية",
+      icon: <Clock size={24} aria-hidden="true" />,
       tone:
         stats.late === 0
           ? ("green" as const)
           : stats.late <= 5
-            ? ("amber" as const)
+            ? ("gold" as const)
             : ("red" as const),
     },
     {
       title: "المتابعة العاجلة",
       value: stats.risk,
-      description: "غياب + تأخر كمؤشر انضباط عام",
-      icon: <ShieldCheck size={24} />,
+      subtitle: "الغياب والتأخر كمؤشر انضباط عام",
+      icon: <ShieldCheck size={24} aria-hidden="true" />,
       tone:
         stats.risk === 0
           ? ("green" as const)
           : stats.risk <= 10
-            ? ("amber" as const)
+            ? ("gold" as const)
             : ("red" as const),
     },
   ];
@@ -574,7 +588,7 @@ export default function AttendanceReportPage() {
   }
 
   function exportPDF() {
-    (exportTableToPDF as any)({
+    exportTableToPDF({
       title: "تقرير الحضور والغياب",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: `من ${formatArabicDate(dateFrom)} إلى ${formatArabicDate(dateTo)} — نسبة الحضور ${stats.rate}%`,
@@ -596,7 +610,7 @@ export default function AttendanceReportPage() {
   }
 
   function exportExcel() {
-    (exportTableToExcel as any)({
+    exportTableToExcel({
       title: "تقرير الحضور والغياب",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: `من ${formatArabicDate(dateFrom)} إلى ${formatArabicDate(dateTo)} — نسبة الحضور ${stats.rate}%`,
@@ -626,7 +640,7 @@ export default function AttendanceReportPage() {
     return (
       <RoleGuard allowedRoles={STAFF_ROLES}>
         <AppShell>
-          <LoadingScreen />
+          <PageLoader text="جاري تحميل تقرير الحضور..." />
         </AppShell>
       </RoleGuard>
     );
@@ -636,7 +650,7 @@ export default function AttendanceReportPage() {
     return (
       <RoleGuard allowedRoles={STAFF_ROLES}>
         <AppShell>
-          <div className="rounded-3xl border border-red-100 bg-red-50 p-6 text-center font-bold text-red-700">
+          <div className="rounded-[var(--app-radius-xl)] border border-[color-mix(in_srgb,var(--app-danger)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] p-6 text-center font-bold text-[var(--app-danger)]">
             لا توجد مدرسة مرتبطة بالمستخدم الحالي.
           </div>
         </AppShell>
@@ -648,54 +662,80 @@ export default function AttendanceReportPage() {
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
         <main className="space-y-6 pb-10" dir="rtl">
-          {toast && <ToastBox toast={toast} onClose={() => setToast(null)} />}
-
-          <section className="relative overflow-hidden rounded-[34px] bg-[#15445A] p-6 text-white shadow-xl print:hidden md:p-8">
-            <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#0DA9A6]/20 blur-3xl" />
-            <div className="absolute -bottom-24 right-1/3 h-72 w-72 rounded-full bg-[#C1B489]/20 blur-3xl" />
-
-            <div className="relative z-10 flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <div className="mb-4 flex w-fit items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-[#C1B489]">
-                  <CalendarCheck size={17} />
-                  منصة المدرسة الذكية
-                </div>
-
-                <h1 className="text-4xl font-black md:text-5xl">
-                  تقرير الحضور والغياب
-                </h1>
-
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-white/75 md:text-base">
-                  لوحة تنفيذية يومية لمتابعة الحضور والغياب والتأخر حسب الطالب
-                  والمعلم والحصة والفصل، مع فلاتر متقدمة وتصدير رسمي PDF وExcel.
-                </p>
-              </div>
-
-              <div className="grid min-w-[320px] gap-3 sm:grid-cols-2">
-                <InfoPill
-                  label="المدرسة"
-                  value={currentSchool.school_name || "غير متوفر"}
-                />
-                <InfoPill label="آخر تحديث" value={lastUpdate} />
-                <InfoPill label="من تاريخ" value={formatArabicDate(dateFrom)} />
-                <InfoPill label="إلى تاريخ" value={formatArabicDate(dateTo)} />
-              </div>
-            </div>
-          </section>
-
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
             </div>
           )}
+
+          <PageHeader
+            variant="hero"
+            title="تقرير الحضور والغياب"
+            description="متابعة الحضور والغياب والتأخر حسب الطالب والمعلم والحصة والفصل، مع تصدير رسمي PDF وExcel."
+            badge="التقارير التشغيلية"
+            icon={<CalendarCheck size={18} aria-hidden="true" />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "التقارير", href: "/reports" },
+              { label: "الحضور والغياب" },
+            ]}
+            meta={[
+              {
+                label: "المدرسة",
+                value: currentSchool.school_name || "غير متوفر",
+              },
+              { label: "آخر تحديث", value: lastUpdate },
+              { label: "من تاريخ", value: formatArabicDate(dateFrom) },
+              { label: "إلى تاريخ", value: formatArabicDate(dateTo) },
+            ]}
+            actions={
+              <>
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
+                  onClick={() => void fetchReport()}
+                >
+                  تحديث
+                </SecondaryButton>
+
+                <SecondaryButton
+                  icon={<Printer size={17} aria-hidden="true" />}
+                  onClick={() => window.print()}
+                >
+                  طباعة
+                </SecondaryButton>
+
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
+                  onClick={exportPDF}
+                  disabled={filteredRows.length === 0}
+                >
+                  PDF
+                </ExportButton>
+
+                <ExportButton
+                  icon={<FileSpreadsheet size={17} aria-hidden="true" />}
+                  onClick={exportExcel}
+                  disabled={filteredRows.length === 0}
+                >
+                  Excel
+                </ExportButton>
+              </>
+            }
+          />
+
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="hidden print:block">
             <div className="mb-6 text-center">
               <h1 className="text-3xl font-black">تقرير الحضور والغياب</h1>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-2 text-sm text-[var(--app-text-muted)]">
                 {currentSchool.school_name}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-[var(--app-text-muted)]">
                 من {formatArabicDate(dateFrom)} إلى {formatArabicDate(dateTo)}
               </p>
             </div>
@@ -703,136 +743,170 @@ export default function AttendanceReportPage() {
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {executiveCards.map((card) => (
-              <ExecutiveCard key={card.title} {...card} />
+              <SharedExecutiveCard key={card.title} {...card} />
             ))}
           </section>
 
-          <section className="rounded-[30px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
-            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <SummaryCard
+            title="ملخص الحضور"
+            description="قراءة سريعة لنتائج الفترة والفلاتر الحالية."
+            tone={
+              stats.rate >= 90
+                ? "green"
+                : stats.rate >= 75
+                  ? "gold"
+                  : "red"
+            }
+            items={[
+              { label: "إجمالي السجلات", value: stats.total },
+              { label: "الحضور", value: stats.present },
+              { label: "الغياب", value: stats.absent },
+              { label: "التأخر", value: stats.late },
+              { label: "المعذورون", value: stats.excused },
+              { label: "نسبة الحضور", value: `${stats.rate}%` },
+            ]}
+            footer="تتغير المؤشرات مباشرة بحسب الفترة والفلاتر المحددة."
+          />
+
+          <PageToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder:
+                "ابحث عن طالب، معلم، مادة، فصل أو ملاحظة...",
+            }}
+            filters={
+              <>
+                <ToolbarSelect
+                  value={statusFilter}
+                  onChange={(value) =>
+                    setStatusFilter(
+                      value as "all" | AttendanceStatus,
+                    )
+                  }
+                >
+                  <option value="all">كل الحالات</option>
+                  <option value="present">حاضر</option>
+                  <option value="absent">غائب</option>
+                  <option value="late">متأخر</option>
+                  <option value="excused">معذور</option>
+                </ToolbarSelect>
+
+                <ToolbarSelect
+                  value={teacherFilter}
+                  onChange={setTeacherFilter}
+                >
+                  <option value="all">كل المعلمين</option>
+                  {teachers.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.name}
+                    </option>
+                  ))}
+                </ToolbarSelect>
+
+                <ToolbarSelect
+                  value={classFilter}
+                  onChange={setClassFilter}
+                >
+                  <option value="all">كل الفصول</option>
+                  {classes.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </ToolbarSelect>
+
+                <ToolbarSelect
+                  value={periodFilter}
+                  onChange={setPeriodFilter}
+                >
+                  <option value="all">كل الحصص</option>
+                  {periods.map((period) => (
+                    <option key={period} value={String(period)}>
+                      الحصة {period}
+                    </option>
+                  ))}
+                </ToolbarSelect>
+              </>
+            }
+            onRefresh={() => void fetchReport()}
+            onExportPDF={exportPDF}
+            onExportExcel={exportExcel}
+            onPrint={printPage}
+          />
+
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-xl font-black text-[#15445A]">
-                  البحث والفلاتر المتقدمة
+                <h2 className="text-xl font-black text-[var(--app-text)]">
+                  الفترة الزمنية
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  اختر الفترة، الحالة، المعلم، الفصل، أو الحصة لعرض التقرير
-                  المطلوب فقط.
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                  حدّد بداية ونهاية الفترة ثم حدّث التقرير.
                 </p>
               </div>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<X size={16} aria-hidden="true" />}
                 onClick={resetFilters}
-                className="inline-flex w-fit items-center gap-2 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-black text-slate-600 hover:bg-slate-200"
               >
-                <X size={16} />
                 تصفير الفلاتر
-              </button>
+              </SecondaryButton>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[1fr_1fr_1.5fr_1fr]">
-              <input
-                type="date"
+            <div className="grid gap-4 md:grid-cols-2">
+              <DateField
+                id="attendance-date-from"
+                label="من تاريخ"
                 value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                onChange={setDateFrom}
               />
 
-              <input
-                type="date"
+              <DateField
+                id="attendance-date-to"
+                label="إلى تاريخ"
                 value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-                className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                onChange={setDateTo}
               />
-
-              <div className="relative">
-                <Search className="absolute right-4 top-3.5 h-5 w-5 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ابحث عن طالب، معلم، مادة، فصل، ملاحظة..."
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-12 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
-                />
-              </div>
-
-              <FilterSelect
-                value={statusFilter}
-                onChange={(value) =>
-                  setStatusFilter(value as typeof statusFilter)
-                }
-              >
-                <option value="all">كل الحالات</option>
-                <option value="present">حاضر</option>
-                <option value="absent">غائب</option>
-                <option value="late">متأخر</option>
-                <option value="excused">معذور</option>
-              </FilterSelect>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <FilterSelect value={teacherFilter} onChange={setTeacherFilter}>
-                <option value="all">كل المعلمين</option>
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.name}
-                  </option>
-                ))}
-              </FilterSelect>
-
-              <FilterSelect value={classFilter} onChange={setClassFilter}>
-                <option value="all">كل الفصول</option>
-                {classes.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </FilterSelect>
-
-              <FilterSelect value={periodFilter} onChange={setPeriodFilter}>
-                <option value="all">كل الحصص</option>
-                {periods.map((period) => (
-                  <option key={period} value={String(period)}>
-                    الحصة {period}
-                  </option>
-                ))}
-              </FilterSelect>
             </div>
           </section>
 
           <section className="flex flex-wrap gap-3 print:hidden">
-            <QuickAction
-              icon={<RefreshCcw size={17} />}
-              label="تحديث التقرير"
+            <SecondaryButton
+              icon={<RefreshCcw size={17} aria-hidden="true" />}
               onClick={() => void fetchReport()}
-            />
-            <QuickAction
-              icon={<Printer size={17} />}
-              label="طباعة"
+            >
+              تحديث التقرير
+            </SecondaryButton>
+
+            <SecondaryButton
+              icon={<Printer size={17} aria-hidden="true" />}
               onClick={printPage}
-            />
-            <QuickAction
-              icon={<FileText size={17} />}
-              label="تصدير PDF"
+            >
+              طباعة
+            </SecondaryButton>
+
+            <PrimaryButton
+              icon={<FileText size={17} aria-hidden="true" />}
               onClick={exportPDF}
-              primary
               disabled={filteredRows.length === 0}
-            />
-            <QuickAction
-              icon={<FileSpreadsheet size={17} />}
-              label="تصدير Excel"
+            >
+              تصدير PDF
+            </PrimaryButton>
+
+            <ExportButton
+              icon={<FileSpreadsheet size={17} aria-hidden="true" />}
               onClick={exportExcel}
               disabled={filteredRows.length === 0}
-            />
-            <QuickAction
-              icon={<Download size={17} />}
-              label="تحديث البيانات"
-              onClick={() => void fetchReport()}
-            />
+            >
+              تصدير Excel
+            </ExportButton>
           </section>
 
           <section className="grid gap-4 xl:grid-cols-3">
             <ChartCard
               title="توزيع حالات الحضور"
-              icon={<PieChartIcon size={20} />}
+              icon={<PieChartIcon size={20} aria-hidden="true" />}
             >
               {statusPieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
@@ -861,19 +935,19 @@ export default function AttendanceReportPage() {
 
             <ChartCard
               title="نسبة الحضور حسب الفصل"
-              icon={<BarChart3 size={20} />}
+              icon={<BarChart3 size={20} aria-hidden="true" />}
             >
               {classBarData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={classBarData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid stroke="var(--app-border)" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <Bar
                       dataKey="rate"
                       radius={[12, 12, 0, 0]}
-                      fill="#0DA9A6"
+                      fill="var(--app-primary)"
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -884,19 +958,19 @@ export default function AttendanceReportPage() {
 
             <ChartCard
               title="اتجاه الحضور خلال الفترة"
-              icon={<TrendingUp size={20} />}
+              icon={<TrendingUp size={20} aria-hidden="true" />}
             >
               {trendData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid stroke="var(--app-border)" strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <Line
                       type="monotone"
                       dataKey="rate"
-                      stroke="#15445A"
+                      stroke="var(--app-primary)"
                       strokeWidth={3}
                       dot={{ r: 5 }}
                     />
@@ -908,30 +982,39 @@ export default function AttendanceReportPage() {
             </ChartCard>
           </section>
 
-          <section className="rounded-[30px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-2xl font-black text-[#15445A]">
+                <h2 className="text-2xl font-black text-[var(--app-text)]">
                   سجل الحضور التفصيلي
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   {filteredRows.length} سجل مطابق للفلاتر الحالية من أصل{" "}
                   {rows.length} سجل.
                 </p>
               </div>
 
-              <span className="w-fit rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+              <span className="w-fit rounded-full bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text-muted)]">
                 نسبة الحضور {stats.rate}%
               </span>
             </div>
 
             {filteredRows.length === 0 ? (
-              <EmptyState />
+              <UiEmptyState
+                icon={
+                  <CalendarDays
+                    className="h-8 w-8"
+                    aria-hidden="true"
+                  />
+                }
+                title="لا توجد سجلات حضور مطابقة"
+                description="غيّر الفترة أو الفلاتر، أو تأكد من تسجيل الحضور."
+              />
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-100">
+              <div className="overflow-hidden rounded-[var(--app-radius-lg)] border border-[var(--app-border)]">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[1080px] text-right text-sm">
-                    <thead className="bg-slate-50 text-slate-500">
+                    <thead className="bg-[var(--app-card-soft)] text-[var(--app-text-muted)]">
                       <tr>
                         <th className="p-4">الطالب</th>
                         <th className="p-4">الحالة</th>
@@ -944,33 +1027,33 @@ export default function AttendanceReportPage() {
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-[var(--app-border)]">
                       {filteredRows.map((row) => (
-                        <tr key={row.id} className="hover:bg-slate-50">
-                          <td className="p-4 font-black text-[#15445A]">
+                        <tr key={row.id} className="hover:bg-[var(--app-card-soft)]">
+                          <td className="p-4 font-black text-[var(--app-text)]">
                             {row.student?.full_name || "-"}
                           </td>
                           <td className="p-4">
                             <StatusBadge status={row.attendance_status} />
                           </td>
-                          <td className="p-4 text-slate-600">
+                          <td className="p-4 text-[var(--app-text-muted)]">
                             {row.teacher?.full_name || "-"}
                           </td>
-                          <td className="p-4 text-slate-600">
+                          <td className="p-4 text-[var(--app-text-muted)]">
                             {row.teacher?.subject || "-"}
                           </td>
-                          <td className="p-4 text-slate-600">
+                          <td className="p-4 text-[var(--app-text-muted)]">
                             {classLabel(row.session)}
                           </td>
-                          <td className="p-4 text-slate-600">
+                          <td className="p-4 text-[var(--app-text-muted)]">
                             {row.session?.period_number
                               ? `الحصة ${row.session.period_number}`
                               : "-"}
                           </td>
-                          <td className="p-4 text-slate-600">
+                          <td className="p-4 text-[var(--app-text-muted)]">
                             {formatArabicDate(row.session?.attendance_date)}
                           </td>
-                          <td className="p-4 text-slate-500">
+                          <td className="p-4 text-[var(--app-text-muted)]">
                             {row.notes || "-"}
                           </td>
                         </tr>
@@ -987,114 +1070,32 @@ export default function AttendanceReportPage() {
   );
 }
 
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-[#15445A]" />
-        جاري تحميل تقرير الحضور...
-      </div>
-    </div>
-  );
-}
 
-function InfoPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-      <p className="text-xs text-white/60">{label}</p>
-      <p className="mt-1 line-clamp-1 font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
-function ExecutiveCard({
-  title,
-  value,
-  description,
-  icon,
-  tone,
-}: {
-  title: string;
-  value: string | number;
-  description: string;
-  icon: ReactNode;
-  tone: "green" | "amber" | "red";
-}) {
-  const colors = {
-    green: "border-emerald-100 bg-emerald-50 text-emerald-700",
-    amber: "border-amber-100 bg-amber-50 text-amber-700",
-    red: "border-red-100 bg-red-50 text-red-700",
-  };
-
-  return (
-    <div
-      className={`rounded-3xl border p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg ${colors[tone]}`}
-    >
-      <div className="mb-5 flex items-center justify-between">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/75">
-          {icon}
-        </div>
-        <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-black">
-          KPI
-        </span>
-      </div>
-
-      <p className="text-sm font-black opacity-80">{title}</p>
-      <h3 className="mt-2 text-3xl font-black">{value}</h3>
-      <p className="mt-2 text-xs font-bold leading-6 opacity-75">
-        {description}
-      </p>
-    </div>
-  );
-}
-
-function FilterSelect({
-  children,
+function DateField({
+  id,
+  label,
   value,
   onChange,
 }: {
-  children: ReactNode;
-  value?: string;
-  onChange?: (value: string) => void;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange?.(event.target.value)}
-      className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
-    >
-      {children}
-    </select>
-  );
-}
-
-function QuickAction({
-  icon,
-  label,
-  onClick,
-  primary,
-  disabled,
-}: {
-  icon: ReactNode;
+  id: string;
   label: string;
-  onClick: () => void;
-  primary?: boolean;
-  disabled?: boolean;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
-        primary
-          ? "bg-[#15445A] text-white"
-          : "border border-slate-100 bg-white text-[#15445A]"
-      }`}
+    <label
+      htmlFor={id}
+      className="space-y-2 text-sm font-bold text-[var(--app-text)]"
     >
-      {icon}
-      {label}
-    </button>
+      <span>{label}</span>
+      <input
+        id={id}
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
+      />
+    </label>
   );
 }
 
@@ -1108,12 +1109,12 @@ function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-[30px] border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4 flex items-center gap-2">
-        <div className="rounded-2xl bg-[#0DA9A6]/10 p-2 text-[#0DA9A6]">
+        <div className="rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] p-2 text-[var(--app-primary)]">
           {icon}
         </div>
-        <h2 className="font-black text-[#15445A]">{title}</h2>
+        <h2 className="font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </div>
@@ -1122,27 +1123,16 @@ function ChartCard({
 
 function NoChartData() {
   return (
-    <div className="flex h-[280px] items-center justify-center rounded-3xl bg-slate-50 text-center">
+    <div className="flex h-[280px] items-center justify-center rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] text-center">
       <div>
-        <PieChartIcon className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-        <p className="text-sm font-bold text-slate-500">
+        <PieChartIcon
+          className="mx-auto mb-3 h-8 w-8 text-[var(--app-text-subtle)]"
+          aria-hidden="true"
+        />
+        <p className="text-sm font-bold text-[var(--app-text-muted)]">
           لا توجد بيانات كافية للرسم البياني
         </p>
       </div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-      <CalendarDays className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-      <h3 className="text-lg font-black text-[#15445A]">
-        لا توجد سجلات حضور مطابقة
-      </h3>
-      <p className="mt-2 text-sm text-slate-500">
-        غيّر التاريخ أو الفلاتر، أو تأكد من تسجيل الحضور لهذا اليوم.
-      </p>
     </div>
   );
 }
@@ -1154,31 +1144,5 @@ function StatusBadge({ status }: { status: AttendanceStatus }) {
     >
       {STATUS_LABELS[status]}
     </span>
-  );
-}
-
-function ToastBox({ toast, onClose }: { toast: Toast; onClose: () => void }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold shadow-lg print:hidden ${
-        toast.type === "success"
-          ? "bg-emerald-600 text-white"
-          : "bg-red-600 text-white"
-      }`}
-    >
-      {toast.type === "success" ? (
-        <CheckCircle2 size={18} />
-      ) : (
-        <AlertCircle size={18} />
-      )}
-      <span>{toast.message}</span>
-      <button
-        type="button"
-        onClick={onClose}
-        className="mr-2 rounded-full bg-white/15 p-1"
-      >
-        <X size={14} />
-      </button>
-    </div>
   );
 }

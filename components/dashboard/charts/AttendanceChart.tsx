@@ -1,24 +1,41 @@
-import AttendanceTrend, { type AttendanceTrendItem } from "../AttendanceTrend";
+import AttendanceTrend, {
+  type AttendanceTrendItem,
+} from "../AttendanceTrend";
+
+import { BaseCard } from "@/components/ui/cards";
 
 export type AttendanceChartItem = AttendanceTrendItem;
 
-type AttendanceChartProps = {
+export type AttendanceChartProps = {
   data: AttendanceChartItem[];
+  title?: string;
+  description?: string;
+  className?: string;
 };
 
-export default function AttendanceChart({ data }: AttendanceChartProps) {
+export default function AttendanceChart({
+  data,
+  title = "اتجاه الحضور آخر 7 أيام",
+  description = "قراءة مبسطة تساعد الإدارة على متابعة الانضباط.",
+  className = "",
+}: AttendanceChartProps) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <BaseCard
+      as="section"
+      padding="md"
+      className={className}
+    >
       <div className="mb-4">
         <h2 className="text-lg font-black text-[var(--app-text)]">
-          اتجاه الحضور آخر 7 أيام
+          {title}
         </h2>
-        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          قراءة مبسطة تساعد الإدارة على متابعة الانضباط.
+
+        <p className="mt-1 text-sm leading-6 text-[var(--app-text-muted)]">
+          {description}
         </p>
       </div>
 
       <AttendanceTrend data={data} />
-    </section>
+    </BaseCard>
   );
 }

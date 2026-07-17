@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import Link from "next/link";
+import type { ReactNode, SelectHTMLAttributes } from "react";
 import {
   FileSpreadsheet,
   FileText,
@@ -10,59 +11,104 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
-type ToolbarSearch = {
+export type ToolbarSearch = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
 };
 
-type ToolbarAction = {
+export type ToolbarActionVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger";
+
+export type ToolbarAction = {
   label: string;
   icon?: ReactNode;
   onClick?: () => void;
   href?: string;
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
+  variant?: ToolbarActionVariant;
   disabled?: boolean;
   loading?: boolean;
 };
 
-type PageToolbarVariant = "default" | "compact";
+export type PageToolbarVariant = "default" | "compact";
 
-type PageToolbarProps = {
+export type PageToolbarProps = {
   search?: ToolbarSearch;
   filters?: ReactNode;
   actions?: ReactNode;
   actionItems?: ToolbarAction[];
+
   onAdd?: () => void;
   onRefresh?: () => void;
   onExportPDF?: () => void;
   onExportExcel?: () => void;
   onPrint?: () => void;
+
   addLabel?: string;
   refreshLabel?: string;
   pdfLabel?: string;
   excelLabel?: string;
   printLabel?: string;
+
   loading?: boolean;
   disabled?: boolean;
   variant?: PageToolbarVariant;
+
   children?: ReactNode;
   className?: string;
 };
 
-const buttonClasses: Record<NonNullable<ToolbarAction["variant"]>, string> = {
-  primary:
-    "border-transparent bg-[var(--app-teal)] text-white hover:bg-[var(--app-teal-hover)]",
-  secondary:
-    "border-transparent bg-[var(--app-primary)] text-[var(--app-primary-foreground)] hover:bg-[var(--app-primary-hover)]",
-  outline:
-    "border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
-  ghost:
-    "border border-transparent bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]",
-  danger:
-    "border border-transparent bg-[var(--app-destructive-soft)] text-[var(--app-destructive)] hover:opacity-90",
+export type ToolbarSelectProps = Omit<
+  SelectHTMLAttributes<HTMLSelectElement>,
+  "onChange"
+> & {
+  children: ReactNode;
+  value?: string;
+  onChange?: (value: string) => void;
 };
+
+export type ToolbarButtonLinkProps = {
+  children: ReactNode;
+  href: string;
+  variant?: ToolbarActionVariant;
+  className?: string;
+  disabled?: boolean;
+};
+
+export type ToolbarIconButtonProps = {
+  children: ReactNode;
+  onClick?: () => void;
+  label: string;
+  disabled?: boolean;
+  loading?: boolean;
+  variant?: ToolbarActionVariant;
+  className?: string;
+};
+
+const buttonClasses: Record<ToolbarActionVariant, string> = {
+  primary:
+    "border-transparent bg-[var(--app-primary)] text-[var(--app-primary-foreground)] hover:bg-[var(--app-primary-hover)]",
+
+  secondary:
+    "border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
+
+  outline:
+    "border-[var(--app-border)] bg-transparent text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
+
+  ghost:
+    "border-transparent bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]",
+
+  danger:
+    "border-transparent bg-[var(--app-destructive-soft)] text-[var(--app-destructive)] hover:opacity-90",
+};
+
+const baseButtonClass =
+  "inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60";
 
 export default function PageToolbar({
   search,
@@ -83,7 +129,7 @@ export default function PageToolbar({
   disabled = false,
   variant = "default",
   children,
-  className = "",
+  className,
 }: PageToolbarProps) {
   const isCompact = variant === "compact";
 
@@ -92,76 +138,94 @@ export default function PageToolbar({
       ? [
           {
             label: refreshLabel,
-            icon: <RefreshCcw className="h-4 w-4" />,
+            icon: <RefreshCcw aria-hidden="true" className="h-4 w-4" />,
             onClick: onRefresh,
             variant: "ghost" as const,
             loading,
           },
         ]
       : []),
+
     ...(onAdd
       ? [
           {
             label: addLabel,
-            icon: <Plus className="h-4 w-4" />,
+            icon: <Plus aria-hidden="true" className="h-4 w-4" />,
             onClick: onAdd,
             variant: "primary" as const,
           },
         ]
       : []),
+
     ...(onExportPDF
       ? [
           {
             label: pdfLabel,
-            icon: <FileText className="h-4 w-4" />,
+            icon: <FileText aria-hidden="true" className="h-4 w-4" />,
             onClick: onExportPDF,
             variant: "outline" as const,
           },
         ]
       : []),
+
     ...(onExportExcel
       ? [
           {
             label: excelLabel,
-            icon: <FileSpreadsheet className="h-4 w-4" />,
+            icon: <FileSpreadsheet aria-hidden="true" className="h-4 w-4" />,
             onClick: onExportExcel,
             variant: "outline" as const,
           },
         ]
       : []),
+
     ...(onPrint
       ? [
           {
             label: printLabel,
-            icon: <Printer className="h-4 w-4" />,
+            icon: <Printer aria-hidden="true" className="h-4 w-4" />,
             onClick: onPrint,
             variant: "outline" as const,
           },
         ]
       : []),
-    ...(actionItems || []),
+
+    ...(actionItems ?? []),
   ];
 
   return (
     <section
       dir="rtl"
       className={[
-        "rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
+        "rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
         isCompact ? "p-3" : "p-4",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-busy={loading}
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 flex-1 flex-col gap-3 lg:flex-row lg:items-center">
           {search && (
             <div className="relative w-full lg:max-w-md">
-              <Search className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--app-text-muted)]" />
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--app-text-muted)]"
+              />
+
               <input
+                type="search"
+                role="searchbox"
                 value={search.value}
                 onChange={(event) => search.onChange(event.target.value)}
                 disabled={disabled || search.disabled}
-                placeholder={search.placeholder || "ابحث..."}
-                className="h-12 w-full rounded-2xl border border-[var(--app-input)] bg-[var(--app-card-soft)] pr-12 pl-4 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-muted)] focus:border-[var(--app-teal)] focus:bg-[var(--app-card)] disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder={search.placeholder ?? "ابحث..."}
+                className={[
+                  "h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-input)] bg-[var(--app-card-soft)] pl-4 pr-12 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-muted)]",
+                  "focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-4 focus:ring-[var(--app-primary-soft)]",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                ].join(" ")}
               />
             </div>
           )}
@@ -169,9 +233,13 @@ export default function PageToolbar({
           {filters && (
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <div className="hidden items-center gap-1 rounded-full bg-[var(--app-card-soft)] px-3 py-2 text-xs font-black text-[var(--app-text-muted)] lg:inline-flex">
-                <SlidersHorizontal className="h-4 w-4" />
+                <SlidersHorizontal
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                />
                 الفلاتر
               </div>
+
               {filters}
             </div>
           )}
@@ -185,9 +253,9 @@ export default function PageToolbar({
 
         {(quickActions.length > 0 || actions) && (
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            {quickActions.map((action) => (
+            {quickActions.map((action, index) => (
               <ToolbarButton
-                key={action.label}
+                key={`${action.label}-${action.href ?? index}`}
                 action={action}
                 disabled={disabled}
               />
@@ -208,30 +276,51 @@ function ToolbarButton({
   action: ToolbarAction;
   disabled?: boolean;
 }) {
-  const isDisabled = disabled || action.disabled || action.loading;
-  const variant = action.variant || "outline";
+  const isDisabled = Boolean(
+    disabled || action.disabled || action.loading,
+  );
+
+  const variant = action.variant ?? "outline";
 
   const content = (
     <>
-      {action.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : action.icon}
+      {action.loading ? (
+        <Loader2
+          aria-hidden="true"
+          className="h-4 w-4 animate-spin"
+        />
+      ) : (
+        action.icon
+      )}
+
       <span>{action.label}</span>
     </>
   );
 
   const className = [
-    "inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60",
+    baseButtonClass,
     buttonClasses[variant],
-  ].join(" ");
+    isDisabled ? "pointer-events-none opacity-60" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (action.href) {
     return (
-      <a
-        href={isDisabled ? undefined : action.href}
+      <Link
+        href={action.href}
         aria-disabled={isDisabled}
+        tabIndex={isDisabled ? -1 : undefined}
+        onClick={(event) => {
+          if (isDisabled) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
         className={className}
       >
         {content}
-      </a>
+      </Link>
     );
   }
 
@@ -240,6 +329,7 @@ function ToolbarButton({
       type="button"
       onClick={action.onClick}
       disabled={isDisabled}
+      aria-busy={action.loading}
       className={className}
     >
       {content}
@@ -252,23 +342,23 @@ export function ToolbarSelect({
   value,
   onChange,
   disabled,
-  className = "",
-}: {
-  children: ReactNode;
-  value?: string;
-  onChange?: (value: string) => void;
-  disabled?: boolean;
-  className?: string;
-}) {
+  className,
+  ...props
+}: ToolbarSelectProps) {
   return (
     <select
       value={value}
       onChange={(event) => onChange?.(event.target.value)}
       disabled={disabled}
       className={[
-        "h-11 rounded-2xl border border-[var(--app-input)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-teal)] focus:bg-[var(--app-card)] disabled:cursor-not-allowed disabled:opacity-60",
+        "h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-input)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition",
+        "focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-4 focus:ring-[var(--app-primary-soft)]",
+        "disabled:cursor-not-allowed disabled:opacity-60",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...props}
     >
       {children}
     </select>
@@ -279,24 +369,31 @@ export function ToolbarButtonLink({
   children,
   href,
   variant = "outline",
-  className = "",
-}: {
-  children: ReactNode;
-  href: string;
-  variant?: NonNullable<ToolbarAction["variant"]>;
-  className?: string;
-}) {
+  className,
+  disabled = false,
+}: ToolbarButtonLinkProps) {
   return (
-    <a
+    <Link
       href={href}
+      aria-disabled={disabled}
+      tabIndex={disabled ? -1 : undefined}
+      onClick={(event) => {
+        if (disabled) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
       className={[
-        "inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+        baseButtonClass,
         buttonClasses[variant],
+        disabled ? "pointer-events-none opacity-60" : "",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {children}
-    </a>
+    </Link>
   );
 }
 
@@ -304,28 +401,37 @@ export function ToolbarIconButton({
   children,
   onClick,
   label,
-  disabled,
+  disabled = false,
+  loading = false,
   variant = "ghost",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  label: string;
-  disabled?: boolean;
-  variant?: NonNullable<ToolbarAction["variant"]>;
-}) {
+  className,
+}: ToolbarIconButtonProps) {
+  const isDisabled = disabled || loading;
+
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
+      aria-busy={loading}
       onClick={onClick}
-      disabled={disabled}
+      disabled={isDisabled}
       className={[
-        "inline-flex h-11 w-11 items-center justify-center rounded-2xl shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex h-11 w-11 items-center justify-center rounded-[var(--app-radius-lg)] border shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60",
         buttonClasses[variant],
-      ].join(" ")}
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      {children}
+      {loading ? (
+        <Loader2
+          aria-hidden="true"
+          className="h-4 w-4 animate-spin"
+        />
+      ) : (
+        children
+      )}
     </button>
   );
 }

@@ -31,6 +31,8 @@ import SummaryCard from "@/components/ui/cards/SummaryCard";
 import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
 import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
 import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
 
 import { analyzeEvidence, scoreEvidence } from "@/lib/ai/evidenceAI";
 import { ExportEngine } from "@/core";
@@ -158,19 +160,19 @@ function normalizeReadiness(value: string) {
 function strengthClass(strength: string) {
   const value = normalizeStrength(strength);
 
-  if (value === "قوي") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (value === "متوسط") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (value === "قوي") return "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  if (value === "متوسط") return "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
 
-  return "border-red-200 bg-red-50 text-red-700";
+  return "border-[color-mix(in_srgb,var(--app-danger)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
 }
 
 function uploadClass(status: string) {
   const value = normalizeUploadStatus(status);
 
-  if (value === "نعم") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (value === "يحتاج تحسين") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (value === "نعم") return "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  if (value === "يحتاج تحسين") return "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
 
-  return "border-red-200 bg-red-50 text-red-700";
+  return "border-[color-mix(in_srgb,var(--app-danger)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
 }
 
 function readinessTone(level: string) {
@@ -182,9 +184,9 @@ function readinessTone(level: string) {
 
 function readinessClass(level: string) {
   const value = normalizeReadiness(level);
-  if (value === "مرتفع") return "bg-[#07A869]";
-  if (value === "متوسط") return "bg-[#C1B489]";
-  return "bg-red-600";
+  if (value === "مرتفع") return "bg-[var(--app-success)]";
+  if (value === "متوسط") return "bg-[var(--app-accent)]";
+  return "bg-[var(--app-danger)]";
 }
 
 export default function EvidenceAuditorPage() {
@@ -370,13 +372,13 @@ export default function EvidenceAuditorPage() {
 
   return (
     <AppShell>
-      <main dir="rtl" className="space-y-5 print:bg-white">
+      <main dir="rtl" className="space-y-5 print:bg-[var(--app-card)]">
         <PageHeader
           variant="hero"
           title="مدقق الشواهد الذكي"
-          description="فحص الشواهد المدرسية، قياس قوتها، كشف الفجوات، وبناء خطة إغلاق قبل الرفع أو الزيارة أو التقييم."
+          description="فحص قوة الشواهد، كشف الفجوات، وبناء خطة إغلاق قبل الرفع أو التقييم."
           badge="الجودة والتميز"
-          icon={<Sparkles size={18} />}
+          icon={<Sparkles size={18}  aria-hidden="true" />}
           breadcrumbs={[
             { label: "لوحة التحكم", href: "/dashboard" },
             { label: "الجودة", href: "/quality" },
@@ -389,30 +391,36 @@ export default function EvidenceAuditorPage() {
             { label: "العام الدراسي", value: academicYear || "غير متوفر" },
           ]}
           stats={[
-            { label: "عدد الشواهد", value: stats.total, icon: <FileText size={20} />, tone: "blue" },
-            { label: "مستوى الجاهزية", value: normalizeReadiness(analysis.readiness), icon: <Gauge size={20} />, tone: readinessTone(analysis.readiness) },
-            { label: "متوسط القوة", value: `${analysis.averageScore}%`, icon: <BarChart3 size={20} />, tone: analysis.averageScore >= 80 ? "green" : "gold" },
-            { label: "الشواهد القوية", value: stats.strong, icon: <CheckCircle2 size={20} />, tone: "green" },
+            { label: "عدد الشواهد", value: stats.total, icon: <FileText size={20}  aria-hidden="true" />, tone: "primary" },
+            { label: "مستوى الجاهزية", value: normalizeReadiness(analysis.readiness), icon: <Gauge size={20}  aria-hidden="true" />, tone: readinessTone(analysis.readiness) },
+            { label: "متوسط القوة", value: `${analysis.averageScore}%`, icon: <BarChart3 size={20}  aria-hidden="true" />, tone: analysis.averageScore >= 80 ? "green" : "gold" },
+            { label: "الشواهد القوية", value: stats.strong, icon: <CheckCircle2 size={20}  aria-hidden="true" />, tone: "green" },
           ]}
           actions={
             <>
-              <PrimaryButton icon={<Wand2 size={17} />} onClick={runAiAuditor}>
+              <PrimaryButton icon={<Wand2 size={17}  aria-hidden="true" />} onClick={runAiAuditor}>
                 تشغيل التحليل الذكي
               </PrimaryButton>
 
-              <PrimaryButton icon={<Plus size={17} />} onClick={addEvidence}>
+              <PrimaryButton icon={<Plus size={17}  aria-hidden="true" />} onClick={addEvidence}>
                 شاهد جديد
               </PrimaryButton>
 
-              <SecondaryButton icon={<Printer size={17} />} onClick={exportPDF}>
+              <ExportButton
+                icon={<Printer size={17} aria-hidden="true" />}
+                onClick={exportPDF}
+              >
                 PDF
-              </SecondaryButton>
+              </ExportButton>
 
-              <PrimaryButton icon={<Download size={17} />} onClick={exportExcel}>
+              <ExportButton
+                icon={<Download size={17} aria-hidden="true" />}
+                onClick={exportExcel}
+              >
                 Excel
-              </PrimaryButton>
+              </ExportButton>
 
-              <SecondaryButton icon={<RefreshCcw size={17} />} onClick={resetAll}>
+              <SecondaryButton icon={<RefreshCcw size={17}  aria-hidden="true" />} onClick={resetAll}>
                 تصفير
               </SecondaryButton>
             </>
@@ -424,8 +432,8 @@ export default function EvidenceAuditorPage() {
             title="عدد الشواهد"
             value={stats.total}
             subtitle="إجمالي الشواهد المدخلة"
-            icon={<FileText size={22} />}
-            tone="blue"
+            icon={<FileText size={22}  aria-hidden="true" />}
+            tone="primary"
             progress={stats.total > 0 ? 100 : 0}
           />
 
@@ -433,7 +441,7 @@ export default function EvidenceAuditorPage() {
             title="مستوى الجاهزية"
             value={normalizeReadiness(analysis.readiness)}
             subtitle={`${analysis.averageScore}% متوسط القوة`}
-            icon={<Gauge size={22} />}
+            icon={<Gauge size={22}  aria-hidden="true" />}
             tone={readinessTone(analysis.readiness)}
             progress={analysis.averageScore}
           />
@@ -442,7 +450,7 @@ export default function EvidenceAuditorPage() {
             title="الشواهد القوية"
             value={stats.strong}
             subtitle="جاهزة نسبيًا للرفع"
-            icon={<CheckCircle2 size={22} />}
+            icon={<CheckCircle2 size={22}  aria-hidden="true" />}
             tone="green"
             progress={stats.total ? Math.round((stats.strong / stats.total) * 100) : 0}
           />
@@ -451,7 +459,7 @@ export default function EvidenceAuditorPage() {
             title="تحتاج تحسين"
             value={stats.medium + stats.weak}
             subtitle="متوسطة أو ضعيفة"
-            icon={<AlertTriangle size={22} />}
+            icon={<AlertTriangle size={22}  aria-hidden="true" />}
             tone={stats.medium + stats.weak > 0 ? "gold" : "green"}
             progress={stats.total ? Math.round(((stats.medium + stats.weak) / stats.total) * 100) : 0}
           />
@@ -459,7 +467,7 @@ export default function EvidenceAuditorPage() {
 
         <SummaryCard
           title="ملخص جاهزية ملف الشواهد"
-          description="قراءة تنفيذية سريعة لقوة الشواهد وجودة التوثيق قبل الرفع."
+          description="ملخص قوة الشواهد وجودة التوثيق."
           tone={readinessTone(analysis.readiness)}
           items={[
             { label: "عدد الشواهد", value: stats.total },
@@ -478,25 +486,25 @@ export default function EvidenceAuditorPage() {
           </div>
         )}
 
-        <section className="no-print rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+        <section className="no-print rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
           <Title
             title="بيانات الملف"
             description="إذا لم تتوفر بعض البيانات ستظهر في التقرير باسم: غير متوفر."
           />
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="اسم المدرسة" value={schoolName} onChange={setSchoolName} icon={<School className="h-4 w-4" />} />
-            <SelectField label="المجال أو المؤشر" value={domain} onChange={setDomain} options={domains} icon={<Target className="h-4 w-4" />} />
-            <SelectField label="الفئة" value={category} onChange={setCategory} options={categories} icon={<ShieldCheck className="h-4 w-4" />} />
-            <Field label="الفصل الدراسي" value={semester} onChange={setSemester} icon={<CalendarDays className="h-4 w-4" />} />
-            <Field label="العام الدراسي" value={academicYear} onChange={setAcademicYear} icon={<CalendarDays className="h-4 w-4" />} />
-            <Field label="اسم المعد" value={preparedBy} onChange={setPreparedBy} icon={<UserRound className="h-4 w-4" />} />
-            <Field label="مدير المدرسة" value={principal} onChange={setPrincipal} icon={<ShieldCheck className="h-4 w-4" />} />
-            <Field label="حساب X" value={xAccount} onChange={setXAccount} icon={<FileText className="h-4 w-4" />} />
+            <Field label="اسم المدرسة" value={schoolName} onChange={setSchoolName} icon={<School className="h-4 w-4"  aria-hidden="true" />} />
+            <SelectField label="المجال أو المؤشر" value={domain} onChange={setDomain} options={domains} icon={<Target className="h-4 w-4"  aria-hidden="true" />} />
+            <SelectField label="الفئة" value={category} onChange={setCategory} options={categories} icon={<ShieldCheck className="h-4 w-4"  aria-hidden="true" />} />
+            <Field label="الفصل الدراسي" value={semester} onChange={setSemester} icon={<CalendarDays className="h-4 w-4"  aria-hidden="true" />} />
+            <Field label="العام الدراسي" value={academicYear} onChange={setAcademicYear} icon={<CalendarDays className="h-4 w-4"  aria-hidden="true" />} />
+            <Field label="اسم المعد" value={preparedBy} onChange={setPreparedBy} icon={<UserRound className="h-4 w-4"  aria-hidden="true" />} />
+            <Field label="مدير المدرسة" value={principal} onChange={setPrincipal} icon={<ShieldCheck className="h-4 w-4"  aria-hidden="true" />} />
+            <Field label="حساب X" value={xAccount} onChange={setXAccount} icon={<FileText className="h-4 w-4"  aria-hidden="true" />} />
           </div>
         </section>
 
-        <section className="no-print rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+        <section className="no-print rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
           <Title
             title="إدخال الشواهد"
             description="أدخل بيانات الشاهد. التحليل الذكي يقيم القوة حسب وضوح الشاهد والأثر والتوثيق."
@@ -507,16 +515,16 @@ export default function EvidenceAuditorPage() {
               const row = scoreEvidence(item);
 
               return (
-                <div key={item.id} className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+                <div key={item.id} className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                   <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#15445A] text-sm font-black text-white">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-text)] text-sm font-black text-[var(--app-text-inverse)]">
                         {index + 1}
                       </div>
 
                       <div>
-                        <div className="font-black text-[#15445A]">شاهد رقم {index + 1}</div>
-                        <div className="text-xs text-slate-500">الدرجة الحالية: {row.score}%</div>
+                        <div className="font-black text-[var(--app-text)]">شاهد رقم {index + 1}</div>
+                        <div className="text-xs text-[var(--app-text-muted)]">الدرجة الحالية: {row.score}%</div>
                       </div>
                     </div>
 
@@ -525,14 +533,12 @@ export default function EvidenceAuditorPage() {
                         {normalizeStrength(String(row.strength))}
                       </Badge>
 
-                      <button
-                        type="button"
+                      <DangerButton
                         onClick={() => removeEvidence(item.id)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
+                        icon={<Trash2 className="h-4 w-4" aria-hidden="true" />}
                       >
-                        <Trash2 className="h-4 w-4" />
                         حذف
-                      </button>
+                      </DangerButton>
                     </div>
                   </div>
 
@@ -547,11 +553,12 @@ export default function EvidenceAuditorPage() {
                     <div className="lg:col-span-2">
                       <InputLabel label="نوع الشاهد" />
                       <select
+                        aria-label="نوع الشاهد"
                         value={item.type}
                         onChange={(event) =>
                           updateItem(item.id, { type: event.target.value as EvidenceType })
                         }
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+                        className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--app-primary)_12%,transparent)]"
                       >
                         {evidenceTypes.map((type) => (
                           <option key={type}>{type}</option>
@@ -595,11 +602,11 @@ export default function EvidenceAuditorPage() {
         </section>
 
         <ReportCard pageNumber="01" preparedBy={preparedBy} xAccount={xAccount}>
-          <ReportTitle icon={<Gauge className="h-7 w-7" />} title="بطاقة تشخيص الملف" />
+          <ReportTitle icon={<Gauge className="h-7 w-7"  aria-hidden="true" />} title="بطاقة تشخيص الملف" />
 
           <div className="mt-5 grid gap-5 lg:grid-cols-12">
             <div className="lg:col-span-4">
-              <div className="overflow-hidden rounded-[24px] border border-slate-200">
+              <div className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)]">
                 <InfoRow label="اسم المدرسة" value={schoolName || "غير متوفر"} />
                 <InfoRow label="المجال / المؤشر" value={domain || "غير متوفر"} />
                 <InfoRow label="الفئة" value={category || "غير متوفر"} />
@@ -615,19 +622,19 @@ export default function EvidenceAuditorPage() {
             </div>
 
             <div className="lg:col-span-8">
-              <div className="rounded-[24px] border border-slate-200 bg-white p-5">
+              <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5">
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-xl font-black text-[#15445A]">أقوى 3 شواهد موجودة</h3>
-                  <span className={`rounded-full px-4 py-2 text-sm font-black text-white ${readinessClass(analysis.readiness)}`}>
+                  <h3 className="text-xl font-black text-[var(--app-text)]">أقوى 3 شواهد موجودة</h3>
+                  <span className={`rounded-full px-4 py-2 text-sm font-black text-[var(--app-text-inverse)] ${readinessClass(analysis.readiness)}`}>
                     {normalizeReadiness(analysis.readiness)} / {analysis.averageScore}%
                   </span>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   {strongestItems.map((item, index) => (
-                    <div key={item.id} className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                    <div key={item.id} className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#07A869] text-sm font-black text-white">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--app-success)] text-sm font-black text-[var(--app-text-inverse)]">
                           {index + 1}
                         </span>
                         <Badge className={strengthClass(item.strength)}>
@@ -636,10 +643,10 @@ export default function EvidenceAuditorPage() {
                       </div>
 
                       <ImageBox label="مربع صورة الشاهد" />
-                      <h4 className="mt-3 min-h-10 font-black text-[#15445A]">
+                      <h4 className="mt-3 min-h-10 font-black text-[var(--app-text)]">
                         {item.name || "غير متوفر"}
                       </h4>
-                      <p className="mt-2 text-xs leading-6 text-slate-600">
+                      <p className="mt-2 text-xs leading-6 text-[var(--app-text-muted)]">
                         {item.proves || "غير متوفر"}
                       </p>
                     </div>
@@ -647,22 +654,22 @@ export default function EvidenceAuditorPage() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[24px] border border-slate-200 bg-[#F8FBFA] p-5">
-                <h3 className="mb-3 text-xl font-black text-[#15445A]">ملخص تنفيذي ذكي</h3>
-                <p className="text-sm leading-8 text-slate-700">{analysis.executiveSummary}</p>
+              <div className="mt-5 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5">
+                <h3 className="mb-3 text-xl font-black text-[var(--app-text)]">ملخص تنفيذي ذكي</h3>
+                <p className="text-sm leading-8 text-[var(--app-text)]">{analysis.executiveSummary}</p>
               </div>
             </div>
           </div>
         </ReportCard>
 
         <ReportCard pageNumber="02" preparedBy={preparedBy} xAccount={xAccount}>
-          <ReportTitle icon={<BarChart3 className="h-7 w-7" />} title="جدول قوة الشواهد" />
+          <ReportTitle icon={<BarChart3 className="h-7 w-7"  aria-hidden="true" />} title="جدول قوة الشواهد" />
 
-          <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200">
+          <div className="mt-5 overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)]">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1100px] border-collapse text-sm">
                 <thead>
-                  <tr className="bg-[#15445A] text-white">
+                  <tr className="bg-[var(--app-text)] text-[var(--app-text-inverse)]">
                     <Th>م</Th>
                     <Th>اسم الشاهد</Th>
                     <Th>نوعه</Th>
@@ -676,7 +683,7 @@ export default function EvidenceAuditorPage() {
 
                 <tbody>
                   {auditRows.map((row, index) => (
-                    <tr key={row.id} className="border-b border-slate-200">
+                    <tr key={row.id} className="border-b border-[var(--app-border)]">
                       <Td>{index + 1}</Td>
                       <Td>{row.name || "غير متوفر"}</Td>
                       <Td>{row.type}</Td>
@@ -702,7 +709,7 @@ export default function EvidenceAuditorPage() {
         </ReportCard>
 
         <ReportCard pageNumber="03" preparedBy={preparedBy} xAccount={xAccount}>
-          <ReportTitle icon={<AlertTriangle className="h-7 w-7" />} title="النواقص والفجوات" />
+          <ReportTitle icon={<AlertTriangle className="h-7 w-7"  aria-hidden="true" />} title="النواقص والفجوات" />
 
           <div className="mt-5 grid gap-5 lg:grid-cols-4">
             <GapCard title="الشواهد الناقصة" items={analysis.missingEvidence} />
@@ -711,12 +718,12 @@ export default function EvidenceAuditorPage() {
             <GapCard title="بيانات غير واضحة" items={analysis.unclearData} />
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-slate-200 bg-white p-5">
-            <h3 className="mb-4 text-xl font-black text-[#15445A]">أكثر 5 تحسينات عاجلة</h3>
+          <div className="mt-5 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5">
+            <h3 className="mb-4 text-xl font-black text-[var(--app-text)]">أكثر 5 تحسينات عاجلة</h3>
             <ol className="grid gap-3 md:grid-cols-2">
               {analysis.urgentImprovements.slice(0, 5).map((item, index) => (
-                <li key={item} className="flex gap-3 rounded-2xl bg-slate-50 p-3 text-sm leading-7 text-slate-700">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#07A869] text-xs font-black text-white">
+                <li key={item} className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3 text-sm leading-7 text-[var(--app-text)]">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--app-success)] text-xs font-black text-[var(--app-text-inverse)]">
                     {index + 1}
                   </span>
                   {item}
@@ -727,13 +734,13 @@ export default function EvidenceAuditorPage() {
         </ReportCard>
 
         <ReportCard pageNumber="04" preparedBy={preparedBy} xAccount={xAccount}>
-          <ReportTitle icon={<ClipboardCheck className="h-7 w-7" />} title="خطة إغلاق الفجوات" />
+          <ReportTitle icon={<ClipboardCheck className="h-7 w-7"  aria-hidden="true" />} title="خطة إغلاق الفجوات" />
 
-          <div className="mt-5 overflow-hidden rounded-[24px] border border-slate-200">
+          <div className="mt-5 overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)]">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1050px] border-collapse text-sm">
                 <thead>
-                  <tr className="bg-[#15445A] text-white">
+                  <tr className="bg-[var(--app-text)] text-[var(--app-text-inverse)]">
                     <Th>م</Th>
                     <Th>ماذا نضيف؟</Th>
                     <Th>من المسؤول؟</Th>
@@ -745,7 +752,7 @@ export default function EvidenceAuditorPage() {
 
                 <tbody>
                   {analysis.actionPlan.map((row, index) => (
-                    <tr key={row.add} className="border-b border-slate-200">
+                    <tr key={row.add} className="border-b border-[var(--app-border)]">
                       <Td>{index + 1}</Td>
                       <Td>{row.add}</Td>
                       <Td>{row.owner}</Td>
@@ -759,8 +766,8 @@ export default function EvidenceAuditorPage() {
             </div>
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-[#C1B489]/50 bg-gradient-to-br from-[#fffdf6] to-white p-6">
-            <blockquote className="text-3xl font-black leading-[1.8] text-[#15445A]">
+          <div className="mt-5 rounded-[var(--app-radius-xl)] border border-[color-mix(in_srgb,var(--app-accent)_50%,transparent)] bg-gradient-to-br from-[var(--app-card-soft)] to-white p-6">
+            <blockquote className="text-3xl font-black leading-[1.8] text-[var(--app-text)]">
               “الشاهد القوي لا يقول إننا عملنا… بل يثبت أثر ما عملنا.”
             </blockquote>
           </div>
@@ -773,8 +780,8 @@ export default function EvidenceAuditorPage() {
 function Title({ title, description }: { title: string; description: string }) {
   return (
     <div>
-      <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
-      <p className="mt-1 text-sm leading-7 text-slate-500">{description}</p>
+      <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
+      <p className="mt-1 text-sm leading-7 text-[var(--app-text-muted)]">{description}</p>
     </div>
   );
 }
@@ -792,15 +799,16 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 flex items-center gap-2 text-sm font-bold text-[#15445A]">
+      <span className="mb-2 flex items-center gap-2 text-sm font-bold text-[var(--app-text)]">
         {icon}
         {label}
       </span>
       <input
+        aria-label={label}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="غير متوفر"
-        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10"
+        className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--app-primary)_12%,transparent)]"
       />
     </label>
   );
@@ -821,11 +829,11 @@ function SelectField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 flex items-center gap-2 text-sm font-bold text-[#15445A]">
+      <span className="mb-2 flex items-center gap-2 text-sm font-bold text-[var(--app-text)]">
         {icon}
         {label}
       </span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10">
+      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--app-primary)_12%,transparent)]">
         {options.map((option) => (
           <option key={option}>{option}</option>
         ))}
@@ -835,7 +843,7 @@ function SelectField({
 }
 
 function InputLabel({ label }: { label: string }) {
-  return <div className="mb-2 text-xs font-black text-slate-600">{label}</div>;
+  return <div className="mb-2 text-xs font-black text-[var(--app-text-muted)]">{label}</div>;
 }
 
 function InputBox({
@@ -852,7 +860,7 @@ function InputBox({
   return (
     <div className={className}>
       <InputLabel label={label} />
-      <input value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition placeholder:text-slate-400 focus:border-[#0DA9A6] focus:ring-4 focus:ring-[#0DA9A6]/10" />
+      <input aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:ring-4 focus:ring-[color-mix(in_srgb,var(--app-primary)_12%,transparent)]" />
     </div>
   );
 }
@@ -868,10 +876,10 @@ function CheckOption({
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-center justify-between rounded-2xl border px-4 py-3 text-sm font-bold transition ${
+      className={`flex cursor-pointer items-center justify-between rounded-[var(--app-radius-lg)] border px-4 py-3 text-sm font-bold transition ${
         checked
-          ? "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]"
-          : "border-slate-200 bg-white text-slate-500"
+          ? "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]"
+          : "border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-muted)]"
       }`}
     >
       <span>{label}</span>
@@ -879,7 +887,7 @@ function CheckOption({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 accent-[#07A869]"
+        className="h-4 w-4 accent-[var(--app-primary)]"
       />
     </label>
   );
@@ -897,15 +905,15 @@ function ReportCard({
   xAccount: string;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:rounded-none print:shadow-none">
-      <div className="absolute left-5 top-5 flex h-12 w-12 items-center justify-center rounded-bl-3xl rounded-tr-3xl bg-[#07A869] text-lg font-black text-white">
+    <section className="relative overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:rounded-none print:shadow-none">
+      <div className="absolute left-5 top-5 flex h-12 w-12 items-center justify-center rounded-bl-3xl rounded-tr-3xl bg-[var(--app-success)] text-lg font-black text-[var(--app-text-inverse)]">
         {pageNumber}
       </div>
 
-      <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-5">
+      <div className="mb-5 flex items-center justify-between border-b border-[var(--app-border)] pb-5">
         <div>
-          <h2 className="text-2xl font-black text-[#15445A]">مدقق الشواهد الذكي</h2>
-          <p className="mt-1 text-sm font-bold text-[#0DA9A6]">
+          <h2 className="text-2xl font-black text-[var(--app-text)]">مدقق الشواهد الذكي</h2>
+          <p className="mt-1 text-sm font-bold text-[var(--app-primary)]">
             منصة المدرسة الذكية · جودة وتميز واعتماد
           </p>
         </div>
@@ -913,7 +921,7 @@ function ReportCard({
 
       {children}
 
-      <div className="mt-6 flex flex-col gap-2 border-t border-slate-100 pt-4 text-xs font-bold text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-6 flex flex-col gap-2 border-t border-[var(--app-border)] pt-4 text-xs font-bold text-[var(--app-text-muted)] sm:flex-row sm:items-center sm:justify-between">
         <span>إعداد: {preparedBy || "غير متوفر"}</span>
         <span>حساب X: {xAccount || "غير متوفر"}</span>
       </div>
@@ -924,12 +932,12 @@ function ReportCard({
 function ReportTitle({ title, icon }: { title: string; icon: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+      <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]">
         {icon}
       </div>
       <div>
-        <h2 className="text-2xl font-black text-[#15445A]">{title}</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="text-2xl font-black text-[var(--app-text)]">{title}</h2>
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           قراءة موضوعية لقوة الملف وجودة التوثيق
         </p>
       </div>
@@ -947,9 +955,9 @@ function InfoRow({
   danger?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-2 border-b border-slate-200 last:border-b-0">
-      <div className="bg-[#15445A] px-4 py-3 text-sm font-black text-white">{label}</div>
-      <div className={`px-4 py-3 text-sm font-bold ${danger ? "text-red-600" : "text-slate-700"}`}>
+    <div className="grid grid-cols-2 border-b border-[var(--app-border)] last:border-b-0">
+      <div className="bg-[var(--app-text)] px-4 py-3 text-sm font-black text-[var(--app-text-inverse)]">{label}</div>
+      <div className={`px-4 py-3 text-sm font-bold ${danger ? "text-[var(--app-danger)]" : "text-[var(--app-text)]"}`}>
         {value}
       </div>
     </div>
@@ -958,8 +966,8 @@ function InfoRow({
 
 function ImageBox({ label }: { label: string }) {
   return (
-    <div className="flex h-32 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white text-center text-xs text-slate-400">
-      <ImageIcon className="mb-2 h-7 w-7" />
+    <div className="flex h-32 flex-col items-center justify-center rounded-[var(--app-radius-lg)] border-2 border-dashed border-[var(--app-border-strong)] bg-[var(--app-card)] text-center text-xs text-[var(--app-text-subtle)]">
+      <ImageIcon className="mb-2 h-7 w-7"  aria-hidden="true" />
       <span className="font-bold">{label}</span>
     </div>
   );
@@ -969,16 +977,16 @@ function GapCard({ title, items }: { title: string; items: string[] }) {
   const cleanItems = items.length ? items : ["غير متوفر"];
 
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-5">
-      <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-[#15445A]">
-        <XCircle className="h-5 w-5 text-[#0DA9A6]" />
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5">
+      <h3 className="mb-4 flex items-center gap-2 text-lg font-black text-[var(--app-text)]">
+        <XCircle className="h-5 w-5 text-[var(--app-primary)]"  aria-hidden="true" />
         {title}
       </h3>
 
       <ul className="space-y-2">
         {cleanItems.slice(0, 5).map((item) => (
-          <li key={item} className="flex items-start gap-2 text-sm leading-7 text-slate-700">
-            <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#07A869]" />
+          <li key={item} className="flex items-start gap-2 text-sm leading-7 text-[var(--app-text)]">
+            <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--app-success)]" />
             {item}
           </li>
         ))}
@@ -996,12 +1004,12 @@ function Badge({ children, className }: { children: ReactNode; className: string
 }
 
 function Th({ children }: { children: ReactNode }) {
-  return <th className="border border-white/10 px-4 py-4 text-right text-xs font-black">{children}</th>;
+  return <th className="border border-[color-mix(in_srgb,var(--app-text-inverse)_10%,transparent)] px-4 py-4 text-right text-xs font-black">{children}</th>;
 }
 
 function Td({ children }: { children: ReactNode }) {
   return (
-    <td className="border border-slate-200 px-4 py-4 align-top text-sm leading-7 text-slate-700">
+    <td className="border border-[var(--app-border)] px-4 py-4 align-top text-sm leading-7 text-[var(--app-text)]">
       {children}
     </td>
   );

@@ -2,29 +2,39 @@
 
 import type { ReactNode } from "react";
 
-type TabItem = {
+export type TabItem = {
   value: string;
   label: string;
   icon?: ReactNode;
   badge?: ReactNode;
+  disabled?: boolean;
 };
 
-type TabsProps = {
+export type TabsProps = {
   tabs: TabItem[];
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  ariaLabel?: string;
 };
 
 export default function Tabs({
   tabs,
   value,
   onChange,
-  className = "",
+  className,
+  ariaLabel = "التبويبات",
 }: TabsProps) {
   return (
     <div
-      className={`flex flex-wrap gap-2 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm ${className}`}
+      role="tablist"
+      aria-label={ariaLabel}
+      className={[
+        "flex flex-wrap gap-2 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-2 shadow-sm",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {tabs.map((tab) => {
         const active = tab.value === value;
@@ -33,16 +43,29 @@ export default function Tabs({
           <button
             key={tab.value}
             type="button"
+            role="tab"
+            aria-selected={active}
+            tabIndex={active ? 0 : -1}
+            disabled={tab.disabled}
             onClick={() => onChange(tab.value)}
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-black transition ${
+            className={[
+              "inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] px-4 py-2 text-sm font-black transition",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]",
+              "disabled:cursor-not-allowed disabled:opacity-50",
               active
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-            }`}
+                ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)] shadow-sm"
+                : "text-[var(--app-text-muted)] hover:bg-[var(--app-card-soft)] hover:text-[var(--app-text)]",
+            ].join(" ")}
           >
-            {tab.icon}
-            {tab.label}
-            {tab.badge}
+            {tab.icon && (
+              <span aria-hidden="true" className="shrink-0">
+                {tab.icon}
+              </span>
+            )}
+
+            <span>{tab.label}</span>
+
+            {tab.badge && <span className="shrink-0">{tab.badge}</span>}
           </button>
         );
       })}

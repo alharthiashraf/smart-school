@@ -1,10 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { RefreshCcw, Search, Shield, Sparkles } from "lucide-react";
+import {
+  Loader2,
+  RefreshCcw,
+  Search,
+  Shield,
+  Sparkles,
+} from "lucide-react";
 
-type ExecutiveHeroProps = {
+import { StatusBadge } from "@/components/ui/badges";
+import { SecondaryButton } from "@/components/ui/buttons";
+import { BaseCard } from "@/components/ui/cards";
+import { ToolbarButtonLink } from "@/components/ui/page";
+
+export type ExecutiveHeroProps = {
   userName: string;
   schoolName: string;
   roleName: string;
@@ -15,6 +25,12 @@ type ExecutiveHeroProps = {
   lastSync?: string | null;
   actions?: ReactNode;
   onRefresh?: () => void;
+  refreshing?: boolean;
+  searchHref?: string;
+  searchDisabled?: boolean;
+  title?: string;
+  description?: string;
+  className?: string;
 };
 
 export default function ExecutiveHero({
@@ -28,101 +44,180 @@ export default function ExecutiveHero({
   lastSync,
   actions,
   onRefresh,
+  refreshing = false,
+  searchHref = "/search",
+  searchDisabled = false,
+  title = "مركز القيادة التنفيذي",
+  description = "لوحة قيادة يومية تعرض حالة المدرسة، جودة البيانات، مؤشرات الحضور والتنبيهات، مع إجراءات تشغيلية سريعة حسب صلاحية المستخدم.",
+  className = "",
 }: ExecutiveHeroProps) {
-  const stable = systemHealth === "مستقر";
+  const normalizedSystemHealth = systemHealth.trim();
+  const stable = normalizedSystemHealth === "مستقر";
 
   return (
-    <section className="relative overflow-hidden rounded-[32px] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm">
-      <div className="pointer-events-none absolute -left-28 -top-28 h-72 w-72 rounded-full bg-[var(--app-teal-soft)] blur-3xl" />
+    <BaseCard
+      as="section"
+      variant="elevated"
+      padding="none"
+      className={[
+        "relative overflow-hidden",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-labelledby="executive-hero-title"
+    >
+      <div className="pointer-events-none absolute -left-28 -top-28 h-72 w-72 rounded-full bg-[var(--app-primary-soft)] blur-3xl" />
+
       <div className="pointer-events-none absolute -bottom-28 right-10 h-72 w-72 rounded-full bg-[var(--app-accent-soft)] blur-3xl" />
 
       <div className="relative grid gap-6 p-5 sm:p-6 xl:grid-cols-[1.35fr_0.65fr]">
-        <div>
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-teal)]">
-            <Sparkles className="h-4 w-4" />
-            مركز القيادة التنفيذي
+        <div className="min-w-0">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1.5 text-xs font-black text-[var(--app-primary)]">
+            <Sparkles
+              aria-hidden="true"
+              className="h-4 w-4 text-[var(--app-accent)]"
+            />
+
+            {title}
           </div>
 
-          <h1 className="text-2xl font-black leading-tight sm:text-4xl">
+          <h1
+            id="executive-hero-title"
+            className="text-2xl font-black leading-tight text-[var(--app-text)] sm:text-4xl"
+          >
             أهلًا، {userName}
           </h1>
 
           <p className="mt-3 max-w-3xl text-sm font-bold leading-7 text-[var(--app-text-muted)]">
-            لوحة قيادة يومية تعرض حالة المدرسة، جودة البيانات، مؤشرات الحضور والتنبيهات، مع إجراءات تشغيلية سريعة حسب صلاحية المستخدم.
+            {description}
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
+            <StatusBadge tone="default">
               {schoolName}
-            </span>
-            <span className="rounded-full bg-[var(--app-teal-soft)] px-3 py-1 text-xs font-black text-[var(--app-teal)]">
+            </StatusBadge>
+
+            <StatusBadge tone="primary">
               {roleName}
-            </span>
-            <span className="rounded-full bg-[var(--app-accent-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
-              {academicYear || "العام الدراسي"} · {semester || "الفصل الدراسي"}
-            </span>
+            </StatusBadge>
+
+            <StatusBadge tone="warning">
+              {academicYear || "العام الدراسي"} ·{" "}
+              {semester || "الفصل الدراسي"}
+            </StatusBadge>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {onRefresh && (
-              <button
+              <SecondaryButton
                 type="button"
                 onClick={onRefresh}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--app-card-soft)] hover:shadow-md"
+                disabled={refreshing}
+                aria-busy={refreshing}
+                icon={
+                  refreshing ? (
+                    <Loader2
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin"
+                    />
+                  ) : (
+                    <RefreshCcw
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                    />
+                  )
+                }
               >
-                <RefreshCcw className="h-4 w-4" />
-                تحديث
-              </button>
+                {refreshing ? "جاري التحديث..." : "تحديث"}
+              </SecondaryButton>
             )}
 
-            <Link
-              href="/search"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-teal)] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--app-teal-hover)] hover:shadow-md"
+            <ToolbarButtonLink
+              href={searchHref}
+              variant="primary"
+              disabled={searchDisabled}
             >
-              <Search className="h-4 w-4" />
+              <Search
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
+
               البحث الشامل
-            </Link>
+            </ToolbarButtonLink>
 
             {actions}
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 shadow-sm">
+        <BaseCard
+          as="aside"
+          variant="soft"
+          padding="sm"
+          className="self-stretch"
+          aria-label="ملخص حالة النظام"
+        >
           <div className="flex items-center gap-3">
             <div
               className={[
-                "flex h-12 w-12 items-center justify-center rounded-2xl",
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)]",
                 stable
                   ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
                   : "bg-[var(--app-warning-soft)] text-[var(--app-warning)]",
               ].join(" ")}
             >
-              <Shield className="h-6 w-6" />
+              <Shield
+                aria-hidden="true"
+                className="h-6 w-6"
+              />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <p className="text-xs font-bold text-[var(--app-text-muted)]">
                 حالة النظام
               </p>
-              <p className="mt-1 text-lg font-black">{systemHealth}</p>
+
+              <p className="mt-1 truncate text-lg font-black text-[var(--app-text)]">
+                {normalizedSystemHealth || "غير محدد"}
+              </p>
             </div>
           </div>
 
-          <div className="mt-5 space-y-3 text-sm">
-            <InfoRow label="اليوم" value={today} />
-            <InfoRow label="آخر مزامنة" value={lastSync || "غير محدد"} />
+          <div className="mt-5 space-y-3">
+            <InfoRow
+              label="اليوم"
+              value={today}
+            />
+
+            <InfoRow
+              label="آخر مزامنة"
+              value={lastSync || "غير محدد"}
+            />
           </div>
-        </div>
+        </BaseCard>
       </div>
-    </section>
+    </BaseCard>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: ReactNode }) {
+type InfoRowProps = {
+  label: string;
+  value: ReactNode;
+};
+
+function InfoRow({
+  label,
+  value,
+}: InfoRowProps) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--app-card)] px-3 py-2">
-      <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
-      <span className="text-xs font-black text-[var(--app-text)]">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2">
+      <span className="shrink-0 text-xs font-bold text-[var(--app-text-muted)]">
+        {label}
+      </span>
+
+      <span className="min-w-0 truncate text-xs font-black text-[var(--app-text)]">
+        {value}
+      </span>
     </div>
   );
 }

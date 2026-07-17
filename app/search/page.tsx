@@ -230,16 +230,16 @@ function getSourceIcon(source: SearchSource) {
 }
 
 function getSourceStyle(source: SearchSource) {
-  if (source === "students") return "bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (source === "teachers") return "bg-[#07A869]/10 text-[#07A869]";
-  if (source === "student_referrals") return "bg-[#C1B489]/20 text-[#15445A]";
+  if (source === "students") return "bg-[var(--app-blue-soft)] text-[var(--app-blue)]";
+  if (source === "teachers") return "bg-[var(--app-green-soft)] text-[var(--app-green)]";
+  if (source === "student_referrals") return "bg-[var(--app-accent)]/20 text-[var(--app-primary)]";
   if (source === "student_interventions") return "bg-orange-50 text-orange-700";
-  if (source === "student_behavior") return "bg-red-50 text-red-700";
+  if (source === "student_behavior") return "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]";
   if (source === "health_cases") return "bg-pink-50 text-pink-700";
   if (source === "parent_communications") return "bg-indigo-50 text-indigo-700";
-  if (source === "notifications") return "bg-slate-100 text-slate-700";
+  if (source === "notifications") return "bg-[var(--app-card-soft)] text-[var(--app-text)]";
 
-  return "bg-slate-100 text-slate-700";
+  return "bg-[var(--app-card-soft)] text-[var(--app-text)]";
 }
 
 function sourceOrder(source: SearchSource) {
@@ -619,7 +619,7 @@ function SearchPageContent() {
                 type="button"
                 onClick={() => void runSearch(keyword, true)}
                 disabled={loading || !keyword.trim()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-4 text-sm font-black text-[var(--app-primary-foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw size={16} />}
                 تحديث البحث
@@ -628,12 +628,12 @@ function SearchPageContent() {
           />
 
           {errorMsg && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
+            <div className="rounded-[28px] border border-[var(--app-destructive)]/20 bg-[var(--app-destructive-soft)] p-5 text-sm font-bold text-[var(--app-destructive)]">
               {errorMsg}
             </div>
           )}
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
             <form
               onSubmit={submitSearch}
               className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px_150px]"
@@ -641,7 +641,7 @@ function SearchPageContent() {
               <div className="relative">
                 <Search
                   size={18}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-muted)]"
                 />
 
                 <input
@@ -649,11 +649,11 @@ function SearchPageContent() {
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="اكتب اسم طالب، معلم، رقم، حالة، إحالة، ملاحظة..."
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pr-10 pl-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                  className="w-full rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] py-3 pr-10 pl-4 text-sm font-bold text-[var(--app-primary)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                 />
 
                 {loading && (
-                  <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />
+                  <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--app-text-muted)]" />
                 )}
               </div>
 
@@ -671,7 +671,7 @@ function SearchPageContent() {
               <button
                 type="submit"
                 disabled={loading || !keyword.trim()}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-5 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--app-primary)] px-5 text-sm font-black text-[var(--app-primary-foreground)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search size={17} />}
                 بحث
@@ -736,12 +736,12 @@ function SearchPageContent() {
             </>
           )}
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-black text-[#15445A]">نتائج البحث</h2>
+                <h2 className="text-2xl font-black text-[var(--app-primary)]">نتائج البحث</h2>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   {searched
                     ? `تم العثور على ${filteredResults.length} نتيجة حسب الفلتر الحالي.`
                     : "ابدأ بالكتابة وسيظهر البحث تلقائيًا."}
@@ -773,7 +773,7 @@ function SearchResultCard({ item }: { item: SearchResult }) {
   return (
     <Link
       href={item.href}
-      className="group rounded-[28px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+      className="group rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-md"
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
@@ -783,29 +783,29 @@ function SearchResultCard({ item }: { item: SearchResult }) {
           {getSourceLabel(item.source)}
         </span>
 
-        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+        <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
           {item.badge}
         </span>
       </div>
 
-      <h3 className="line-clamp-1 text-lg font-black text-[#15445A]">
+      <h3 className="line-clamp-1 text-lg font-black text-[var(--app-primary)]">
         {item.title}
       </h3>
 
-      <p className="mt-1 line-clamp-1 text-sm font-bold text-slate-600">
+      <p className="mt-1 line-clamp-1 text-sm font-bold text-[var(--app-text-muted)]">
         {item.subtitle}
       </p>
 
-      <p className="mt-2 line-clamp-2 text-sm leading-7 text-slate-500">
+      <p className="mt-2 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
         {item.description}
       </p>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="text-xs font-bold text-slate-400">
+        <span className="text-xs font-bold text-[var(--app-text-muted)]">
           {item.created_at ? formatDate(item.created_at) : "—"}
         </span>
 
-        <span className="inline-flex items-center gap-1 text-xs font-black text-[#15445A]">
+        <span className="inline-flex items-center gap-1 text-xs font-black text-[var(--app-primary)]">
           فتح
           <ExternalLink size={13} />
         </span>
@@ -816,7 +816,7 @@ function SearchResultCard({ item }: { item: SearchResult }) {
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
+    <div className="rounded-2xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-8 text-center text-sm font-bold text-[var(--app-text-muted)]">
       {text}
     </div>
   );
@@ -825,8 +825,8 @@ function EmptyBox({ text }: { text: string }) {
 function LoadingBox({ text }: { text: string }) {
   return (
     <div className="flex min-h-[30vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+      <div className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-8 text-center text-[var(--app-text-muted)] shadow-sm">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--app-primary)]/10 text-[var(--app-primary)]">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
         <p className="font-bold">{text}</p>

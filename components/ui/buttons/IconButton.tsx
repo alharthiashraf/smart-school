@@ -1,38 +1,39 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
-import Button from "./Button";
+import type { ReactNode } from "react";
 
-type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+import Button, { type ButtonProps } from "./Button";
+
+export type IconButtonProps = Omit<
+  ButtonProps,
+  "variant" | "size" | "children" | "icon"
+> & {
   icon: ReactNode;
   label: string;
   tone?: "default" | "primary" | "warning" | "danger";
 };
 
+const toneToVariant = {
+  default: "secondary",
+  primary: "primary",
+  warning: "export",
+  danger: "danger",
+} as const;
+
 export default function IconButton({
   icon,
   label,
   tone = "default",
-  className = "",
+  type = "button",
   ...props
 }: IconButtonProps) {
-  const variant =
-    tone === "danger"
-      ? "danger"
-      : tone === "warning"
-        ? "export"
-        : tone === "primary"
-          ? "primary"
-          : "secondary";
-
   return (
     <Button
-      variant={variant}
+      type={type}
+      variant={toneToVariant[tone]}
       size="icon"
+      icon={icon}
       aria-label={label}
       title={label}
-      className={className}
       {...props}
-    >
-      {icon}
-    </Button>
+    />
   );
 }

@@ -1,6 +1,10 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  ReactNode,
+} from "react";
+import { Loader2 } from "lucide-react";
 
-type ButtonVariant =
+export type ButtonVariant =
   | "primary"
   | "secondary"
   | "danger"
@@ -8,9 +12,9 @@ type ButtonVariant =
   | "outline"
   | "export";
 
-type ButtonSize = "sm" | "md" | "lg" | "icon";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: ReactNode;
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -18,18 +22,65 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  primary:
-    "border-transparent bg-[var(--app-teal)] text-white hover:bg-[var(--app-teal-hover)]",
-  secondary:
-    "border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
-  danger:
-    "border-transparent bg-[var(--destructive,#dc2626)] text-white hover:opacity-90",
-  ghost:
-    "border-transparent bg-transparent text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
-  outline:
-    "border-[var(--app-border)] bg-transparent text-[var(--app-text)] hover:bg-[var(--app-card-soft)]",
-  export:
-    "border-[var(--app-accent)] bg-[var(--app-accent-soft)] text-[var(--app-text)] hover:bg-[var(--app-accent-soft)]",
+  primary: [
+    "border-[var(--app-primary)]",
+    "bg-[var(--app-primary)]",
+    "text-[var(--app-text-inverse)]",
+    "shadow-[var(--app-shadow-sm)]",
+    "hover:border-[var(--app-primary-hover)]",
+    "hover:bg-[var(--app-primary-hover)]",
+    "hover:shadow-[var(--app-shadow-md)]",
+    "active:border-[var(--app-primary-active)]",
+    "active:bg-[var(--app-primary-active)]",
+  ].join(" "),
+
+  secondary: [
+    "border-[var(--app-border)]",
+    "bg-[var(--app-card)]",
+    "text-[var(--app-text)]",
+    "shadow-[var(--app-shadow-sm)]",
+    "hover:border-[var(--app-accent-border)]",
+    "hover:bg-[var(--app-card-soft)]",
+    "hover:text-[var(--app-accent)]",
+  ].join(" "),
+
+  danger: [
+    "border-[var(--app-destructive)]",
+    "bg-[var(--app-destructive)]",
+    "text-white",
+    "shadow-[var(--app-shadow-sm)]",
+    "hover:opacity-90",
+    "hover:shadow-[var(--app-shadow-md)]",
+  ].join(" "),
+
+  ghost: [
+    "border-transparent",
+    "bg-transparent",
+    "text-[var(--app-text)]",
+    "shadow-none",
+    "hover:bg-[var(--app-primary-soft)]",
+    "hover:text-[var(--app-primary)]",
+  ].join(" "),
+
+  outline: [
+    "border-[var(--app-accent-border)]",
+    "bg-transparent",
+    "text-[var(--app-accent)]",
+    "shadow-none",
+    "hover:bg-[var(--app-accent-soft)]",
+    "hover:border-[var(--app-accent)]",
+  ].join(" "),
+
+  export: [
+    "border-[var(--app-accent-border)]",
+    "bg-[var(--app-accent-soft)]",
+    "text-[var(--app-accent)]",
+    "shadow-[var(--app-shadow-sm)]",
+    "hover:border-[var(--app-accent)]",
+    "hover:bg-[var(--app-accent)]",
+    "hover:text-[var(--app-accent-foreground)]",
+    "hover:shadow-[var(--app-shadow-gold)]",
+  ].join(" "),
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -50,22 +101,43 @@ export default function Button({
   type = "button",
   ...props
 }: ButtonProps) {
+  const isDisabled = disabled || loading;
+
   return (
     <button
       type={type}
-      disabled={disabled || loading}
+      disabled={isDisabled}
+      aria-busy={loading || undefined}
       className={[
-        "inline-flex items-center justify-center gap-2 rounded-2xl border font-bold shadow-sm transition",
-        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--app-teal-soft)]",
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2",
+        "rounded-2xl border",
+        "font-bold",
+        "transition-all duration-200",
+        "focus-visible:outline-none",
+        "focus-visible:ring-4",
+        "focus-visible:ring-[var(--app-focus-ring)]",
+        "focus-visible:ring-offset-2",
+        "focus-visible:ring-offset-[var(--app-background)]",
+        "disabled:pointer-events-none",
+        "disabled:cursor-not-allowed",
+        "disabled:opacity-50",
         variants[variant],
         sizes[size],
         className,
       ].join(" ")}
       {...props}
     >
-      {icon}
-      {children}
+      {loading ? (
+        <Loader2
+          size={16}
+          className="shrink-0 animate-spin"
+          aria-hidden="true"
+        />
+      ) : (
+        icon
+      )}
+
+      {size !== "icon" ? children : null}
     </button>
   );
 }

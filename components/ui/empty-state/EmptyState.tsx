@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 import { Inbox } from "lucide-react";
+
 import PrimaryButton from "../buttons/PrimaryButton";
 
-type EmptyStateProps = {
+export type EmptyStateProps = {
   title?: string;
   description?: string;
   icon?: ReactNode;
@@ -21,36 +22,52 @@ export default function EmptyState({
   action,
   actionText,
   onAction,
-  className = "",
+  className,
 }: EmptyStateProps) {
   return (
-    <div
+    <section
       className={[
-        "flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white px-8 py-12 text-center shadow-sm",
+        "flex flex-col items-center justify-center rounded-[var(--app-radius-xl)] border border-dashed border-[var(--app-border)] bg-[var(--app-card)] px-8 py-12 text-center shadow-sm",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-labelledby="empty-state-title"
+      aria-describedby="empty-state-description"
     >
-      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+      <div
+        className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--app-primary-soft)] text-[var(--app-primary)]"
+        aria-hidden="true"
+      >
         {icon ?? <Inbox className="h-10 w-10" />}
       </div>
 
-      <h3 className="mt-6 text-xl font-black text-[#15445A]">
+      <h3
+        id="empty-state-title"
+        className="mt-6 text-xl font-black text-[var(--app-text)]"
+      >
         {title}
       </h3>
 
-      <p className="mt-2 max-w-md text-sm leading-7 text-slate-500">
+      <p
+        id="empty-state-description"
+        className="mt-2 max-w-md text-sm leading-7 text-[var(--app-text-muted)]"
+      >
         {description}
       </p>
 
-      {action}
+      {action && <div className="mt-6">{action}</div>}
 
       {!action && actionText && onAction && (
         <div className="mt-6">
-          <PrimaryButton onClick={onAction}>
+          <PrimaryButton
+            type="button"
+            onClick={onAction}
+          >
             {actionText}
           </PrimaryButton>
         </div>
       )}
-    </div>
+    </section>
   );
 }

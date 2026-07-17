@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+
 import PrimaryButton from "../buttons/PrimaryButton";
 import SecondaryButton from "../buttons/SecondaryButton";
 import DetailsDialog from "./DetailsDialog";
 
-type EditDialogProps = {
+export type EditDialogProps = {
   open: boolean;
   title: string;
   children: ReactNode;
@@ -29,14 +30,30 @@ export default function EditDialog({
   onClose,
 }: EditDialogProps) {
   return (
-    <DetailsDialog open={open} title={title} width={width} onClose={onClose}>
+    <DetailsDialog
+      open={open}
+      title={title}
+      width={width}
+      onClose={onClose}
+    >
       <div className="space-y-6">
         {children}
 
-        <div className="flex justify-end gap-3 border-t border-[var(--app-border)] pt-5">
-          <SecondaryButton onClick={onClose}>{cancelText}</SecondaryButton>
+        <div className="flex flex-wrap justify-end gap-3 border-t border-[var(--app-border)] pt-5">
+          <SecondaryButton
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+          >
+            {cancelText}
+          </SecondaryButton>
 
-          <PrimaryButton onClick={onSave} disabled={loading}>
+          <PrimaryButton
+            type="button"
+            onClick={onSave}
+            disabled={loading}
+            aria-busy={loading}
+          >
             {loading ? "جارٍ الحفظ..." : saveText}
           </PrimaryButton>
         </div>

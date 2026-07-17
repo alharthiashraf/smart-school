@@ -1,7 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import { usePathname } from "next/navigation";
+
 import AppShell from "./AppShell";
 
 const PUBLIC_ROUTES = new Set([
@@ -20,15 +22,24 @@ export default function ShellGate({
 }: ShellGateProps) {
   const pathname = usePathname();
 
-  const isPublicRoute =
-    PUBLIC_ROUTES.has(pathname) ||
-    [...PUBLIC_ROUTES].some(
-      (route) => route !== "/" && pathname.startsWith(`${route}/`),
+  const isPublicRoute = useMemo(() => {
+    return (
+      PUBLIC_ROUTES.has(pathname) ||
+      [...PUBLIC_ROUTES].some(
+        (route) =>
+          route !== "/" &&
+          pathname.startsWith(`${route}/`),
+      )
     );
+  }, [pathname]);
 
   if (isPublicRoute) {
     return <>{children}</>;
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      {children}
+    </AppShell>
+  );
 }

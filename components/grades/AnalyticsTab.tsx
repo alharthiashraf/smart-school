@@ -18,6 +18,10 @@ import {
   Users,
 } from "lucide-react";
 
+import { AIRecommendation } from "@/components/ui/ai";
+import { StatusBadge } from "@/components/ui/badges";
+import { BaseCard } from "@/components/ui/cards";
+
 export type AnalyticsStudentRow = {
   student: {
     id: string;
@@ -32,18 +36,25 @@ export type AnalyticsStudentRow = {
   status?: string;
 };
 
-type Props = {
+export type AnalyticsTabProps = {
   subjectRows: AnalyticsStudentRow[];
   behaviorRows: AnalyticsStudentRow[];
   attendanceRows: AnalyticsStudentRow[];
 };
+
+type DistributionTone =
+  | "excellent"
+  | "veryGood"
+  | "good"
+  | "pass"
+  | "risk";
 
 type DistributionItem = {
   label: string;
   count: number;
   from: number;
   to: number;
-  tone: "excellent" | "veryGood" | "good" | "pass" | "risk";
+  tone: DistributionTone;
 };
 
 type RiskItem = {
@@ -53,9 +64,68 @@ type RiskItem = {
   severity: "high" | "medium";
 };
 
+type ClassroomSummaryItem = {
+  classroom: string;
+  students: number;
+  average: number;
+  pass: number;
+};
+
+type FollowRow = {
+  name: string;
+  value: string;
+  subtitle: string;
+};
+
+type MetricTone =
+  | "success"
+  | "info"
+  | "warning"
+  | "danger"
+  | "primary";
+
+const distributionToneClasses: Record<DistributionTone, string> = {
+  excellent: "bg-[var(--app-green)]",
+  veryGood: "bg-[var(--app-blue)]",
+  good: "bg-[var(--app-accent)]",
+  pass: "bg-[var(--app-warning)]",
+  risk: "bg-[var(--app-destructive)]",
+};
+
+const metricToneClasses: Record<
+  MetricTone,
+  {
+    icon: string;
+    bar: string;
+  }
+> = {
+  success: {
+    icon: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+    bar: "bg-[var(--app-green)]",
+  },
+  info: {
+    icon: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+    bar: "bg-[var(--app-blue)]",
+  },
+  warning: {
+    icon: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+    bar: "bg-[var(--app-accent)]",
+  },
+  danger: {
+    icon:
+      "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+    bar: "bg-[var(--app-destructive)]",
+  },
+  primary: {
+    icon:
+      "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+    bar: "bg-[var(--app-primary)]",
+  },
+};
+
 function toNumber(value: unknown) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
 function clamp(value: number, min = 0, max = 100) {
@@ -67,65 +137,99 @@ function getValue(row: AnalyticsStudentRow) {
 }
 
 function average(values: number[]) {
-  if (!values.length) return 0;
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  if (values.length === 0) return 0;
+
+  return Math.round(
+    values.reduce((sum, value) => sum + value, 0) / values.length,
+  );
 }
 
 function median(values: number[]) {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 0) return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-  return Math.round(sorted[mid]);
+  if (values.length === 0) return 0;
+
+  const sortedValues = [...values].sort(
+    (first, second) => first - second,
+  );
+
+  const middleIndex = Math.floor(sortedValues.length / 2);
+
+  if (sortedValues.length % 2 === 0) {
+    return Math.round(
+      (sortedValues[middleIndex - 1] +
+        sortedValues[middleIndex]) /
+        2,
+    );
+  }
+
+  return Math.round(sortedValues[middleIndex]);
 }
 
-function passRate(rows: AnalyticsStudentRow[], passMark = 60) {
-  if (!rows.length) return 0;
-  const passed = rows.filter((row) => getValue(row) >= passMark).length;
-  return Math.round((passed / rows.length) * 100);
+function passRate(
+  rows: AnalyticsStudentRow[],
+  passMark = 60,
+) {
+  if (rows.length === 0) return 0;
+
+  const passedCount = rows.filter(
+    (row) => getValue(row) >= passMark,
+  ).length;
+
+  return Math.round((passedCount / rows.length) * 100);
 }
 
 function completionRate(rows: AnalyticsStudentRow[]) {
-  if (!rows.length) return 0;
-  const completed = rows.filter((row) => getValue(row) > 0).length;
-  return Math.round((completed / rows.length) * 100);
+  if (rows.length === 0) return 0;
+
+  const completedCount = rows.filter(
+    (row) => getValue(row) > 0,
+  ).length;
+
+  return Math.round((completedCount / rows.length) * 100);
 }
 
-function distribution(rows: AnalyticsStudentRow[]): DistributionItem[] {
+function buildDistribution(
+  rows: AnalyticsStudentRow[],
+): DistributionItem[] {
   const values = rows.map(getValue);
 
   return [
     {
       label: "90 - 100",
-      count: values.filter((v) => v >= 90).length,
+      count: values.filter((value) => value >= 90).length,
       from: 90,
       to: 100,
       tone: "excellent",
     },
     {
       label: "80 - 89",
-      count: values.filter((v) => v >= 80 && v < 90).length,
+      count: values.filter(
+        (value) => value >= 80 && value < 90,
+      ).length,
       from: 80,
       to: 89,
       tone: "veryGood",
     },
     {
       label: "70 - 79",
-      count: values.filter((v) => v >= 70 && v < 80).length,
+      count: values.filter(
+        (value) => value >= 70 && value < 80,
+      ).length,
       from: 70,
       to: 79,
       tone: "good",
     },
     {
       label: "60 - 69",
-      count: values.filter((v) => v >= 60 && v < 70).length,
+      count: values.filter(
+        (value) => value >= 60 && value < 70,
+      ).length,
       from: 60,
       to: 69,
       tone: "pass",
     },
     {
       label: "أقل من 60",
-      count: values.filter((v) => v < 60).length,
+      count: values.filter((value) => value < 60).length,
       from: 0,
       to: 59,
       tone: "risk",
@@ -133,40 +237,53 @@ function distribution(rows: AnalyticsStudentRow[]): DistributionItem[] {
   ];
 }
 
-function toneClass(tone: DistributionItem["tone"]) {
-  if (tone === "excellent") return "bg-emerald-600";
-  if (tone === "veryGood") return "bg-blue-600";
-  if (tone === "good") return "bg-amber-500";
-  if (tone === "pass") return "bg-orange-500";
-  return "bg-red-600";
+function getMetricTone(percent: number): MetricTone {
+  if (percent >= 90) return "success";
+  if (percent >= 80) return "info";
+  if (percent >= 70) return "warning";
+  if (percent >= 60) return "primary";
+  return "danger";
 }
 
-function badgeClass(value: number) {
-  if (value >= 90) return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-  if (value >= 80) return "bg-blue-50 text-blue-700 ring-blue-200";
-  if (value >= 70) return "bg-amber-50 text-amber-700 ring-amber-200";
-  if (value >= 60) return "bg-orange-50 text-orange-700 ring-orange-200";
-  return "bg-red-50 text-red-700 ring-red-200";
+function getBadgeTone(
+  value: number,
+): "success" | "info" | "warning" | "danger" {
+  if (value >= 90) return "success";
+  if (value >= 80) return "info";
+  if (value >= 60) return "warning";
+  return "danger";
 }
 
-function topRows(rows: AnalyticsStudentRow[], limit = 10) {
+function topRows(
+  rows: AnalyticsStudentRow[],
+  limit = 10,
+) {
   return [...rows]
     .filter((row) => getValue(row) > 0)
-    .sort((a, b) => getValue(b) - getValue(a))
+    .sort(
+      (first, second) =>
+        getValue(second) - getValue(first),
+    )
     .slice(0, limit);
 }
 
-function lowRows(rows: AnalyticsStudentRow[], limit = 10) {
+function lowRows(
+  rows: AnalyticsStudentRow[],
+  limit = 10,
+) {
   return [...rows]
     .filter((row) => getValue(row) > 0)
-    .sort((a, b) => getValue(a) - getValue(b))
+    .sort(
+      (first, second) =>
+        getValue(first) - getValue(second),
+    )
     .slice(0, limit);
 }
 
-function riskItems(
+function buildRiskItems(
   subjectRows: AnalyticsStudentRow[],
   behaviorRows: AnalyticsStudentRow[],
-  attendanceRows: AnalyticsStudentRow[]
+  attendanceRows: AnalyticsStudentRow[],
 ): RiskItem[] {
   const subjectRisk: RiskItem[] = subjectRows
     .filter((row) => getValue(row) < 60)
@@ -174,7 +291,8 @@ function riskItems(
       student: row.student,
       area: "المواد",
       value: getValue(row),
-      severity: getValue(row) < 45 ? "high" : "medium",
+      severity:
+        getValue(row) < 45 ? "high" : "medium",
     }));
 
   const behaviorRisk: RiskItem[] = behaviorRows
@@ -183,7 +301,8 @@ function riskItems(
       student: row.student,
       area: "السلوك",
       value: getValue(row),
-      severity: getValue(row) < 60 ? "high" : "medium",
+      severity:
+        getValue(row) < 60 ? "high" : "medium",
     }));
 
   const attendanceRisk: RiskItem[] = attendanceRows
@@ -192,43 +311,75 @@ function riskItems(
       student: row.student,
       area: "المواظبة",
       value: getValue(row),
-      severity: getValue(row) < 60 ? "high" : "medium",
+      severity:
+        getValue(row) < 60 ? "high" : "medium",
     }));
 
-  return [...subjectRisk, ...behaviorRisk, ...attendanceRisk]
-    .sort((a, b) => {
-      if (a.severity !== b.severity) return a.severity === "high" ? -1 : 1;
-      return a.value - b.value;
+  return [
+    ...subjectRisk,
+    ...behaviorRisk,
+    ...attendanceRisk,
+  ]
+    .sort((first, second) => {
+      if (first.severity !== second.severity) {
+        return first.severity === "high" ? -1 : 1;
+      }
+
+      return first.value - second.value;
     })
     .slice(0, 18);
 }
 
-function classroomSummary(rows: AnalyticsStudentRow[]) {
-  const map = new Map<string, { classroom: string; values: number[]; students: number }>();
+function buildClassroomSummary(
+  rows: AnalyticsStudentRow[],
+): ClassroomSummaryItem[] {
+  const classroomMap = new Map<
+    string,
+    {
+      classroom: string;
+      values: number[];
+      students: number;
+    }
+  >();
 
   rows.forEach((row) => {
-    const classroom = row.student.classroom_name || "بدون فصل";
-    const current = map.get(classroom) || { classroom, values: [], students: 0 };
+    const classroom =
+      row.student.classroom_name || "بدون فصل";
+
+    const current = classroomMap.get(classroom) ?? {
+      classroom,
+      values: [],
+      students: 0,
+    };
+
     current.values.push(getValue(row));
     current.students += 1;
-    map.set(classroom, current);
+    classroomMap.set(classroom, current);
   });
 
-  return Array.from(map.values())
+  return Array.from(classroomMap.values())
     .map((item) => ({
       classroom: item.classroom,
       students: item.students,
       average: average(item.values),
-      pass: Math.round((item.values.filter((v) => v >= 60).length / item.values.length) * 100),
+      pass: Math.round(
+        (item.values.filter((value) => value >= 60)
+          .length /
+          item.values.length) *
+          100,
+      ),
     }))
-    .sort((a, b) => b.average - a.average);
+    .sort(
+      (first, second) =>
+        second.average - first.average,
+    );
 }
 
 export default function AnalyticsTab({
   subjectRows,
   behaviorRows,
   attendanceRows,
-}: Props) {
+}: AnalyticsTabProps) {
   const subjectValues = subjectRows.map(getValue);
   const behaviorValues = behaviorRows.map(getValue);
   const attendanceValues = attendanceRows.map(getValue);
@@ -236,69 +387,120 @@ export default function AnalyticsTab({
   const subjectAverage = average(subjectValues);
   const behaviorAverage = average(behaviorValues);
   const attendanceAverage = average(attendanceValues);
-  const overallAverage = average([
-    subjectAverage,
-    behaviorAverage,
-    attendanceAverage,
-  ].filter((value) => value > 0));
+
+  const overallAverage = average(
+    [
+      subjectAverage,
+      behaviorAverage,
+      attendanceAverage,
+    ].filter((value) => value > 0),
+  );
 
   const subjectPass = passRate(subjectRows, 60);
   const subjectCompletion = completionRate(subjectRows);
   const subjectMedian = median(subjectValues);
-  const risks = riskItems(subjectRows, behaviorRows, attendanceRows);
-  const highRisks = risks.filter((item) => item.severity === "high").length;
-  const classes = classroomSummary(subjectRows);
+
+  const risks = buildRiskItems(
+    subjectRows,
+    behaviorRows,
+    attendanceRows,
+  );
+
+  const highRisks = risks.filter(
+    (item) => item.severity === "high",
+  ).length;
+
+  const classrooms =
+    buildClassroomSummary(subjectRows);
+
+  const studentCount =
+    subjectRows.length ||
+    behaviorRows.length ||
+    attendanceRows.length;
 
   return (
     <section className="space-y-4">
-      <div className="overflow-hidden rounded-[1.4rem] border border-slate-200 bg-white shadow-sm">
-        <div className="bg-gradient-to-l from-[#0f1f3d] via-[#18315f] to-[#24477f] p-5 text-white">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-slate-200">
-                <LineChart className="h-4 w-4 text-[#d4af37]" />
+      <BaseCard
+        as="section"
+        padding="none"
+        className="overflow-hidden"
+      >
+        <div className="bg-[var(--app-primary)] p-5 text-[var(--app-primary-foreground)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--app-primary-foreground)]/20 bg-[var(--app-primary-foreground)]/10 px-3 py-1.5 text-xs font-bold">
+                <LineChart
+                  aria-hidden="true"
+                  className="h-4 w-4 text-[var(--app-accent)]"
+                />
                 لوحة قيادة مركز التقييم
               </div>
 
-              <h2 className="mt-3 text-2xl font-black">📊 التحليلات الأكاديمية</h2>
+              <h2 className="mt-3 text-2xl font-black">
+                التحليلات الأكاديمية
+              </h2>
 
-              <p className="mt-1 text-xs font-bold text-slate-200">
-                قراءة شاملة لدرجات المواد والسلوك والمواظبة مع تحديد الطلاب الأكثر احتياجًا للمتابعة.
+              <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-[var(--app-primary-foreground)]/75">
+                قراءة شاملة لدرجات المواد والسلوك
+                والمواظبة مع تحديد الطلاب الأكثر
+                احتياجًا للمتابعة.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <HeroStat icon={Users} label="الطلاب" value={subjectRows.length || behaviorRows.length || attendanceRows.length} />
-              <HeroStat icon={CheckCircle2} label="نسبة النجاح" value={`${subjectPass}%`} />
-              <HeroStat icon={Target} label="اكتمال الرصد" value={`${subjectCompletion}%`} />
-              <HeroStat icon={AlertTriangle} label="حالات حرجة" value={highRisks} />
+              <HeroStat
+                icon={Users}
+                label="الطلاب"
+                value={studentCount}
+              />
+
+              <HeroStat
+                icon={CheckCircle2}
+                label="نسبة النجاح"
+                value={`${subjectPass}%`}
+              />
+
+              <HeroStat
+                icon={Target}
+                label="اكتمال الرصد"
+                value={`${subjectCompletion}%`}
+              />
+
+              <HeroStat
+                icon={AlertTriangle}
+                label="حالات حرجة"
+                value={highRisks}
+              />
             </div>
           </div>
         </div>
 
         <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
+          <AnalyticsMetricCard
             icon={BarChart3}
             title="متوسط المادة"
             value={`${subjectAverage}%`}
             subtitle={`الوسيط ${subjectMedian}%`}
             percent={subjectAverage}
           />
-          <MetricCard
+
+          <AnalyticsMetricCard
             icon={ShieldCheck}
             title="متوسط السلوك"
             value={`${behaviorAverage}%`}
             subtitle={`${behaviorRows.length} طالب`}
             percent={behaviorAverage}
           />
-          <MetricCard
+
+          <AnalyticsMetricCard
             icon={Clock3}
             title="متوسط المواظبة"
             value={`${attendanceAverage}%`}
             subtitle={`${attendanceRows.length} طالب`}
             percent={attendanceAverage}
           />
-          <MetricCard
+
+          <AnalyticsMetricCard
             icon={TrendingUp}
             title="المؤشر العام"
             value={`${overallAverage}%`}
@@ -306,35 +508,41 @@ export default function AnalyticsTab({
             percent={overallAverage}
           />
         </div>
-      </div>
+      </BaseCard>
 
       <div className="grid gap-3 xl:grid-cols-3">
         <DistributionCard
-          title="📘 توزيع درجات المواد"
-          rows={distribution(subjectRows)}
+          title="توزيع درجات المواد"
+          icon={BookOpen}
+          rows={buildDistribution(subjectRows)}
           total={subjectRows.length}
         />
+
         <DistributionCard
-          title="🛡️ توزيع السلوك"
-          rows={distribution(behaviorRows)}
+          title="توزيع السلوك"
+          icon={ShieldCheck}
+          rows={buildDistribution(behaviorRows)}
           total={behaviorRows.length}
         />
+
         <DistributionCard
-          title="🕒 توزيع المواظبة"
-          rows={distribution(attendanceRows)}
+          title="توزيع المواظبة"
+          icon={Clock3}
+          rows={buildDistribution(attendanceRows)}
           total={attendanceRows.length}
         />
       </div>
 
       <div className="grid gap-3 xl:grid-cols-2">
         <RankingCard
-          title="🏆 أفضل 10 طلاب في المادة"
+          title="أفضل 10 طلاب في المادة"
           icon={Trophy}
           rows={topRows(subjectRows, 10)}
           tone="top"
         />
+
         <RankingCard
-          title="🔻 أقل 10 طلاب في المادة"
+          title="أقل 10 طلاب في المادة"
           icon={TrendingDown}
           rows={lowRows(subjectRows, 10)}
           tone="low"
@@ -347,12 +555,16 @@ export default function AnalyticsTab({
           icon={BookOpen}
           rows={subjectRows
             .filter((row) => getValue(row) < 60)
-            .sort((a, b) => getValue(a) - getValue(b))
+            .sort(
+              (first, second) =>
+                getValue(first) - getValue(second),
+            )
             .slice(0, 8)
             .map((row) => ({
               name: row.student.full_name,
               value: `${getValue(row)}%`,
-              subtitle: row.student.classroom_name || "-",
+              subtitle:
+                row.student.classroom_name || "-",
             }))}
         />
 
@@ -361,12 +573,16 @@ export default function AnalyticsTab({
           icon={ShieldCheck}
           rows={behaviorRows
             .filter((row) => getValue(row) < 75)
-            .sort((a, b) => getValue(a) - getValue(b))
+            .sort(
+              (first, second) =>
+                getValue(first) - getValue(second),
+            )
             .slice(0, 8)
             .map((row) => ({
               name: row.student.full_name,
               value: `${getValue(row)}/100`,
-              subtitle: row.student.classroom_name || "-",
+              subtitle:
+                row.student.classroom_name || "-",
             }))}
         />
 
@@ -375,12 +591,16 @@ export default function AnalyticsTab({
           icon={Clock3}
           rows={attendanceRows
             .filter((row) => getValue(row) < 75)
-            .sort((a, b) => getValue(a) - getValue(b))
+            .sort(
+              (first, second) =>
+                getValue(first) - getValue(second),
+            )
             .slice(0, 8)
             .map((row) => ({
               name: row.student.full_name,
               value: `${getValue(row)}/100`,
-              subtitle: row.student.classroom_name || "-",
+              subtitle:
+                row.student.classroom_name || "-",
             }))}
         />
       </div>
@@ -388,9 +608,10 @@ export default function AnalyticsTab({
       <RiskPanel risks={risks} />
 
       <div className="grid gap-3 xl:grid-cols-2">
-        <ClassroomCard rows={classes} />
+        <ClassroomCard rows={classrooms} />
+
         <TeacherSummary
-          students={subjectRows.length || behaviorRows.length || attendanceRows.length}
+          students={studentCount}
           subjectAverage={subjectAverage}
           passRate={subjectPass}
           completion={subjectCompletion}
@@ -411,17 +632,26 @@ function HeroStat({
   value: string | number;
 }) {
   return (
-    <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-center">
-      <div className="mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-xl bg-white/10">
-        <Icon className="h-4 w-4 text-[#d4af37]" />
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-primary-foreground)]/15 bg-[var(--app-primary-foreground)]/10 px-3 py-2 text-center">
+      <div className="mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-[var(--app-radius-md)] bg-[var(--app-primary-foreground)]/10">
+        <Icon
+          aria-hidden="true"
+          className="h-4 w-4 text-[var(--app-accent)]"
+        />
       </div>
-      <div className="text-[10px] font-bold text-slate-300">{label}</div>
-      <div className="mt-0.5 text-base font-black text-white">{value}</div>
+
+      <div className="text-[10px] font-bold text-[var(--app-primary-foreground)]/70">
+        {label}
+      </div>
+
+      <div className="mt-0.5 text-base font-black">
+        {value}
+      </div>
     </div>
   );
 }
 
-function MetricCard({
+function AnalyticsMetricCard({
   icon: Icon,
   title,
   value,
@@ -434,69 +664,126 @@ function MetricCard({
   subtitle: string;
   percent: number;
 }) {
+  const tone = getMetricTone(percent);
+  const normalizedPercent = clamp(percent);
+
   return (
-    <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0f1f3d] text-white">
-        <Icon className="h-5 w-5 text-[#d4af37]" />
-      </div>
-      <div className="text-xs font-bold text-slate-500">{title}</div>
-      <div className="mt-1 text-2xl font-black text-slate-900">{value}</div>
-      <div className="mt-0.5 text-xs font-bold text-slate-400">{subtitle}</div>
-      <div className="mt-3 h-2 rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full ${progressClass(percent)}`}
-          style={{ width: `${clamp(percent)}%` }}
+    <BaseCard
+      as="article"
+      padding="sm"
+      variant="soft"
+    >
+      <div
+        className={[
+          "mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)]",
+          metricToneClasses[tone].icon,
+        ].join(" ")}
+      >
+        <Icon
+          aria-hidden="true"
+          className="h-5 w-5"
         />
       </div>
-    </div>
-  );
-}
 
-function progressClass(percent: number) {
-  if (percent >= 90) return "bg-emerald-600";
-  if (percent >= 80) return "bg-blue-600";
-  if (percent >= 70) return "bg-amber-500";
-  if (percent >= 60) return "bg-orange-500";
-  return "bg-red-600";
+      <div className="text-xs font-bold text-[var(--app-text-muted)]">
+        {title}
+      </div>
+
+      <div className="mt-1 text-2xl font-black text-[var(--app-text)]">
+        {value}
+      </div>
+
+      <div className="mt-0.5 text-xs font-bold text-[var(--app-text-muted)]">
+        {subtitle}
+      </div>
+
+      <div
+        className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--app-card)]"
+        role="progressbar"
+        aria-label={title}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={normalizedPercent}
+      >
+        <div
+          className={[
+            "h-full rounded-full transition-[width] duration-300",
+            metricToneClasses[tone].bar,
+          ].join(" ")}
+          style={{
+            width: `${normalizedPercent}%`,
+          }}
+        />
+      </div>
+    </BaseCard>
+  );
 }
 
 function DistributionCard({
   title,
+  icon: Icon,
   rows,
   total,
 }: {
   title: string;
+  icon: LucideIcon;
   rows: DistributionItem[];
   total: number;
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-4 text-sm font-black text-slate-900">{title}</h3>
+    <BaseCard as="article" padding="sm">
+      <div className="mb-4 flex items-center gap-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-[var(--app-radius-md)] bg-[var(--app-primary-soft)] text-[var(--app-primary)]">
+          <Icon
+            aria-hidden="true"
+            className="h-4 w-4"
+          />
+        </div>
+
+        <h3 className="text-sm font-black text-[var(--app-text)]">
+          {title}
+        </h3>
+      </div>
 
       <div className="space-y-3">
         {rows.map((row) => {
-          const width = total ? Math.round((row.count / total) * 100) : 0;
+          const width = total
+            ? Math.round((row.count / total) * 100)
+            : 0;
 
           return (
             <div key={row.label}>
-              <div className="mb-1 flex justify-between text-xs font-bold">
+              <div className="mb-1 flex justify-between gap-3 text-xs font-bold text-[var(--app-text-muted)]">
                 <span>{row.label}</span>
+
                 <span>
                   {row.count} طالب · {width}%
                 </span>
               </div>
 
-              <div className="h-2.5 rounded-full bg-slate-100">
+              <div
+                className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]"
+                role="progressbar"
+                aria-label={`${title} ${row.label}`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={width}
+              >
                 <div
-                  className={`h-full rounded-full ${toneClass(row.tone)}`}
-                  style={{ width: `${width}%` }}
+                  className={[
+                    "h-full rounded-full transition-[width] duration-300",
+                    distributionToneClasses[row.tone],
+                  ].join(" ")}
+                  style={{
+                    width: `${width}%`,
+                  }}
                 />
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </BaseCard>
   );
 }
 
@@ -512,9 +799,13 @@ function RankingCard({
   tone: "top" | "low";
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
-        <Icon className="h-4 w-4 text-[#d4af37]" />
+    <BaseCard as="article" padding="sm">
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--app-text)]">
+        <Icon
+          aria-hidden="true"
+          className="h-4 w-4 text-[var(--app-accent)]"
+        />
+
         {title}
       </div>
 
@@ -528,42 +819,40 @@ function RankingCard({
             return (
               <div
                 key={`${row.student.id}-${index}`}
-                className="flex items-center justify-between rounded-2xl bg-slate-50 p-3 text-xs"
+                className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-xs"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-2xl text-xs font-black ${
+                    className={[
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--app-radius-md)] text-xs font-black",
                       tone === "top"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
+                        ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
+                        : "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+                    ].join(" ")}
                   >
                     {index + 1}
                   </div>
 
-                  <div>
-                    <div className="font-black text-slate-900">
+                  <div className="min-w-0">
+                    <div className="truncate font-black text-[var(--app-text)]">
                       {row.student.full_name}
                     </div>
-                    <div className="mt-0.5 font-bold text-slate-400">
+
+                    <div className="mt-0.5 truncate font-bold text-[var(--app-text-muted)]">
                       {row.student.classroom_name || "-"}
                     </div>
                   </div>
                 </div>
 
-                <div
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-black ring-1 ${badgeClass(
-                    value
-                  )}`}
-                >
+                <StatusBadge tone={getBadgeTone(value)}>
                   {value}%
-                </div>
+                </StatusBadge>
               </div>
             );
           })
         )}
       </div>
-    </div>
+    </BaseCard>
   );
 }
 
@@ -574,12 +863,16 @@ function FollowCard({
 }: {
   title: string;
   icon: LucideIcon;
-  rows: { name: string; value: string; subtitle: string }[];
+  rows: FollowRow[];
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
-        <Icon className="h-4 w-4 text-[#d4af37]" />
+    <BaseCard as="article" padding="sm">
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--app-text)]">
+        <Icon
+          aria-hidden="true"
+          className="h-4 w-4 text-[var(--app-accent)]"
+        />
+
         {title}
       </div>
 
@@ -590,82 +883,108 @@ function FollowCard({
           rows.map((row, index) => (
             <div
               key={`${row.name}-${index}`}
-              className="flex items-center justify-between rounded-2xl bg-slate-50 p-3 text-xs"
+              className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-xs"
             >
-              <div>
-                <div className="font-black text-slate-900">{row.name}</div>
-                <div className="mt-0.5 font-bold text-slate-400">{row.subtitle}</div>
+              <div className="min-w-0">
+                <div className="truncate font-black text-[var(--app-text)]">
+                  {row.name}
+                </div>
+
+                <div className="mt-0.5 truncate font-bold text-[var(--app-text-muted)]">
+                  {row.subtitle}
+                </div>
               </div>
 
-              <div className="font-black text-red-600">{row.value}</div>
+              <StatusBadge tone="danger">
+                {row.value}
+              </StatusBadge>
             </div>
           ))
         )}
       </div>
-    </div>
+    </BaseCard>
   );
 }
 
-function RiskPanel({ risks }: { risks: RiskItem[] }) {
+function RiskPanel({
+  risks,
+}: {
+  risks: RiskItem[];
+}) {
   return (
-    <div className="rounded-[1.4rem] border border-red-200 bg-red-50 p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-red-800">
-        <Flame className="h-4 w-4" />
+    <BaseCard
+      as="section"
+      padding="sm"
+      className="border-[var(--app-destructive)]/25 bg-[var(--app-destructive-soft)]"
+    >
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--app-destructive)]">
+        <Flame
+          aria-hidden="true"
+          className="h-4 w-4"
+        />
+
         الطلاب الأكثر حاجة للمتابعة
       </div>
 
       {risks.length === 0 ? (
-        <div className="rounded-2xl bg-white p-4 text-center text-xs font-bold text-slate-500">
-          لا توجد حالات متابعة حرجة حاليًا.
-        </div>
+        <Empty text="لا توجد حالات متابعة حرجة حاليًا." />
       ) : (
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {risks.map((item, index) => (
             <div
               key={`${item.student.id}-${item.area}-${index}`}
-              className="rounded-2xl bg-white p-3 text-xs shadow-sm"
+              className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] p-3 text-xs shadow-sm"
             >
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-black text-slate-900">
+                <div className="min-w-0">
+                  <div className="truncate font-black text-[var(--app-text)]">
                     {item.student.full_name}
                   </div>
-                  <div className="mt-0.5 font-bold text-slate-400">
+
+                  <div className="mt-0.5 truncate font-bold text-[var(--app-text-muted)]">
                     {item.student.classroom_name || "-"}
                   </div>
                 </div>
 
-                <span
-                  className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                <StatusBadge
+                  tone={
                     item.severity === "high"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}
+                      ? "danger"
+                      : "warning"
+                  }
                 >
-                  {item.severity === "high" ? "حرج" : "متابعة"}
-                </span>
+                  {item.severity === "high"
+                    ? "حرج"
+                    : "متابعة"}
+                </StatusBadge>
               </div>
 
-              <div className="mt-3 inline-flex rounded-full bg-red-100 px-2 py-1 font-black text-red-700">
-                {item.area} · {item.value}
+              <div className="mt-3">
+                <StatusBadge tone="danger">
+                  {item.area} · {item.value}
+                </StatusBadge>
               </div>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </BaseCard>
   );
 }
 
 function ClassroomCard({
   rows,
 }: {
-  rows: { classroom: string; students: number; average: number; pass: number }[];
+  rows: ClassroomSummaryItem[];
 }) {
   return (
-    <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
-        <Medal className="h-4 w-4 text-[#d4af37]" />
+    <BaseCard as="article" padding="sm">
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--app-text)]">
+        <Medal
+          aria-hidden="true"
+          className="h-4 w-4 text-[var(--app-accent)]"
+        />
+
         ترتيب الفصول حسب متوسط المادة
       </div>
 
@@ -673,39 +992,62 @@ function ClassroomCard({
         {rows.length === 0 ? (
           <Empty text="لا توجد بيانات فصول." />
         ) : (
-          rows.map((row, index) => (
-            <div
-              key={row.classroom}
-              className="rounded-2xl bg-slate-50 p-3 text-xs"
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-black text-slate-900">
-                  {index + 1}. {row.classroom}
+          rows.map((row, index) => {
+            const tone = getMetricTone(row.average);
+
+            return (
+              <div
+                key={row.classroom}
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-xs"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="truncate font-black text-[var(--app-text)]">
+                    {index + 1}. {row.classroom}
+                  </div>
+
+                  <StatusBadge
+                    tone={getBadgeTone(row.average)}
+                  >
+                    {row.average}%
+                  </StatusBadge>
                 </div>
-                <div className="font-black text-emerald-700">{row.average}%</div>
-              </div>
-              <div className="mt-1 flex justify-between font-bold text-slate-400">
-                <span>{row.students} طالب</span>
-                <span>نجاح {row.pass}%</span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-white">
+
+                <div className="mt-1 flex justify-between gap-3 font-bold text-[var(--app-text-muted)]">
+                  <span>{row.students} طالب</span>
+                  <span>نجاح {row.pass}%</span>
+                </div>
+
                 <div
-                  className={`h-full rounded-full ${progressClass(row.average)}`}
-                  style={{ width: `${clamp(row.average)}%` }}
-                />
+                  className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--app-card)]"
+                  role="progressbar"
+                  aria-label={`متوسط ${row.classroom}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={row.average}
+                >
+                  <div
+                    className={[
+                      "h-full rounded-full transition-[width] duration-300",
+                      metricToneClasses[tone].bar,
+                    ].join(" ")}
+                    style={{
+                      width: `${clamp(row.average)}%`,
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
-    </div>
+    </BaseCard>
   );
 }
 
 function TeacherSummary({
   students,
   subjectAverage,
-  passRate,
+  passRate: subjectPassRate,
   completion,
   risks,
 }: {
@@ -717,53 +1059,106 @@ function TeacherSummary({
 }) {
   const recommendations: string[] = [];
 
-  if (completion < 100) recommendations.push("يوجد رصد غير مكتمل، يفضّل إكمال الدرجات قبل الاعتماد.");
-  if (passRate < 70) recommendations.push("نسبة النجاح منخفضة، يفضّل تنفيذ خطة علاجية قصيرة.");
-  if (subjectAverage < 70) recommendations.push("متوسط المادة يحتاج متابعة وتحليل للمكونات الأضعف.");
-  if (risks > 0) recommendations.push("توجد حالات تحتاج تدخلًا مباشرًا من المعلم أو المرشد الطلابي.");
-  if (recommendations.length === 0) recommendations.push("الوضع العام جيد، ويمكن الاستمرار في المتابعة الدورية.");
+  if (completion < 100) {
+    recommendations.push(
+      "يوجد رصد غير مكتمل، يفضّل إكمال الدرجات قبل الاعتماد.",
+    );
+  }
+
+  if (subjectPassRate < 70) {
+    recommendations.push(
+      "نسبة النجاح منخفضة، يفضّل تنفيذ خطة علاجية قصيرة.",
+    );
+  }
+
+  if (subjectAverage < 70) {
+    recommendations.push(
+      "متوسط المادة يحتاج متابعة وتحليل للمكونات الأضعف.",
+    );
+  }
+
+  if (risks > 0) {
+    recommendations.push(
+      "توجد حالات تحتاج تدخلًا مباشرًا من المعلم أو المرشد الطلابي.",
+    );
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push(
+      "الوضع العام جيد، ويمكن الاستمرار في المتابعة الدورية.",
+    );
+  }
 
   return (
-    <div className="rounded-[1.4rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
-        <Target className="h-4 w-4 text-[#d4af37]" />
+    <BaseCard as="article" padding="sm">
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-[var(--app-text)]">
+        <Target
+          aria-hidden="true"
+          className="h-4 w-4 text-[var(--app-accent)]"
+        />
+
         ملخص المعلم
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <MiniMetric label="الطلاب" value={students} />
-        <MiniMetric label="متوسط المادة" value={`${subjectAverage}%`} />
-        <MiniMetric label="نسبة النجاح" value={`${passRate}%`} />
-        <MiniMetric label="اكتمال الرصد" value={`${completion}%`} />
+        <MiniMetric
+          label="الطلاب"
+          value={students}
+        />
+
+        <MiniMetric
+          label="متوسط المادة"
+          value={`${subjectAverage}%`}
+        />
+
+        <MiniMetric
+          label="نسبة النجاح"
+          value={`${subjectPassRate}%`}
+        />
+
+        <MiniMetric
+          label="اكتمال الرصد"
+          value={`${completion}%`}
+        />
       </div>
 
-      <div className="mt-4 rounded-2xl bg-slate-50 p-3">
-        <div className="mb-2 text-xs font-black text-slate-700">توصيات ذكية</div>
-        <div className="space-y-2">
-          {recommendations.map((item, index) => (
-            <div key={index} className="flex gap-2 text-xs font-bold text-slate-600">
-              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#d4af37]" />
-              <span>{item}</span>
-            </div>
-          ))}
-        </div>
+      <div className="mt-4">
+        <AIRecommendation
+          title="توصيات ذكية"
+          recommendation={recommendations.join(" • ")}
+        />
+      </div>
+    </BaseCard>
+  );
+}
+
+function MiniMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-center">
+      <div className="text-[10px] font-bold text-[var(--app-text-muted)]">
+        {label}
+      </div>
+
+      <div className="mt-0.5 text-base font-black text-[var(--app-text)]">
+        {value}
       </div>
     </div>
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: string | number }) {
+function Empty({
+  text,
+}: {
+  text: string;
+}) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-3 text-center">
-      <div className="text-[10px] font-bold text-slate-400">{label}</div>
-      <div className="mt-0.5 text-base font-black text-slate-900">{value}</div>
-    </div>
-  );
-}
-
-function Empty({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">
+    <div className="rounded-[var(--app-radius-lg)] border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-center text-xs font-bold text-[var(--app-text-muted)]">
       {text}
     </div>
   );

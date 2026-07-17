@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
-import Breadcrumb from "@/components/layout/Breadcrumb";
-import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
 
 import { supabase } from "@/lib/supabase";
+import type { SchoolRole } from "@/lib/permissions";
 import { useSchool } from "@/contexts/SchoolContext";
 import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
@@ -24,7 +28,6 @@ import {
   FileSpreadsheet,
   FileText,
   HeartHandshake,
-  Loader2,
   MessageSquareWarning,
   RefreshCcw,
   Scale,
@@ -71,7 +74,20 @@ type BehaviorRow = {
   created_by_name?: string | null;
 };
 
-const PARENT_ROLES = ["super_admin", "school_admin", "parent"] as any;
+const PARENT_ROLES: SchoolRole[] = ["super_admin", "school_admin", "parent"];
+
+type RawBehaviorRow = Record<string, unknown>;
+type ExportCell = string | number | null | undefined;
+
+function asNullableString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function asRequiredString(value: unknown, fallback: string) {
+  return asNullableString(value) ?? fallback;
+}
 
 function formatDate(date?: string | null) {
   if (!date) return "—";
@@ -130,11 +146,11 @@ function severityLabel(value?: string | null) {
 function severityClass(value?: string | null) {
   const key = normalizeSeverity(value);
 
-  if (key === "critical") return "border-red-300 bg-red-50 text-red-800";
-  if (key === "high") return "border-red-200 bg-red-50 text-red-700";
-  if (key === "medium") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (key === "critical") return "border-[color-mix(in_srgb,var(--app-danger)_32%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  if (key === "high") return "border-[color-mix(in_srgb,var(--app-danger)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  if (key === "medium") return "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-text)]";
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function typeLabel(type: BehaviorType) {
@@ -146,21 +162,21 @@ function typeLabel(type: BehaviorType) {
 }
 
 function typeClass(type: BehaviorType) {
-  if (type === "positive") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (type === "violation") return "border-red-200 bg-red-50 text-red-700";
-  if (type === "referral") return "border-purple-200 bg-purple-50 text-purple-700";
-  if (type === "intervention") return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (type === "positive") return "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  if (type === "violation") return "border-[color-mix(in_srgb,var(--app-danger)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  if (type === "referral") return "border-[color-mix(in_srgb,var(--app-primary)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
+  if (type === "intervention") return "border-[color-mix(in_srgb,var(--app-primary)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function typeIcon(type: BehaviorType) {
-  if (type === "positive") return <BadgeCheck className="h-4 w-4" />;
-  if (type === "violation") return <ShieldAlert className="h-4 w-4" />;
-  if (type === "referral") return <MessageSquareWarning className="h-4 w-4" />;
-  if (type === "intervention") return <HeartHandshake className="h-4 w-4" />;
+  if (type === "positive") return <BadgeCheck className="h-4 w-4"  aria-hidden="true" />;
+  if (type === "violation") return <ShieldAlert className="h-4 w-4"  aria-hidden="true" />;
+  if (type === "referral") return <MessageSquareWarning className="h-4 w-4"  aria-hidden="true" />;
+  if (type === "intervention") return <HeartHandshake className="h-4 w-4"  aria-hidden="true" />;
 
-  return <BookOpenCheck className="h-4 w-4" />;
+  return <BookOpenCheck className="h-4 w-4"  aria-hidden="true" />;
 }
 
 function statusLabel(status?: string | null) {
@@ -192,11 +208,11 @@ function statusLabel(status?: string | null) {
 function statusClass(status?: string | null) {
   const label = statusLabel(status);
 
-  if (label === "مغلقة") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (label === "إرجاع للفصل") return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (label === "قيد المتابعة") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (label === "مغلقة") return "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  if (label === "إرجاع للفصل") return "border-[color-mix(in_srgb,var(--app-primary)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
+  if (label === "قيد المتابعة") return "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-text)]";
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function getMonthValue() {
@@ -221,9 +237,9 @@ function percentage(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
-function pickText(row: Record<string, any>, keys: string[], fallback = "") {
+function pickText(row: RawBehaviorRow, keys: string[], fallback = "") {
   for (const key of keys) {
-    const value = row?.[key];
+    const value = row[key];
 
     if (value !== null && value !== undefined && String(value).trim() !== "") {
       return String(value);
@@ -233,9 +249,9 @@ function pickText(row: Record<string, any>, keys: string[], fallback = "") {
   return fallback;
 }
 
-function pickNumber(row: Record<string, any>, keys: string[]) {
+function pickNumber(row: RawBehaviorRow, keys: string[]) {
   for (const key of keys) {
-    const value = row?.[key];
+    const value = row[key];
 
     if (value !== null && value !== undefined && value !== "") {
       const n = Number(value);
@@ -246,13 +262,13 @@ function pickNumber(row: Record<string, any>, keys: string[]) {
   return null;
 }
 
-function detectBehaviorType(row: Record<string, any>, fallback: BehaviorType): BehaviorType {
+function detectBehaviorType(row: RawBehaviorRow, fallback: BehaviorType): BehaviorType {
   const raw = String(
-    row.type ||
-      row.behavior_type ||
-      row.category ||
-      row.referral_type ||
-      row.case_type ||
+    row.type ??
+      row.behavior_type ??
+      row.category ??
+      row.referral_type ??
+      row.case_type ??
       "",
   )
     .trim()
@@ -314,7 +330,7 @@ function detectBehaviorType(row: Record<string, any>, fallback: BehaviorType): B
   return fallback;
 }
 
-function mapStudentBehavior(row: Record<string, any>): BehaviorRow {
+function mapStudentBehavior(row: RawBehaviorRow): BehaviorRow {
   const type = detectBehaviorType(row, "violation");
   const date = pickText(
     row,
@@ -323,8 +339,8 @@ function mapStudentBehavior(row: Record<string, any>): BehaviorRow {
   );
 
   return {
-    id: String(row.id),
-    student_id: String(row.student_id),
+    id: asRequiredString(row.id, "record"),
+    student_id: asRequiredString(row.student_id, ""),
     source: "student_behavior",
     type,
     title: pickText(
@@ -346,17 +362,17 @@ function mapStudentBehavior(row: Record<string, any>): BehaviorRow {
     severity: normalizeSeverity(pickText(row, ["severity", "level", "priority"], "low")),
     points: pickNumber(row, ["points", "score", "behavior_points", "commitment_points"]),
     behavior_date: date || null,
-    created_at: row.created_at || null,
+    created_at: asNullableString(row.created_at),
     created_by_name: pickText(row, ["created_by_name", "teacher_name", "staff_name"], ""),
   };
 }
 
-function mapReferral(row: Record<string, any>): BehaviorRow {
+function mapReferral(row: RawBehaviorRow): BehaviorRow {
   const date = pickText(row, ["referral_date", "incident_date", "date", "created_at"], "");
 
   return {
-    id: String(row.id),
-    student_id: String(row.student_id),
+    id: asRequiredString(row.id, "record"),
+    student_id: asRequiredString(row.student_id, ""),
     source: "student_referrals",
     type: "referral",
     title: pickText(
@@ -374,17 +390,17 @@ function mapReferral(row: Record<string, any>): BehaviorRow {
     severity: normalizeSeverity(pickText(row, ["severity", "level", "priority"], "medium")),
     points: pickNumber(row, ["points", "score"]),
     behavior_date: date || null,
-    created_at: row.created_at || null,
+    created_at: asNullableString(row.created_at),
     created_by_name: pickText(row, ["created_by_name", "teacher_name", "staff_name"], ""),
   };
 }
 
-function mapIntervention(row: Record<string, any>): BehaviorRow {
+function mapIntervention(row: RawBehaviorRow): BehaviorRow {
   const date = pickText(row, ["intervention_date", "date", "created_at"], "");
 
   return {
-    id: String(row.id),
-    student_id: String(row.student_id),
+    id: asRequiredString(row.id, "record"),
+    student_id: asRequiredString(row.student_id, ""),
     source: "guidance_interventions",
     type: "intervention",
     title: pickText(row, ["title", "intervention_type", "type", "program_name"], "تدخل إرشادي"),
@@ -398,19 +414,14 @@ function mapIntervention(row: Record<string, any>): BehaviorRow {
     severity: normalizeSeverity(pickText(row, ["severity", "level", "priority"], "low")),
     points: null,
     behavior_date: date || null,
-    created_at: row.created_at || null,
+    created_at: asNullableString(row.created_at),
     created_by_name: pickText(row, ["created_by_name", "counselor_name", "staff_name"], ""),
   };
 }
 
 export default function ParentBehaviorPage() {
-  const schoolContext = useSchool() as any;
-  const schoolId =
-    schoolContext?.currentSchool?.id ||
-    schoolContext?.schoolId ||
-    schoolContext?.school?.id ||
-    schoolContext?.selectedSchool?.id ||
-    null;
+  const { currentSchool } = useSchool();
+  const schoolId = currentSchool?.id ?? null;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -427,7 +438,7 @@ export default function ParentBehaviorPage() {
   const [month, setMonth] = useState(getMonthValue());
   const [search, setSearch] = useState("");
 
-  async function loadParentStudents(email: string) {
+  const loadParentStudents = useCallback(async (email: string) => {
     let query = supabase
       .from("students")
       .select("id, full_name, national_id, grade_name, classroom_name, guardian_email, status")
@@ -441,9 +452,9 @@ export default function ParentBehaviorPage() {
     if (studentsError) throw new Error(studentsError.message);
 
     return (data || []) as Student[];
-  }
+  }, [schoolId]);
 
-  async function loadStudentBehavior(studentIds: string[]) {
+  const loadStudentBehavior = useCallback(async (studentIds: string[]) => {
     try {
       const { startText, endText } = getMonthRange(month);
 
@@ -457,7 +468,7 @@ export default function ParentBehaviorPage() {
       const { data, error: behaviorError } = await query;
       if (behaviorError) throw behaviorError;
 
-      return ((data || []) as Record<string, any>[])
+      return ((data || []) as RawBehaviorRow[])
         .map(mapStudentBehavior)
         .filter((row) => {
           if (!row.behavior_date) return true;
@@ -467,9 +478,9 @@ export default function ParentBehaviorPage() {
     } catch {
       return [];
     }
-  }
+  }, [month, schoolId]);
 
-  async function loadStudentReferrals(studentIds: string[]) {
+  const loadStudentReferrals = useCallback(async (studentIds: string[]) => {
     try {
       const { startText, endText } = getMonthRange(month);
 
@@ -483,7 +494,7 @@ export default function ParentBehaviorPage() {
       const { data, error: referralsError } = await query;
       if (referralsError) throw referralsError;
 
-      return ((data || []) as Record<string, any>[])
+      return ((data || []) as RawBehaviorRow[])
         .map(mapReferral)
         .filter((row) => {
           if (!row.behavior_date) return true;
@@ -493,9 +504,9 @@ export default function ParentBehaviorPage() {
     } catch {
       return [];
     }
-  }
+  }, [month, schoolId]);
 
-  async function loadGuidanceInterventions(studentIds: string[]) {
+  const loadGuidanceInterventions = useCallback(async (studentIds: string[]) => {
     try {
       const { startText, endText } = getMonthRange(month);
 
@@ -509,7 +520,7 @@ export default function ParentBehaviorPage() {
       const { data, error: interventionsError } = await query;
       if (interventionsError) throw interventionsError;
 
-      return ((data || []) as Record<string, any>[])
+      return ((data || []) as RawBehaviorRow[])
         .map(mapIntervention)
         .filter((row) => {
           if (!row.behavior_date) return true;
@@ -519,9 +530,9 @@ export default function ParentBehaviorPage() {
     } catch {
       return [];
     }
-  }
+  }, [month, schoolId]);
 
-  async function loadData(isRefresh = false) {
+  const loadData = useCallback(async (isRefresh = false) => {
     try {
       setError("");
 
@@ -570,20 +581,28 @@ export default function ParentBehaviorPage() {
       });
 
       setRecords(merged);
-    } catch (err: any) {
-      setError(err?.message || "حدث خطأ أثناء تحميل سجل السلوك.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "حدث خطأ أثناء تحميل سجل السلوك.",
+      );
       setStudents([]);
       setRecords([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [
+    loadGuidanceInterventions,
+    loadParentStudents,
+    loadStudentBehavior,
+    loadStudentReferrals,
+  ]);
 
   useEffect(() => {
     void loadData(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, month]);
+  }, [loadData]);
 
   const studentsMap = useMemo(() => {
     const map = new Map<string, Student>();
@@ -706,31 +725,32 @@ export default function ParentBehaviorPage() {
   function handleExportPDF() {
     exportTableToPDF({
       title: "تقرير سلوك أبناء ولي الأمر",
+      headers: Object.keys(exportRows[0] ?? {}),
+      rows: exportRows.map((row) => Object.values(row) as ExportCell[]),
       fileName: "parent-behavior-report.pdf",
-      rows: exportRows,
-    } as any);
+    });
   }
 
   function handleExportExcel() {
     exportTableToExcel({
+      title: "تقرير سلوك أبناء ولي الأمر",
+      headers: Object.keys(exportRows[0] ?? {}),
+      rows: exportRows.map((row) => Object.values(row) as ExportCell[]),
       fileName: "parent-behavior-report.xlsx",
-      sheetName: "Behavior",
-      rows: exportRows,
-    } as any);
+    });
   }
 
   return (
     <RoleGuard allowedRoles={PARENT_ROLES}>
       <AppShell>
-        <PageContainer size="wide" className="space-y-5">
-          <Breadcrumb />
+        <main dir="rtl" className="space-y-5">
 
           <PageHeader
             variant="hero"
             title="متابعة سلوك الأبناء"
             description="تعرض هذه الصفحة الملاحظات السلوكية والإحالات والتدخلات الإرشادية الخاصة بالأبناء المرتبطين ببريد ولي الأمر."
             badge="بوابة ولي الأمر"
-            icon={<ShieldCheck size={18} />}
+            icon={<ShieldCheck size={18}  aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة ولي الأمر", href: "/parent-portal" },
@@ -743,42 +763,40 @@ export default function ParentBehaviorPage() {
               { label: "النتائج المعروضة", value: filteredRecords.length },
             ]}
             stats={[
-              { label: "السجلات", value: stats.total, icon: <Scale size={20} />, tone: "blue" },
-              { label: "تعزيز إيجابي", value: stats.positive, icon: <BadgeCheck size={20} />, tone: "green" },
-              { label: "قيد المتابعة", value: stats.open, icon: <AlertTriangle size={20} />, tone: stats.open > 0 ? "gold" : "green" },
-              { label: "عالية الأهمية", value: stats.high, icon: <ShieldAlert size={20} />, tone: stats.high > 0 ? "red" : "green" },
+              { label: "السجلات", value: stats.total, icon: <Scale size={20}  aria-hidden="true" />, tone: "primary" },
+              { label: "تعزيز إيجابي", value: stats.positive, icon: <BadgeCheck size={20}  aria-hidden="true" />, tone: "green" },
+              { label: "قيد المتابعة", value: stats.open, icon: <AlertTriangle size={20}  aria-hidden="true" />, tone: stats.open > 0 ? "gold" : "green" },
+              { label: "عالية الأهمية", value: stats.high, icon: <ShieldAlert size={20}  aria-hidden="true" />, tone: stats.high > 0 ? "red" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
                   onClick={() => void loadData(true)}
                   disabled={refreshing}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  aria-busy={refreshing}
                 >
-                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                  <RefreshCcw
+                    className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                    aria-hidden="true"
+                  />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
                   onClick={handleExportPDF}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                 >
-                  <FileText className="h-4 w-4" />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
                   onClick={handleExportExcel}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  icon={<FileSpreadsheet className="h-4 w-4" aria-hidden="true" />}
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
                   Excel
-                </button>
+                </ExportButton>
               </>
             }
           />
@@ -788,8 +806,8 @@ export default function ParentBehaviorPage() {
               title="إجمالي السجلات"
               value={stats.total}
               subtitle="حسب الفلاتر الحالية"
-              icon={<Scale size={22} />}
-              tone="blue"
+              icon={<Scale size={22}  aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
@@ -797,7 +815,7 @@ export default function ParentBehaviorPage() {
               title="تعزيز إيجابي"
               value={stats.positive}
               subtitle="سجلات إيجابية"
-              icon={<BadgeCheck size={22} />}
+              icon={<BadgeCheck size={22}  aria-hidden="true" />}
               tone="green"
               progress={stats.total ? percentage(stats.positive, stats.total) : 0}
             />
@@ -806,7 +824,7 @@ export default function ParentBehaviorPage() {
               title="مخالفات"
               value={stats.violations}
               subtitle="سجلات سلوكية"
-              icon={<ShieldAlert size={22} />}
+              icon={<ShieldAlert size={22}  aria-hidden="true" />}
               tone={stats.violations > 0 ? "red" : "green"}
               progress={stats.total ? percentage(stats.violations, stats.total) : 0}
             />
@@ -815,8 +833,8 @@ export default function ParentBehaviorPage() {
               title="إحالات"
               value={stats.referrals}
               subtitle="إحالات طلابية"
-              icon={<MessageSquareWarning size={22} />}
-              tone={stats.referrals > 0 ? "purple" : "green"}
+              icon={<MessageSquareWarning size={22}  aria-hidden="true" />}
+              tone={stats.referrals > 0 ? "gold" : "green"}
               progress={stats.total ? percentage(stats.referrals, stats.total) : 0}
             />
 
@@ -824,7 +842,7 @@ export default function ParentBehaviorPage() {
               title="قيد المتابعة"
               value={stats.open}
               subtitle="حالات غير مغلقة"
-              icon={<AlertTriangle size={22} />}
+              icon={<AlertTriangle size={22}  aria-hidden="true" />}
               tone={stats.open > 0 ? "gold" : "green"}
               progress={stats.total ? percentage(stats.open, stats.total) : 0}
             />
@@ -833,8 +851,8 @@ export default function ParentBehaviorPage() {
               title="نقاط السلوك"
               value={stats.totalPoints}
               subtitle="مجموع النقاط"
-              icon={<Sparkles size={22} />}
-              tone="teal"
+              icon={<Sparkles size={22}  aria-hidden="true" />}
+              tone="primary"
               progress={stats.totalPoints > 0 ? 100 : 0}
             />
           </section>
@@ -859,19 +877,19 @@ export default function ParentBehaviorPage() {
               {studentSummary.map(({ student, total, positive, negative, open }) => (
                 <div
                   key={student.id}
-                  className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm"
+                  className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#15445A] text-white">
-                      <UserRound className="h-6 w-6" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-[var(--app-text-inverse)]">
+                      <UserRound className="h-6 w-6"  aria-hidden="true" />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-black text-[#15445A]">
+                      <h3 className="truncate font-black text-[var(--app-text)]">
                         {student.full_name || "طالب بدون اسم"}
                       </h3>
 
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className="mt-1 text-xs text-[var(--app-text-muted)]">
                         {student.grade_name || "—"} / {student.classroom_name || "—"}
                       </p>
                     </div>
@@ -888,7 +906,7 @@ export default function ParentBehaviorPage() {
             </section>
           )}
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -942,7 +960,7 @@ export default function ParentBehaviorPage() {
                     type="month"
                     value={month}
                     onChange={(event) => setMonth(event.target.value)}
-                    className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
                 </>
               }
@@ -952,52 +970,44 @@ export default function ParentBehaviorPage() {
             />
           </section>
 
-          {error && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-4 text-sm leading-7 text-red-700">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-1 h-5 w-5 shrink-0" />
-                <div>
-                  <p className="font-bold">تعذر تحميل البيانات</p>
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {error ? (
+            <ErrorState title="تعذر تحميل البيانات" description={error} />
+          ) : null}
 
           {loading ? (
-            <LoadingBox />
+            <PageLoader text="جاري تحميل سجل السلوك..." />
           ) : !students.length ? (
             <EmptyState
-              icon={<UsersRound className="h-9 w-9" />}
+              icon={<UsersRound className="h-9 w-9"  aria-hidden="true" />}
               title="لا يوجد أبناء مرتبطون بهذا الحساب"
-              description="تأكد أن بريد ولي الأمر محفوظ في عمود guardian_email داخل جدول students لنفس بريد الحساب الحالي."
+              description="تحقق من ربط بريد ولي الأمر بالطلاب."
             />
           ) : !filteredRecords.length ? (
             <EmptyState
-              icon={<CheckCircle2 className="h-9 w-9" />}
+              icon={<CheckCircle2 className="h-9 w-9"  aria-hidden="true" />}
               title="لا توجد سجلات سلوكية مطابقة"
-              description="جرّب تغيير الشهر أو الفلاتر، أو تأكد من وجود سجلات سلوكية مرتبطة بأبناء ولي الأمر."
+              description="غيّر الشهر أو الفلاتر الحالية."
             />
           ) : (
-            <section className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <section className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
+              <div className="flex flex-col gap-2 border-b border-[var(--app-border)] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-[#15445A]">
+                  <h2 className="text-lg font-black text-[var(--app-text)]">
                     سجل السلوك والمتابعة
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عدد النتائج: {filteredRecords.length}
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+                <div className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2 text-sm font-bold text-[var(--app-text-muted)]">
                   التصدير حسب النتائج المعروضة
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1180px] text-right text-sm">
-                  <thead className="bg-[#15445A] text-white">
+                  <thead className="bg-[var(--app-primary)] text-[var(--app-text-inverse)]">
                     <tr>
                       <th className="px-4 py-3 font-bold">الطالب</th>
                       <th className="px-4 py-3 font-bold">النوع</th>
@@ -1011,26 +1021,26 @@ export default function ParentBehaviorPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--app-border)]">
                     {filteredRecords.map((record) => {
                       const student = studentsMap.get(record.student_id);
 
                       return (
                         <tr
                           key={`${record.source}-${record.id}`}
-                          className="hover:bg-slate-50/80"
+                          className="hover:bg-[var(--app-card-soft)]/80"
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#15445A] text-white">
-                                <UserRound className="h-5 w-5" />
+                              <div className="flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-[var(--app-text-inverse)]">
+                                <UserRound className="h-5 w-5"  aria-hidden="true" />
                               </div>
 
                               <div>
-                                <p className="font-bold text-[#15445A]">
+                                <p className="font-bold text-[var(--app-text)]">
                                   {student?.full_name || "طالب غير محدد"}
                                 </p>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-[var(--app-text-muted)]">
                                   {student?.grade_name || "—"} /{" "}
                                   {student?.classroom_name || "—"}
                                 </p>
@@ -1048,21 +1058,21 @@ export default function ParentBehaviorPage() {
                           </td>
 
                           <td className="px-4 py-3">
-                            <p className="font-bold text-[#15445A]">
+                            <p className="font-bold text-[var(--app-text)]">
                               {record.title || "—"}
                             </p>
-                            <p className="mt-1 text-[11px] text-slate-400">
+                            <p className="mt-1 text-[11px] text-[var(--app-text-subtle)]">
                               المصدر: {record.source}
                             </p>
                           </td>
 
-                          <td className="max-w-[260px] px-4 py-3 text-slate-600">
+                          <td className="max-w-[260px] px-4 py-3 text-[var(--app-text-muted)]">
                             <p className="line-clamp-2">
                               {record.description || "لا توجد تفاصيل"}
                             </p>
                           </td>
 
-                          <td className="max-w-[260px] px-4 py-3 text-slate-600">
+                          <td className="max-w-[260px] px-4 py-3 text-[var(--app-text-muted)]">
                             <p className="line-clamp-2">
                               {record.action_taken || "لا يوجد إجراء مسجل"}
                             </p>
@@ -1085,12 +1095,12 @@ export default function ParentBehaviorPage() {
                           </td>
 
                           <td className="px-4 py-3">
-                            <span className="font-black text-[#15445A]">
+                            <span className="font-black text-[var(--app-text)]">
                               {record.points ?? "—"}
                             </span>
                           </td>
 
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="px-4 py-3 text-[var(--app-text)]">
                             {formatDate(record.behavior_date || record.created_at)}
                           </td>
                         </tr>
@@ -1101,7 +1111,7 @@ export default function ParentBehaviorPage() {
               </div>
             </section>
           )}
-        </PageContainer>
+        </main>
       </AppShell>
     </RoleGuard>
   );
@@ -1109,46 +1119,10 @@ export default function ParentBehaviorPage() {
 
 function MiniStat({ title, value }: { title: string; value: number | string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-2">
-      <p className="text-[11px] text-slate-500">{title}</p>
-      <p className="mt-1 text-lg font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-2">
+      <p className="text-[11px] text-[var(--app-text-muted)]">{title}</p>
+      <p className="mt-1 text-lg font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white">
-      <div className="flex flex-col items-center gap-3 text-slate-600">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-        <p className="text-sm font-bold">جاري تحميل سجل السلوك...</p>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white p-6 text-center shadow-sm">
-      <div className="mx-auto max-w-md">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          {icon}
-        </div>
-
-        <h2 className="mt-4 text-xl font-black text-[#15445A]">{title}</h2>
-
-        <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
-      </div>
-    </div>
-  );
-}

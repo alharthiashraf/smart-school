@@ -1,22 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import AppShell from "@/components/layout/AppShell";
-import PageHeader from "@/components/ui/page/PageHeader";
-import Section from "@/components/ui/page/PageSection";
-import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import { EmptyState } from "@/components/ui/empty-state";
-import { PageLoader } from "@/components/ui/loading";
-import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
-import ErrorState from "@/components/ui/feedback/ErrorState";
-import RoleGuard from "@/components/auth/RoleGuard";
-import { type SchoolRole } from "@/lib/permissions";
-import { supabase } from "@/lib/supabase";
-import { useSchool } from "@/contexts/SchoolContext";
-import { exportTableToPDF } from "@/lib/exports/pdf";
-import { exportTableToExcel } from "@/lib/exports/excel";
-
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   CheckCircle2,
   Edit,
@@ -30,17 +19,29 @@ import {
   XCircle,
 } from "lucide-react";
 
-import {
-  ActivityInfo,
-  ActivityInput,
-  ActivitySelect,
-  ActivityTextarea,
-  DangerButton,
-  DarkButton,
-  LightButton,
-  PrimaryButton,
-  type ActivityToast,
-} from "@/components/activities/ActivityPageParts";
+import RoleGuard from "@/components/auth/RoleGuard";
+import AppShell from "@/components/layout/AppShell";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
+import PageHeader from "@/components/ui/page/PageHeader";
+import Section from "@/components/ui/page/PageSection";
+
+import { useSchool } from "@/contexts/SchoolContext";
+import { exportTableToExcel } from "@/lib/exports/excel";
+import { exportTableToPDF } from "@/lib/exports/pdf";
+import type { SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type Toast = {
+  type: "success" | "error";
+  message: string;
+};
 
 type Team = {
   id: string;
@@ -61,68 +62,93 @@ type FormState = {
   status: string;
 };
 
-const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "activity_leader"];
+const PAGE_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "activity_leader",
+];
 
-const emptyForm: FormState = {
+const EMPTY_FORM: FormState = {
   team_name: "",
   description: "",
   supervisor_name: "",
-  status: "ظ†ط´ط·",
+  status: "نشط",
 };
 
-const STATUS_OPTIONS = ["ظ†ط´ط·", "ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†", "ظ…طھظˆظ‚ظپ", "ظ…ظ†ط¬ط²"];
+const STATUS_OPTIONS = [
+  "نشط",
+  "قيد التكوين",
+  "متوقف",
+  "منجز",
+] as const;
 
 function formatDate(value?: string | null) {
-  if (!value) return "â€”";
+  if (!value) return "—";
 
-  return new Date(value).toLocaleDateString("ar-SA", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ar-SA", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  });
+  }).format(date);
 }
 
-function statusStyle(status?: string | null) {
+function getStatusClass(status?: string | null) {
   const value = String(status || "");
 
-  if (["ظ†ط´ط·", "ظ…ظ†ط¬ط²"].includes(value)) {
-    return "bg-emerald-50 text-emerald-700";
+  if (["نشط", "منجز"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
 
-  if (["ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†"].includes(value)) {
-    return "bg-amber-50 text-amber-700";
+  if (value === "قيد التكوين") {
+    return "bg-[color-mix(in_srgb,var(--app-warning)_14%,transparent)] text-[var(--app-warning-foreground)]";
   }
 
-  if (["ظ…طھظˆظ‚ظپ"].includes(value)) {
-    return "bg-red-50 text-red-700";
+  if (value === "متوقف") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
   }
 
-  return "bg-blue-50 text-blue-700";
+  return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
 }
 
 export default function ActivityTeamsPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
   const [items, setItems] = useState<Team[]>([]);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ط§ظ„ظƒظ„");
+  const [statusFilter, setStatusFilter] = useState("الكل");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [toast, setToast] = useState<ActivityToast | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  function showToast(type: ActivityToast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    [],
+  );
 
   const loadData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setErrorMsg("");
@@ -137,10 +163,11 @@ export default function ActivityTeamsPage() {
 
     if (error) {
       setErrorMsg(error.message);
+      setItems([]);
       return;
     }
 
-    setItems((data || []) as Team[]);
+    setItems((data ?? []) as Team[]);
   }, [currentSchool?.id]);
 
   useEffect(() => {
@@ -148,34 +175,38 @@ export default function ActivityTeamsPage() {
 
     if (!currentSchool?.id) {
       setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
       return;
     }
 
     void loadData();
   }, [currentSchool?.id, loadData, schoolLoading]);
 
-  function resetForm() {
-    setForm(emptyForm);
+  const resetForm = useCallback(() => {
+    setForm(EMPTY_FORM);
     setShowForm(false);
-  }
+  }, []);
 
-  function editItem(item: Team) {
+  const editItem = useCallback((item: Team) => {
     setForm({
       id: item.id,
       team_name: item.team_name || item.title || "",
       description: item.description || "",
       supervisor_name: item.supervisor_name || "",
-      status: item.status || "ظ†ط´ط·",
+      status: item.status || "نشط",
     });
 
     setShowForm(true);
-  }
+  }, []);
 
-  async function saveItem() {
-    if (!currentSchool?.id) return;
+  const saveItem = useCallback(async () => {
+    if (!currentSchool?.id) {
+      showToast("error", "تعذر تحديد المدرسة.");
+      return;
+    }
 
     if (!form.team_name.trim()) {
-      showToast("error", "ط§ظƒطھط¨ ط§ط³ظ… ط§ظ„ظپط±ظٹظ‚ ط£ظˆظ„ط§ظ‹");
+      showToast("error", "أدخل اسم الفريق.");
       return;
     }
 
@@ -206,41 +237,90 @@ export default function ActivityTeamsPage() {
       return;
     }
 
-    showToast("success", form.id ? "طھظ… طھط­ط¯ظٹط« ط§ظ„ظپط±ظٹظ‚" : "طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظپط±ظٹظ‚");
-    resetForm();
-    void loadData();
-  }
-
-  async function deleteItem(item: Team) {
-    if (!currentSchool?.id) return;
-
-    const ok = window.confirm(
-      `ظ‡ظ„ طھط±ظٹط¯ ط­ط°ظپ ط§ظ„ظپط±ظٹظ‚: ${item.team_name || item.title || "ظپط±ظٹظ‚"}طں`
+    showToast(
+      "success",
+      form.id ? "تم تحديث الفريق." : "تمت إضافة الفريق.",
     );
 
-    if (!ok) return;
-
-    const { error } = await supabase
-      .from("activity_teams")
-      .delete()
-      .eq("id", item.id)
-      .eq("school_id", currentSchool.id);
-
-    if (error) {
-      showToast("error", error.message);
-      return;
-    }
-
-    showToast("success", "طھظ… ط­ط°ظپ ط§ظ„ظپط±ظٹظ‚");
+    resetForm();
     void loadData();
-  }
+  }, [currentSchool?.id, form, loadData, resetForm, showToast]);
 
-  async function exportExcel() {
+  const deleteItem = useCallback(
+    async (item: Team) => {
+      if (!currentSchool?.id) return;
+
+      const confirmed = window.confirm(
+        `حذف الفريق "${item.team_name || item.title || "فريق"}"؟`,
+      );
+
+      if (!confirmed) return;
+
+      const { error } = await supabase
+        .from("activity_teams")
+        .delete()
+        .eq("id", item.id)
+        .eq("school_id", currentSchool.id);
+
+      if (error) {
+        showToast("error", error.message);
+        return;
+      }
+
+      showToast("success", "تم حذف الفريق.");
+      void loadData();
+    },
+    [currentSchool?.id, loadData, showToast],
+  );
+
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const searchableText = [
+        item.team_name,
+        item.title,
+        item.description,
+        item.supervisor_name,
+        item.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !query || searchableText.includes(query);
+
+      const matchesStatus =
+        statusFilter === "الكل" || item.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [items, search, statusFilter]);
+
+  const stats = useMemo(
+    () => ({
+      total: items.length,
+      active: items.filter((item) => item.status === "نشط").length,
+      forming: items.filter((item) => item.status === "قيد التكوين").length,
+      completed: items.filter((item) => item.status === "منجز").length,
+    }),
+    [items],
+  );
+
+  const exportExcel = useCallback(async () => {
     await exportTableToExcel({
-      title: "ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·",
-      headers: ["ط§ظ„ظپط±ظٹظ‚", "ط§ظ„ظ…ط´ط±ظپ", "ط§ظ„ط­ط§ظ„ط©", "ط§ظ„ظˆطµظپ", "طھط§ط±ظٹط® ط§ظ„ط¥ظ†ط´ط§ط،"],
+      title: "فرق النشاط",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة فرق النشاط",
+      headers: [
+        "الفريق",
+        "المشرف",
+        "الحالة",
+        "الوصف",
+        "تاريخ الإنشاء",
+      ],
       rows: filteredItems.map((item) => [
         item.team_name || item.title || "-",
         item.supervisor_name || "-",
@@ -251,15 +331,25 @@ export default function ActivityTeamsPage() {
       fileName: "activity-teams.xlsx",
     });
 
-    showToast("success", "طھظ… طھطµط¯ظٹط± Excel");
-  }
+    showToast("success", "تم تصدير Excel.");
+  }, [
+    currentSchool?.school_name,
+    filteredItems,
+    showToast,
+  ]);
 
-  function exportPDF() {
+  const exportPDF = useCallback(() => {
     exportTableToPDF({
-      title: "ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·",
-      headers: ["ط§ظ„ظپط±ظٹظ‚", "ط§ظ„ظ…ط´ط±ظپ", "ط§ظ„ط­ط§ظ„ط©", "طھط§ط±ظٹط® ط§ظ„ط¥ظ†ط´ط§ط،"],
+      title: "فرق النشاط",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة فرق النشاط",
+      headers: [
+        "الفريق",
+        "المشرف",
+        "الحالة",
+        "تاريخ الإنشاء",
+      ],
       rows: filteredItems.map((item) => [
         item.team_name || item.title || "-",
         item.supervisor_name || "-",
@@ -269,43 +359,30 @@ export default function ActivityTeamsPage() {
       fileName: "activity-teams.pdf",
     });
 
-    showToast("success", "طھظ… طھط¬ظ‡ظٹط² PDF");
-  }
+    showToast("success", "تم تجهيز PDF.");
+  }, [
+    currentSchool?.school_name,
+    filteredItems,
+    showToast,
+  ]);
 
-  const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const activeProgress = stats.total
+    ? Math.round((stats.active / stats.total) * 100)
+    : 0;
 
-    return items.filter((item) => {
-      const text = `
-        ${item.team_name || ""}
-        ${item.title || ""}
-        ${item.description || ""}
-        ${item.supervisor_name || ""}
-        ${item.status || ""}
-      `.toLowerCase();
+  const formingProgress = stats.total
+    ? Math.round((stats.forming / stats.total) * 100)
+    : 0;
 
-      const matchesSearch = !q || text.includes(q);
-      const matchesStatus =
-        statusFilter === "ط§ظ„ظƒظ„" || item.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [items, search, statusFilter]);
-
-  const stats = useMemo(() => {
-    return {
-      total: items.length,
-      active: items.filter((item) => item.status === "ظ†ط´ط·").length,
-      forming: items.filter((item) => item.status === "ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†").length,
-      completed: items.filter((item) => item.status === "ظ…ظ†ط¬ط²").length,
-    };
-  }, [items]);
+  const completedProgress = stats.total
+    ? Math.round((stats.completed / stats.total) * 100)
+    : 0;
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <PageLoader text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·..." />
+          <PageLoader text="جاري تحميل فرق النشاط..." />
         </AppShell>
       </RoleGuard>
     );
@@ -323,237 +400,443 @@ export default function ActivityTeamsPage() {
 
           <PageHeader
             variant="hero"
-            title="ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط·"
-            description="ط¥ط¯ط§ط±ط© ظپط±ظ‚ ط§ظ„ظ†ط´ط§ط· ط§ظ„ظ…ط¯ط±ط³ظٹ ظˆط±ط¨ط·ظ‡ط§ ط¨ط§ظ„ظ…ط´ط±ظپظٹظ† ظˆط§ظ„ظ…ط´ط§ط±ظƒظٹظ† ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            badge="ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·"
-            icon={<Users size={18} />}
+            title="فرق النشاط"
+            description="إدارة الفرق والمشرفين."
+            badge="رائد النشاط"
+            icon={<Users size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الأنشطة", href: "/activities" },
               { label: "فرق النشاط" },
             ]}
             meta={[
-              { label: "المدرسة", value: currentSchool?.school_name || "غير متوفر" },
-              { label: "إجمالي الفرق", value: stats.total },
-              { label: "الفرق النشطة", value: stats.active },
+              {
+                label: "المدرسة",
+                value: currentSchool?.school_name || "غير متوفر",
+              },
+              { label: "الإجمالي", value: stats.total },
+              { label: "النشطة", value: stats.active },
             ]}
             stats={[
-              { label: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظپط±ظ‚", value: stats.total, icon: <Users size={20} />, tone: "blue" },
-              { label: "ظپط±ظ‚ ظ†ط´ط·ط©", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†", value: stats.forming, icon: <Loader2 size={20} />, tone: "gold" },
-              { label: "ظ…ظ†ط¬ط²ط©", value: stats.completed, icon: <Users size={20} />, tone: "slate" },
+              {
+                label: "الفرق",
+                value: stats.total,
+                icon: <Users size={20} aria-hidden="true" />,
+                tone: "primary",
+              },
+              {
+                label: "النشطة",
+                value: stats.active,
+                icon: <CheckCircle2 size={20} aria-hidden="true" />,
+                tone: "green",
+              },
+              {
+                label: "قيد التكوين",
+                value: stats.forming,
+                icon: <Loader2 size={20} aria-hidden="true" />,
+                tone: "gold",
+              },
+              {
+                label: "المنجزة",
+                value: stats.completed,
+                icon: <Users size={20} aria-hidden="true" />,
+                tone: "slate",
+              },
             ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
-                  <Plus size={16} />
-                  ط¥ط¶ط§ظپط© ظپط±ظٹظ‚
+                  <Plus size={16} aria-hidden="true" />
+                  إضافة
                 </PrimaryButton>
 
-                <DarkButton onClick={() => void loadData()}>
-                  <RefreshCcw size={16} />
-                  طھط­ط¯ظٹط«
-                </DarkButton>
+                <SecondaryButton onClick={() => void loadData()}>
+                  <RefreshCcw size={16} aria-hidden="true" />
+                  تحديث
+                </SecondaryButton>
               </>
             }
           />
 
-          {errorMsg && <ErrorState description={errorMsg} />}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="مؤشرات فرق النشاط"
+          >
             <ExecutiveCard
-              title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظپط±ظ‚"
+              title="الفرق"
               value={stats.total}
-              subtitle="إجمالي فرق النشاط"
-              icon={<Users size={22} />}
-              tone="blue"
+              subtitle="الإجمالي"
+              icon={<Users size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
             <ExecutiveCard
-              title="ظپط±ظ‚ ظ†ط´ط·ط©"
+              title="النشطة"
               value={stats.active}
-              subtitle="فرق مفعلة"
-              icon={<CheckCircle2 size={22} />}
+              subtitle="مفعلة"
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
               tone="green"
-              progress={stats.total ? Math.round((stats.active / stats.total) * 100) : 0}
+              progress={activeProgress}
             />
 
             <ExecutiveCard
-              title="ظ‚ظٹط¯ ط§ظ„طھظƒظˆظٹظ†"
+              title="قيد التكوين"
               value={stats.forming}
-              subtitle="فرق تحت التكوين"
-              icon={<Loader2 size={22} />}
+              subtitle="تحت الإعداد"
+              icon={<Loader2 size={22} aria-hidden="true" />}
               tone="gold"
-              progress={stats.total ? Math.round((stats.forming / stats.total) * 100) : 0}
+              progress={formingProgress}
             />
 
             <ExecutiveCard
-              title="ظ…ظ†ط¬ط²ط©"
+              title="المنجزة"
               value={stats.completed}
-              subtitle="فرق منجزة"
-              icon={<Users size={22} />}
+              subtitle="مكتملة"
+              icon={<Users size={22} aria-hidden="true" />}
               tone="slate"
-              progress={stats.total ? Math.round((stats.completed / stats.total) * 100) : 0}
+              progress={completedProgress}
             />
           </section>
 
-          {showForm && (
+          {showForm ? (
             <Section
-              title={form.id ? "طھط¹ط¯ظٹظ„ ظپط±ظٹظ‚" : "ط¥ط¶ط§ظپط© ظپط±ظٹظ‚"}
-              icon={<Edit size={22} />}
+              title={form.id ? "تعديل فريق" : "إضافة فريق"}
+              icon={<Edit size={22} aria-hidden="true" />}
             >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <ActivityInput
-                  label="ط§ط³ظ… ط§ظ„ظپط±ظٹظ‚"
+                <Field
+                  label="اسم الفريق"
                   value={form.team_name}
                   onChange={(value) =>
-                    setForm({ ...form, team_name: value })
+                    setForm((current) => ({
+                      ...current,
+                      team_name: value,
+                    }))
                   }
+                  required
                 />
 
-                <ActivityInput
-                  label="ط§ظ„ظ…ط´ط±ظپ"
+                <Field
+                  label="المشرف"
                   value={form.supervisor_name}
                   onChange={(value) =>
-                    setForm({ ...form, supervisor_name: value })
+                    setForm((current) => ({
+                      ...current,
+                      supervisor_name: value,
+                    }))
                   }
                 />
 
-                <ActivitySelect
-                  label="ط§ظ„ط­ط§ظ„ط©"
+                <SelectField
+                  label="الحالة"
                   value={form.status}
                   options={STATUS_OPTIONS}
-                  onChange={(value) => setForm({ ...form, status: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      status: value,
+                    }))
+                  }
                 />
               </div>
 
               <div className="mt-3">
-                <ActivityTextarea
-                  label="ظˆطµظپ ط§ظ„ظپط±ظٹظ‚"
+                <TextAreaField
+                  label="الوصف"
                   value={form.description}
                   onChange={(value) =>
-                    setForm({ ...form, description: value })
+                    setForm((current) => ({
+                      ...current,
+                      description: value,
+                    }))
                   }
                 />
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <PrimaryButton onClick={() => void saveItem()} disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={16} />
-                  )}
-                  ط­ظپط¸
+                <PrimaryButton
+                  onClick={() => void saveItem()}
+                  loading={saving}
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  حفظ
                 </PrimaryButton>
 
-                <LightButton onClick={resetForm}>
-                  <XCircle size={16} />
-                  ط¥ظ„ط؛ط§ط،
-                </LightButton>
+                <SecondaryButton onClick={resetForm}>
+                  <XCircle size={16} aria-hidden="true" />
+                  إلغاء
+                </SecondaryButton>
               </div>
             </Section>
-          )}
+          ) : null}
 
-          <Section title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
+          <Section
+            title="البحث والتصفية"
+            icon={<Search size={22} aria-hidden="true" />}
+          >
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_200px_auto_auto]">
-              <div className="relative">
-                <Search
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={18}
-                />
-
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ط¨ط­ط« ظپظٹ ط§ظ„ظپط±ظ‚..."
-                  className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm font-bold outline-none transition focus:border-[#d4af37]"
-                />
-              </div>
+              <SearchField value={search} onChange={setSearch} />
 
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+                onChange={(event) =>
+                  setStatusFilter(event.target.value)
+                }
+                aria-label="تصفية حسب حالة الفريق"
+                className={fieldClassName}
               >
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ</option>
+                <option value="الكل">كل الحالات</option>
                 {STATUS_OPTIONS.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
 
-              <LightButton onClick={() => void exportExcel()}>Excel</LightButton>
+              <SecondaryButton onClick={() => void exportExcel()}>
+                Excel
+              </SecondaryButton>
 
-              <LightButton onClick={exportPDF}>
-                <FileText size={16} />
+              <SecondaryButton onClick={exportPDF}>
+                <FileText size={16} aria-hidden="true" />
                 PDF
-              </LightButton>
+              </SecondaryButton>
             </div>
           </Section>
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            aria-label="قائمة فرق النشاط"
+          >
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <EmptyState title="لا توجد بيانات" description="ظ„ط§ طھظˆط¬ط¯ ظپط±ظ‚ ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState
+                  title="لا توجد نتائج"
+                  description="غيّر البحث أو أضف فريقًا."
+                  icon={<Search size={28} aria-hidden="true" />}
+                />
               </div>
             ) : (
               filteredItems.map((item) => (
-                <div
+                <TeamCard
                   key={item.id}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
-                        item.status
-                      )}`}
-                    >
-                      {item.status || "ط؛ظٹط± ظ…ط­ط¯ط¯"}
-                    </span>
-
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                      ظپط±ظٹظ‚ ظ†ط´ط§ط·
-                    </span>
-                  </div>
-
-                  <h3 className="text-xl font-black text-[#0f1f3d]">
-                    {item.team_name || item.title || "ظپط±ظٹظ‚ ظ†ط´ط§ط·"}
-                  </h3>
-
-                  <p className="mt-2 line-clamp-2 text-sm leading-7 text-slate-500">
-                    {item.description || "ظ„ط§ ظٹظˆط¬ط¯ ظˆطµظپ."}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <ActivityInfo
-                      label="ط§ظ„ظ…ط´ط±ظپ"
-                      value={item.supervisor_name || "â€”"}
-                    />
-
-                    <ActivityInfo
-                      label="طھط§ط±ظٹط® ط§ظ„ط¥ظ†ط´ط§ط،"
-                      value={formatDate(item.created_at)}
-                    />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <LightButton onClick={() => editItem(item)}>
-                      <Edit size={15} />
-                      طھط¹ط¯ظٹظ„
-                    </LightButton>
-
-                    <DangerButton onClick={() => void deleteItem(item)}>
-                      <Trash2 size={15} />
-                      ط­ط°ظپ
-                    </DangerButton>
-                  </div>
-                </div>
+                  item={item}
+                  onEdit={editItem}
+                  onDelete={deleteItem}
+                />
               ))
             )}
           </section>
         </main>
       </AppShell>
     </RoleGuard>
+  );
+}
+
+const fieldClassName =
+  "h-11 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]";
+
+function SearchField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Search
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-subtle)]"
+        size={18}
+        aria-hidden="true"
+      />
+
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="بحث..."
+        aria-label="البحث في فرق النشاط"
+        className={`${fieldClassName} pr-10`}
+      />
+    </div>
+  );
+}
+
+function TeamCard({
+  item,
+  onEdit,
+  onDelete,
+}: {
+  item: Team;
+  onEdit: (item: Team) => void;
+  onDelete: (item: Team) => Promise<void>;
+}) {
+  return (
+    <article className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-black ${getStatusClass(
+            item.status,
+          )}`}
+        >
+          {item.status || "غير محدد"}
+        </span>
+
+        <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
+          فريق نشاط
+        </span>
+      </div>
+
+      <h3 className="text-xl font-black text-[var(--app-text)]">
+        {item.team_name || item.title || "فريق نشاط"}
+      </h3>
+
+      <p className="mt-2 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
+        {item.description || "لا يوجد وصف."}
+      </p>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <InfoBox
+          label="المشرف"
+          value={item.supervisor_name || "—"}
+        />
+
+        <InfoBox
+          label="تاريخ الإنشاء"
+          value={formatDate(item.created_at)}
+        />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <SecondaryButton size="sm" onClick={() => onEdit(item)}>
+          <Edit size={15} aria-hidden="true" />
+          تعديل
+        </SecondaryButton>
+
+        <DangerButton
+          size="sm"
+          onClick={() => void onDelete(item)}
+          icon={<Trash2 size={15} aria-hidden="true" />}
+        >
+          حذف
+        </DangerButton>
+      </div>
+    </article>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  const id = `team-field-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <input
+        id={id}
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClassName}
+      />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  const id = `team-select-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClassName}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = `team-textarea-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className={`${fieldClassName} h-auto resize-none py-3`}
+      />
+    </label>
+  );
+}
+
+function InfoBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">
+        {label}
+      </p>
+
+      <p className="mt-1 line-clamp-1 font-black text-[var(--app-text)]">
+        {value}
+      </p>
+    </div>
   );
 }

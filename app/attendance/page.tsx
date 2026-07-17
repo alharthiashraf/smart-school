@@ -152,7 +152,7 @@ type Toast = {
   message: string;
 };
 
-type AttendanceInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type AttendanceInsightTone = "green" | "gold" | "red" | "primary" | "neutral";
 
 type AttendanceInsight = {
   title: string;
@@ -188,11 +188,16 @@ const STATUS_LABELS: Record<AttendanceStatus, string> = {
 };
 
 const STATUS_COLORS: Record<AttendanceStatus, string> = {
-  present: "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]",
-  absent: "border-red-200 bg-red-50 text-red-700",
-  late: "border-[#C1B489]/40 bg-[#C1B489]/20 text-[#15445A]",
-  excused: "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]",
-  clinic: "border-[#0DA9A6]/20 bg-[#0DA9A6]/10 text-[#0DA9A6]",
+  present:
+    "border-[color-mix(in_srgb,var(--app-success)_22%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]",
+  absent:
+    "border-[color-mix(in_srgb,var(--app-danger)_22%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
+  late:
+    "border-[color-mix(in_srgb,var(--app-accent)_34%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+  excused:
+    "border-[color-mix(in_srgb,var(--app-primary)_20%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]",
+  clinic:
+    "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
 };
 
 function todayISO() {
@@ -325,11 +330,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: AttendanceInsightTone) {
   const tones: Record<AttendanceInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -337,11 +347,11 @@ function insightTone(tone: AttendanceInsightTone) {
 
 function progressTone(tone: AttendanceInsightTone) {
   const tones: Record<AttendanceInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -800,7 +810,7 @@ export default function AttendancePage() {
       items.push({
         title: "تحويلات صحية",
         description: `${summary.clinic} طالب تم تحويلهم للعيادة.`,
-        tone: "teal",
+        tone: "primary",
         icon: <Stethoscope className="h-5 w-5" />,
       });
     }
@@ -809,7 +819,7 @@ export default function AttendancePage() {
       items.push({
         title: "نسبة حضور تحتاج متابعة",
         description: `نسبة الحضور الحالية ${attendanceRate}% وهي أقل من المستوى المستهدف.`,
-        tone: "blue",
+        tone: "primary",
         icon: <Target className="h-5 w-5" />,
       });
     }
@@ -1104,10 +1114,10 @@ export default function AttendancePage() {
             { label: "المعلم", value: selectedTeacher ? getTeacherName(selectedTeacher) : "غير محدد" },
           ]}
           stats={[
-            { label: "الطلاب", value: students.length, icon: <Users size={20} />, tone: "blue" },
+            { label: "الطلاب", value: students.length, icon: <Users size={20} />, tone: "primary" },
             { label: "الحضور", value: `${attendanceRate}%`, icon: <CheckCircle2 size={20} />, tone: attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red" },
             { label: "المتابعة", value: followUpCount, icon: <AlertTriangle size={20} />, tone: followUpCount > 0 ? "red" : "green" },
-            { label: "الحصة", value: selectedLesson ? `الحصة ${selectedLesson.period_number}` : "غير محددة", icon: <Clock size={20} />, tone: selectedLesson ? "teal" : "slate" },
+            { label: "الحصة", value: selectedLesson ? `الحصة ${selectedLesson.period_number}` : "غير محددة", icon: <Clock size={20} />, tone: selectedLesson ? "primary" : "slate" },
           ]}
           actions={
             <>
@@ -1129,15 +1139,14 @@ export default function AttendancePage() {
                 Excel
               </PrimaryButton>
 
-              <SecondaryButton
+              <PrimaryButton
                 type="button"
                 onClick={exportPDF}
                 disabled={!selectedLesson || students.length === 0}
-                tone="dark"
                 icon={<FileText size={17} />}
               >
                 PDF
-              </SecondaryButton>
+              </PrimaryButton>
 
               <SecondaryButton
                 type="button"
@@ -1174,7 +1183,7 @@ export default function AttendancePage() {
                 type="date"
                 value={attendanceDate}
                 onChange={(event) => setAttendanceDate(event.target.value)}
-                className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               />
 
               <ToolbarSelect
@@ -1228,33 +1237,33 @@ export default function AttendancePage() {
                     type="button"
                     onClick={() => setSelectedLesson(lesson)}
                     className={[
-                      "rounded-[24px] border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md",
+                      "rounded-[var(--app-radius-xl)] border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]",
                       active
-                        ? "border-[#0DA9A6] bg-[#0DA9A6]/10"
-                        : "border-slate-100 bg-slate-50 hover:bg-white",
+                        ? "border-[var(--app-primary)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)]"
+                        : "border-[var(--app-border)] bg-[var(--app-card-soft)] hover:bg-[var(--app-card)]",
                     ].join(" ")}
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="font-black text-[#15445A]">
+                      <p className="font-black text-[var(--app-text)]">
                         الحصة {lesson.period_number}
                       </p>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500 shadow-sm">
+                      <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)] shadow-[var(--app-shadow-sm)]">
                         {lesson.timeRange}
                       </span>
                     </div>
 
-                    <p className="text-sm font-bold text-slate-600">
+                    <p className="text-sm font-bold text-[var(--app-text-muted)]">
                       الفصل: {lesson.classroomName}
                       {lesson.sectionName && lesson.sectionName !== "-"
                         ? ` - ${lesson.sectionName}`
                         : ""}
                     </p>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                       المادة: {lesson.subjectName}
                     </p>
 
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-[var(--app-text-subtle)]">
                       القاعة: {lesson.roomName}
                     </p>
                   </button>
@@ -1292,14 +1301,14 @@ export default function AttendancePage() {
                 title="مستأذن"
                 value={summary.excused}
                 icon={<AlertTriangle size={22} />}
-                tone="blue"
+                tone="primary"
                 progress={students.length ? Math.round((summary.excused / students.length) * 100) : 0}
               />
               <ExecutiveCard
                 title="تحويل للعيادة"
                 value={summary.clinic}
                 icon={<Stethoscope size={22} />}
-                tone="teal"
+                tone="primary"
                 progress={students.length ? Math.round((summary.clinic / students.length) * 100) : 0}
               />
               <ExecutiveCard
@@ -1349,7 +1358,7 @@ export default function AttendancePage() {
               <AttendanceDistributionPanel summary={summary} />
             </section>
 
-            <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
               <div className="mb-4">
                 <h2 className="text-xl font-black text-[var(--app-text)]">
                   البحث الذكي في الحضور
@@ -1365,7 +1374,7 @@ export default function AttendancePage() {
                     key={command}
                     type="button"
                     onClick={() => runSmartSearch(command)}
-                    className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                    className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-primary)] hover:text-[var(--app-primary)]"
                   >
                     {command}
                   </button>
@@ -1430,14 +1439,14 @@ export default function AttendancePage() {
                 <BulkButton
                   label="الكل مستأذن"
                   icon={<ClipboardCheck size={17} />}
-                  tone="blue"
+                  tone="primary"
                   disabled={filteredStudents.length === 0}
                   onClick={() => markBulkStatus("excused")}
                 />
                 <BulkButton
                   label="الكل تحويل للعيادة"
                   icon={<Stethoscope size={17} />}
-                  tone="teal"
+                  tone="primary"
                   disabled={filteredStudents.length === 0}
                   onClick={() => markBulkStatus("clinic")}
                 />
@@ -1452,26 +1461,26 @@ export default function AttendancePage() {
                       key={student.id}
                       onClick={() => setSelectedStudent(student)}
                       className={[
-                        "flex cursor-pointer flex-col gap-3 rounded-[22px] border p-4 transition hover:-translate-y-0.5 hover:shadow-sm lg:flex-row lg:items-center lg:justify-between",
+                        "flex cursor-pointer flex-col gap-3 rounded-[var(--app-radius-lg)] border p-4 transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-sm)] lg:flex-row lg:items-center lg:justify-between",
                         currentStatus === "present"
-                          ? "border-[#07A869]/15 bg-[#07A869]/5"
+                          ? "border-[var(--app-success)]/15 bg-[var(--app-success)]/5"
                           : currentStatus === "absent"
-                            ? "border-red-100 bg-red-50/70"
+                            ? "border-[color-mix(in_srgb,var(--app-danger)_18%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)]/70"
                             : currentStatus === "late"
-                              ? "border-[#C1B489]/30 bg-[#C1B489]/10"
+                              ? "border-[var(--app-accent)]/30 bg-[var(--app-accent)]/10"
                               : currentStatus === "clinic"
-                                ? "border-[#0DA9A6]/20 bg-[#0DA9A6]/5"
-                                : "border-[#3D7EB9]/20 bg-[#3D7EB9]/5",
+                                ? "border-[color-mix(in_srgb,var(--app-primary)_20%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_5%,transparent)]"
+                                : "border-[color-mix(in_srgb,var(--app-primary)_20%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_5%,transparent)]",
                       ].join(" ")}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-[#15445A] shadow-sm">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-card)] text-[var(--app-text)] shadow-[var(--app-shadow-sm)]">
                           <UserRound size={22} />
                         </div>
 
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-black text-[#15445A]">
+                            <p className="font-black text-[var(--app-text)]">
                               {getStudentName(student)}
                             </p>
                             <span className={`rounded-full border px-3 py-1 text-xs font-black ${STATUS_COLORS[currentStatus]}`}>
@@ -1479,7 +1488,7 @@ export default function AttendancePage() {
                             </span>
                           </div>
 
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-[var(--app-text-muted)]">
                             رقم الطالب: {student.student_number || student.national_id || "-"} ·{" "}
                             {getStudentClass(student) || "-"}
                             {student.section ? ` - ${student.section}` : ""}
@@ -1501,7 +1510,7 @@ export default function AttendancePage() {
                                 "rounded-xl border px-3 py-2 text-xs font-bold transition",
                                 currentStatus === status
                                   ? STATUS_COLORS[status]
-                                  : "border-slate-200 bg-white text-slate-500 hover:bg-slate-100",
+                                  : "border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-muted)] hover:bg-[var(--app-card-soft)]",
                               ].join(" ")}
                             >
                               {STATUS_LABELS[status]}
@@ -1543,11 +1552,11 @@ function ToastBox({ toast }: { toast: Toast }) {
 
   return (
     <div
-      className={`fixed left-5 top-5 z-50 flex max-w-md items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        isSuccess ? "bg-[#07A869]" : "bg-red-600"
+      className={`fixed left-5 top-5 z-50 flex max-w-md items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-[var(--app-shadow-xl)] print:hidden ${
+        isSuccess ? "bg-[var(--app-success)]" : "bg-[var(--app-danger)]"
       }`}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15">
+      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--app-card)]/15">
         {isSuccess ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
       </span>
       <span>{toast.message}</span>
@@ -1560,21 +1569,25 @@ function BulkButton({
   disabled,
   onClick,
   icon,
-  tone = "slate",
+  tone = "neutral",
 }: {
   label: string;
   disabled: boolean;
   onClick: () => void;
   icon?: ReactNode;
-  tone?: "green" | "red" | "gold" | "blue" | "teal" | "slate";
+  tone?: "green" | "red" | "gold" | "primary" | "neutral";
 }) {
   const tones = {
-    green: "bg-[#07A869]/10 text-[#07A869] hover:bg-[#07A869]/15",
-    red: "bg-red-50 text-red-700 hover:bg-red-100",
-    gold: "bg-[#C1B489]/20 text-[#15445A] hover:bg-[#C1B489]/30",
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9] hover:bg-[#3D7EB9]/15",
-    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6] hover:bg-[#0DA9A6]/15",
-    slate: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)] hover:bg-[color-mix(in_srgb,var(--app-success)_16%,transparent)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)] hover:bg-[color-mix(in_srgb,var(--app-danger)_16%,transparent)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)] hover:bg-[color-mix(in_srgb,var(--app-accent)_24%,transparent)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)] hover:bg-[color-mix(in_srgb,var(--app-primary)_16%,transparent)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:bg-[var(--app-border)]",
   };
 
   return (
@@ -1604,8 +1617,8 @@ function PrintSection({
   statuses: Record<string, AttendanceStatus>;
 }) {
   return (
-    <section className="hidden rounded-3xl border border-slate-200 bg-white p-6 print:block">
-      <h1 className="text-3xl font-black text-[#15445A]">
+    <section className="hidden rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] p-6 print:block">
+      <h1 className="text-3xl font-black text-[var(--app-text)]">
         كشف حضور الطلاب
       </h1>
 
@@ -1618,8 +1631,8 @@ function PrintSection({
         <p>المادة: {selectedLesson.subjectName}</p>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-slate-200 p-4 text-sm">
-        <p className="font-bold text-[#15445A]">بيانات الحصة</p>
+      <div className="mt-5 rounded-2xl border border-[var(--app-border)] p-4 text-sm">
+        <p className="font-bold text-[var(--app-text)]">بيانات الحصة</p>
         <p className="mt-2">المادة: {selectedLesson.subjectName} · القاعة: {selectedLesson.roomName}</p>
       </div>
 
@@ -1679,10 +1692,10 @@ function AttendanceExecutiveAnalytics({
   selectedLesson: LessonView;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
-          Executive Analytics
+          التحليلات التنفيذية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           قراءة تنفيذية لحالة الحضور والمتابعة داخل الحصة.
@@ -1693,7 +1706,7 @@ function AttendanceExecutiveAnalytics({
         <AttendanceMetric label="نسبة الحضور" value={`${health.attendanceRate}%`} icon={<CheckCircle2 size={18} />} tone="green" />
         <AttendanceMetric label="نسبة الغياب" value={`${health.absenceRate}%`} icon={<XCircle size={18} />} tone="red" />
         <AttendanceMetric label="نسبة التأخر" value={`${health.lateRate}%`} icon={<Clock size={18} />} tone="gold" />
-        <AttendanceMetric label="اكتمال البيانات" value={`${health.dataCompletion}%`} icon={<ClipboardCheck size={18} />} tone="teal" />
+        <AttendanceMetric label="اكتمال البيانات" value={`${health.dataCompletion}%`} icon={<ClipboardCheck size={18} />} tone="primary" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1715,11 +1728,11 @@ function AttendanceSmartInsights({
   insights: AttendanceInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
           <BrainCircuit size={20} />
-          AI Smart Insights
+          الرؤى الذكية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           توصيات فورية مبنية على حالات الحضور الحالية.
@@ -1754,8 +1767,8 @@ function AttendanceHealthPanel({
   health: AttendanceHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Attendance Health</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">صحة الحضور</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات جودة الحضور والمتابعة واكتمال الرصد.
       </p>
@@ -1764,7 +1777,7 @@ function AttendanceHealthPanel({
         <AttendanceProgress label="الحضور" value={health.attendanceRate} total={100} tone="green" suffix="%" />
         <AttendanceProgress label="الغياب" value={health.absenceRate} total={100} tone="red" suffix="%" />
         <AttendanceProgress label="التأخر" value={health.lateRate} total={100} tone="gold" suffix="%" />
-        <AttendanceProgress label="المتابعة" value={health.followUpRate} total={100} tone="blue" suffix="%" />
+        <AttendanceProgress label="المتابعة" value={health.followUpRate} total={100} tone="primary" suffix="%" />
       </div>
     </section>
   );
@@ -1782,8 +1795,8 @@ function AttendanceRiskPanel({
   const stable = risks.filter((item) => item.label === "مستقر").length;
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Attendance Risk Engine</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">مؤشر المخاطر</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         تصنيف حالات الطلاب حسب أولوية المتابعة.
       </p>
@@ -1827,10 +1840,10 @@ function AttendanceDistributionPanel({
   );
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
         <ChartNoAxesCombined size={20} />
-        Attendance Distribution
+        توزيع الحضور
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         توزيع حالات الحضور في الحصة الحالية.
@@ -1840,8 +1853,8 @@ function AttendanceDistributionPanel({
         <AttendanceProgress label="حاضر" value={summary.present} total={total} tone="green" />
         <AttendanceProgress label="غائب" value={summary.absent} total={total} tone="red" />
         <AttendanceProgress label="متأخر" value={summary.late} total={total} tone="gold" />
-        <AttendanceProgress label="مستأذن" value={summary.excused} total={total} tone="blue" />
-        <AttendanceProgress label="عيادة" value={summary.clinic} total={total} tone="teal" />
+        <AttendanceProgress label="مستأذن" value={summary.excused} total={total} tone="primary" />
+        <AttendanceProgress label="عيادة" value={summary.clinic} total={total} tone="primary" />
       </div>
     </section>
   );
@@ -1859,18 +1872,18 @@ function AttendanceStudentDrawer({
   const recommendations = buildAttendanceRecommendations(student, status);
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[70] flex justify-end bg-[color-mix(in_srgb,var(--app-text)_40%,transparent)] backdrop-blur-sm print:hidden">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Attendance Drawer V2</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+            <p className="text-xs font-black text-[var(--app-accent)]">تفاصيل الحضور</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {getStudentName(student)}
             </h2>
           </div>
 
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+          <button type="button" onClick={onClose} className="rounded-xl bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]">
             <XCircle size={20} />
           </button>
         </div>
@@ -1884,7 +1897,7 @@ function AttendanceStudentDrawer({
 
         <div className="mt-5 space-y-3">
           <AttendanceDrawerSection
-            title="Overview"
+            title="الملخص"
             items={[
               `الاسم: ${getStudentName(student)}`,
               `الهوية: ${student.national_id || "-"}`,
@@ -1893,12 +1906,12 @@ function AttendanceStudentDrawer({
           />
 
           <AttendanceDrawerSection
-            title="AI Recommendations"
+            title="التوصيات"
             items={recommendations}
           />
 
           <AttendanceDrawerSection
-            title="Timeline"
+            title="السجل"
             items={[
               "تم تحديث حالة الطالب في الحصة الحالية.",
               "تم احتساب مستوى المخاطر تلقائيًا.",
@@ -1986,9 +1999,9 @@ function AttendanceDrawerMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-lg font-black text-[#15445A]">{value}</p>
+    <div className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-lg font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -2001,11 +2014,11 @@ function AttendanceDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">
             {item}
           </p>
         ))}

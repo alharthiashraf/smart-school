@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
-import Breadcrumb from "@/components/layout/Breadcrumb";
-import PageActions from "@/components/layout/PageActions";
 import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import DangerButton from "@/components/ui/buttons/DangerButton";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -71,7 +76,7 @@ type Toast = {
   message: string;
 };
 
-type BehaviorInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type BehaviorInsightTone = "green" | "gold" | "red" | "primary" | "neutral";
 
 type BehaviorInsight = {
   title: string;
@@ -231,11 +236,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: BehaviorInsightTone) {
   const tones: Record<BehaviorInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -243,11 +253,11 @@ function insightTone(tone: BehaviorInsightTone) {
 
 function progressTone(tone: BehaviorInsightTone) {
   const tones: Record<BehaviorInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -257,25 +267,25 @@ function buildBehaviorRecommendations(item: Violation) {
   const recommendations: string[] = [];
 
   if (item.violation_degree >= 4) {
-    recommendations.push("تتطلب المخالفة تصعيدًا إداريًا وخطة متابعة موثقة.");
+    recommendations.push("تحتاج تصعيدًا وخطة متابعة.");
   } else if (item.violation_degree === 3) {
-    recommendations.push("يوصى بإحالة الحالة للمرشد الطلابي ومتابعة ولي الأمر.");
+    recommendations.push("إحالة للمرشد ومتابعة ولي الأمر.");
   } else if (item.violation_degree === 2) {
-    recommendations.push("يوصى بإجراء تربوي واضح ومتابعة تكرار السلوك.");
+    recommendations.push("إجراء تربوي ومتابعة التكرار.");
   } else {
-    recommendations.push("يمكن معالجة الحالة بتوجيه تربوي ومتابعة قصيرة.");
+    recommendations.push("توجيه تربوي ومتابعة قصيرة.");
   }
 
   if (!item.action_taken) {
-    recommendations.push("أضف الإجراء المتخذ لرفع جودة التوثيق.");
+    recommendations.push("أضف الإجراء المتخذ.");
   }
 
   if (!item.notes) {
-    recommendations.push("أضف ملاحظات توضح سياق المخالفة.");
+    recommendations.push("أضف ملاحظات.");
   }
 
   if ((item.status || "مفتوحة") === "مفتوحة") {
-    recommendations.push("الحالة ما زالت مفتوحة وتحتاج قرار متابعة.");
+    recommendations.push("الحالة تحتاج متابعة.");
   }
 
   return recommendations;
@@ -310,9 +320,15 @@ export default function BehaviorPage() {
   }, [selectedViolation]);
 
   useEffect(() => {
-    if (!schoolLoading) {
-      fetchData();
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      showToast("error", "لا توجد مدرسة مرتبطة بالحساب.");
+      return;
     }
+
+    void fetchData();
   }, [schoolLoading, currentSchool?.id]);
 
   function showToast(type: Toast["type"], message: string) {
@@ -324,22 +340,21 @@ export default function BehaviorPage() {
     setLoading(true);
 
     try {
-      let studentsQuery = supabase
+      if (!currentSchool?.id) return;
+
+      const studentsQuery = supabase
         .from("students")
         .select(
           "id, school_id, full_name, grade_level, classroom, section, student_number",
         )
+        .eq("school_id", currentSchool.id)
         .order("full_name", { ascending: true });
-
-      if (currentSchool?.id) {
-        studentsQuery = studentsQuery.eq("school_id", currentSchool.id);
-      }
 
       const { data: studentsData, error: studentsError } = await studentsQuery;
 
       if (studentsError) throw studentsError;
 
-      let violationsQuery = supabase
+      const violationsQuery = supabase
         .from("student_violations")
         .select(
           `
@@ -353,11 +368,8 @@ export default function BehaviorPage() {
           )
         `,
         )
+        .eq("school_id", currentSchool.id)
         .order("created_at", { ascending: false });
-
-      if (currentSchool?.id) {
-        violationsQuery = violationsQuery.eq("school_id", currentSchool.id);
-      }
 
       const { data: violationsData, error: violationsError } =
         await violationsQuery;
@@ -546,7 +558,7 @@ export default function BehaviorPage() {
       items.push({
         title: "توثيق غير مكتمل",
         description: `اكتمال الإجراء والملاحظات يبلغ ${health.documentationRate}% فقط.`,
-        tone: "blue",
+        tone: "primary",
         icon: <Target className="h-5 w-5" />,
       });
     }
@@ -555,7 +567,7 @@ export default function BehaviorPage() {
       items.push({
         title: "طالب عالي الخطورة",
         description: `${studentRisks[0].studentName} يحتاج خطة تدخل ومتابعة.`,
-        tone: "teal",
+        tone: "primary",
         icon: <UserRoundSearch className="h-5 w-5" />,
       });
     }
@@ -657,7 +669,8 @@ export default function BehaviorPage() {
       const { error } = await supabase
         .from("student_violations")
         .update({ status })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("school_id", currentSchool?.id || "");
 
       if (error) throw error;
 
@@ -680,7 +693,8 @@ export default function BehaviorPage() {
       const { error } = await supabase
         .from("student_violations")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("school_id", currentSchool?.id || "");
 
       if (error) throw error;
 
@@ -708,44 +722,38 @@ export default function BehaviorPage() {
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
         <PageContainer size="wide" className="space-y-6">
-          <Breadcrumb />
-
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
             variant="hero"
             title="السلوك والانضباط"
-            description="إدارة المخالفات السلوكية، متابعة الإجراءات، وربطها بملف الطالب والتقارير."
+            description="إدارة المخالفات والإجراءات والمتابعة."
             badge="السلوك والمواظبة"
-            icon={<ShieldAlert className="h-4 w-4" />}
+            icon={<ShieldAlert className="h-4 w-4" aria-hidden="true" />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "السلوك والانضباط" },
+            ]}
           />
 
-          <PageActions>
-            <button
-              type="button"
-              onClick={fetchData}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-[#15445A] shadow-sm transition hover:bg-slate-50"
-            >
-              <RefreshCcw className="h-4 w-4" />
+          <div className="flex flex-wrap gap-2">
+            <SecondaryButton onClick={() => void fetchData()}>
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
               تحديث
-            </button>
+            </SecondaryButton>
 
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
-            >
-              <Plus className="h-4 w-4" />
-              إضافة مخالفة
-            </button>
-          </PageActions>
+            <PrimaryButton onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              إضافة
+            </PrimaryButton>
+          </div>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-4">
             <ExecutiveCard
               title="إجمالي المخالفات"
               value={totalViolations}
               icon={<ShieldAlert size={22} />}
-              tone="blue"
+              tone="primary"
             />
 
             <ExecutiveCard
@@ -802,7 +810,7 @@ export default function BehaviorPage() {
             />
           </section>
 
-          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-4">
               <h2 className="text-xl font-black text-[var(--app-text)]">
                 البحث الذكي في السلوك
@@ -818,7 +826,7 @@ export default function BehaviorPage() {
                   key={command}
                   type="button"
                   onClick={() => runSmartSearch(command)}
-                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-primary)] hover:text-[var(--app-primary)]"
                 >
                   {command}
                 </button>
@@ -826,11 +834,11 @@ export default function BehaviorPage() {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-4 grid gap-3 md:grid-cols-4">
               <div className="md:col-span-2">
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
-                  <Search className="h-4 w-4 text-slate-400" />
+                <div className="flex items-center gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3">
+                  <Search className="h-4 w-4 text-[var(--app-text-subtle)]" />
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -843,7 +851,7 @@ export default function BehaviorPage() {
               <select
                 value={degreeFilter}
                 onChange={(e) => setDegreeFilter(e.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none"
               >
                 <option value="all">كل الدرجات</option>
                 <option value="1">الدرجة الأولى</option>
@@ -856,7 +864,7 @@ export default function BehaviorPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none"
               >
                 <option value="all">كل الحالات</option>
                 <option value="مفتوحة">مفتوحة</option>
@@ -868,17 +876,16 @@ export default function BehaviorPage() {
             </div>
 
             {filteredViolations.length === 0 ? (
-              <div className="rounded-3xl bg-slate-50 p-10 text-center">
-                <AlertTriangle className="mx-auto h-8 w-8 text-slate-400" />
-                <p className="mt-3 text-sm font-bold text-slate-500">
-                  لا توجد مخالفات مطابقة.
-                </p>
-              </div>
+              <EmptyState
+                title="لا توجد نتائج"
+                description="غيّر البحث أو الفلاتر."
+                icon={<AlertTriangle className="h-8 w-8" aria-hidden="true" />}
+              />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1100px] text-right text-sm">
                   <thead>
-                    <tr className="border-b bg-slate-50 text-slate-600">
+                    <tr className="border-b bg-[var(--app-card-soft)] text-[var(--app-text-muted)]">
                       <th className="p-3">الطالب</th>
                       <th className="p-3">الصف / الفصل</th>
                       <th className="p-3">المخالفة</th>
@@ -897,19 +904,19 @@ export default function BehaviorPage() {
                       <tr
                         key={item.id}
                         onClick={() => setSelectedViolationDetails(item)}
-                        className="cursor-pointer border-b last:border-0 hover:bg-slate-50"
+                        className="cursor-pointer border-b last:border-0 hover:bg-[var(--app-card-soft)]"
                       >
                         <td className="p-3">
-                          <div className="font-black text-[#15445A]">
+                          <div className="font-black text-[var(--app-text)]">
                             {item.students?.full_name || "غير محدد"}
                           </div>
 
-                          <div className="mt-1 text-xs text-slate-500">
+                          <div className="mt-1 text-xs text-[var(--app-text-muted)]">
                             {item.students?.student_number || "-"}
                           </div>
                         </td>
 
-                        <td className="p-3 text-slate-600">
+                        <td className="p-3 text-[var(--app-text-muted)]">
                           {item.students?.grade_level || "-"}
                           {item.students?.classroom
                             ? ` / ${item.students.classroom}`
@@ -919,7 +926,7 @@ export default function BehaviorPage() {
                             : ""}
                         </td>
 
-                        <td className="p-3 font-bold text-slate-700">
+                        <td className="p-3 font-bold text-[var(--app-text)]">
                           {item.violation_title}
                         </td>
 
@@ -927,15 +934,15 @@ export default function BehaviorPage() {
                           <DegreeBadge degree={item.violation_degree} />
                         </td>
 
-                        <td className="p-3 font-black text-red-600">
+                        <td className="p-3 font-black text-[var(--app-danger)]">
                           {item.points_deducted}
                         </td>
 
-                        <td className="p-3 text-slate-600">
+                        <td className="p-3 text-[var(--app-text-muted)]">
                           {item.violation_date || "-"}
                         </td>
 
-                        <td className="p-3 text-slate-600">
+                        <td className="p-3 text-[var(--app-text-muted)]">
                           {item.action_taken || "لم يحدد"}
                         </td>
 
@@ -950,7 +957,7 @@ export default function BehaviorPage() {
                             onChange={(e) =>
                               updateViolationStatus(item.id, e.target.value)
                             }
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold outline-none"
+                            className="rounded-[var(--app-radius-md)] border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-xs font-bold outline-none"
                           >
                             <option value="مفتوحة">مفتوحة</option>
                             <option value="تحت المتابعة">
@@ -961,15 +968,15 @@ export default function BehaviorPage() {
                         </td>
 
                         <td className="p-3">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                          <DangerButton
+                            size="icon"
+                            aria-label="حذف المخالفة"
+                            onClick={(event) => {
+                              event.stopPropagation();
                               void deleteViolation(item.id);
                             }}
-                            className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                            icon={<Trash2 className="h-4 w-4" aria-hidden="true" />}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -979,7 +986,7 @@ export default function BehaviorPage() {
             )}
           </section>
 
-          <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <section className="rounded-[var(--app-radius-xl)] border border-[color-mix(in_srgb,var(--app-warning)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-warning)_10%,transparent)] p-4 text-sm text-[var(--app-warning-foreground)]">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-5 w-5" />
               <p>
@@ -999,14 +1006,14 @@ export default function BehaviorPage() {
           )}
 
           {showForm && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[32px] bg-white p-5 shadow-2xl">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_srgb,var(--app-text)_40%,transparent)] p-4" role="dialog" aria-modal="true" aria-label="تسجيل مخالفة">
+              <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[var(--app-radius-xl)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-[#15445A]">
+                    <h2 className="text-xl font-black text-[var(--app-text)]">
                       تسجيل مخالفة جديدة
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                       اختر الطالب ونوع المخالفة
                       والإجراء المتخذ.
                     </p>
@@ -1014,7 +1021,7 @@ export default function BehaviorPage() {
 
                   <button
                     onClick={() => setShowForm(false)}
-                    className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
+                    className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)] hover:bg-[var(--app-border)]"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -1022,14 +1029,14 @@ export default function BehaviorPage() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <label className="mb-2 block text-sm font-bold text-[var(--app-text)]">
                       الطالب
                     </label>
 
                     <select
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400"
+                      className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none focus:border-slate-400"
                     >
                       <option value="">اختر الطالب</option>
                       {students.map((student) => (
@@ -1046,14 +1053,14 @@ export default function BehaviorPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <label className="mb-2 block text-sm font-bold text-[var(--app-text)]">
                       نوع المخالفة
                     </label>
 
                     <select
                       value={selectedViolation}
                       onChange={(e) => setSelectedViolation(e.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400"
+                      className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none focus:border-slate-400"
                     >
                       <option value="">اختر المخالفة</option>
                       {VIOLATION_OPTIONS.map((item) => (
@@ -1065,7 +1072,7 @@ export default function BehaviorPage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <label className="mb-2 block text-sm font-bold text-[var(--app-text)]">
                       الإجراء المتخذ
                     </label>
 
@@ -1073,12 +1080,12 @@ export default function BehaviorPage() {
                       value={actionTaken}
                       onChange={(e) => setActionTaken(e.target.value)}
                       placeholder="مثال: تنبيه شفهي / إشعار ولي الأمر / إحالة للمرشد"
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                      className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-slate-400"
                     />
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">
+                    <label className="mb-2 block text-sm font-bold text-[var(--app-text)]">
                       ملاحظات
                     </label>
 
@@ -1086,38 +1093,30 @@ export default function BehaviorPage() {
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="ملاحظات إضافية"
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-slate-400"
+                      className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-slate-400"
                     />
                   </div>
                 </div>
 
                 {selectedOption && (
-                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                  <div className="mt-4 rounded-[var(--app-radius-lg)] border border-[color-mix(in_srgb,var(--app-warning)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-warning)_10%,transparent)] p-4 text-sm font-bold text-[var(--app-warning-foreground)]">
                     درجة المخالفة: {selectedOption.degree} —
                     مقدار الحسم: {selectedOption.points} درجة
                   </div>
                 )}
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <button
-                    onClick={addViolation}
-                    disabled={saving}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-[#07A869] px-6 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  <PrimaryButton
+                    onClick={() => void addViolation()}
+                    loading={saving}
                   >
-                    {saving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    حفظ المخالفة
-                  </button>
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    حفظ
+                  </PrimaryButton>
 
-                  <button
-                    onClick={() => setShowForm(false)}
-                    className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-200"
-                  >
+                  <SecondaryButton onClick={() => setShowForm(false)}>
                     إلغاء
-                  </button>
+                  </SecondaryButton>
                 </div>
               </div>
             </div>
@@ -1131,10 +1130,10 @@ export default function BehaviorPage() {
 function DegreeBadge({ degree }: { degree: number }) {
   const style =
     degree >= 4
-      ? "bg-red-50 text-red-700"
+      ? "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
       : degree >= 3
-        ? "bg-amber-50 text-amber-700"
-        : "bg-blue-50 text-blue-700";
+        ? "bg-[color-mix(in_srgb,var(--app-warning)_10%,transparent)] text-[var(--app-warning-foreground)]"
+        : "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-bold ${style}`}>
@@ -1146,10 +1145,10 @@ function DegreeBadge({ degree }: { degree: number }) {
 function StatusBadge({ status }: { status: string }) {
   const style =
     status === "مغلقة"
-      ? "bg-emerald-50 text-emerald-700"
+      ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
       : status === "تحت المتابعة"
-        ? "bg-amber-50 text-amber-700"
-        : "bg-blue-50 text-blue-700";
+        ? "bg-[color-mix(in_srgb,var(--app-warning)_10%,transparent)] text-[var(--app-warning-foreground)]"
+        : "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-bold ${style}`}>
@@ -1159,28 +1158,17 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function LoadingBox() {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      جاري تحميل صفحة السلوك والانضباط...
-    </div>
-  );
+  return <PageLoader text="جاري تحميل السلوك والانضباط..." />;
 }
 
 function ToastBox({ toast }: { toast: Toast }) {
   return (
-    <div
-      className={`fixed left-5 top-5 z-[60] flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      <div
-        className={`h-2.5 w-2.5 rounded-full ${
-          toast.type === "success" ? "bg-emerald-200" : "bg-red-200"
-        }`}
-      />
-
-      <span>{toast.message}</span>
+    <div className="fixed left-5 top-5 z-[60] w-[min(420px,calc(100%-2rem))]">
+      {toast.type === "success" ? (
+        <SuccessBanner description={toast.message} />
+      ) : (
+        <ErrorState description={toast.message} />
+      )}
     </div>
   );
 }
@@ -1203,10 +1191,10 @@ function BehaviorExecutiveAnalytics({
   topViolation?: DistributionItem;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
-          Executive Analytics
+          التحليلات التنفيذية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           قراءة تنفيذية لحالة السلوك وجودة الإغلاق والتوثيق.
@@ -1215,9 +1203,9 @@ function BehaviorExecutiveAnalytics({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <BehaviorMetric label="نسبة الإغلاق" value={`${health.closureRate}%`} icon={<CheckCircle2 size={18} />} tone="green" />
-        <BehaviorMetric label="نسبة المتابعة" value={`${health.followUpRate}%`} icon={<Eye size={18} />} tone="blue" />
+        <BehaviorMetric label="نسبة المتابعة" value={`${health.followUpRate}%`} icon={<Eye size={18} />} tone="primary" />
         <BehaviorMetric label="عالية الخطورة" value={`${health.highSeverityRate}%`} icon={<AlertTriangle size={18} />} tone="red" />
-        <BehaviorMetric label="اكتمال التوثيق" value={`${health.documentationRate}%`} icon={<Target size={18} />} tone="teal" />
+        <BehaviorMetric label="اكتمال التوثيق" value={`${health.documentationRate}%`} icon={<Target size={18} />} tone="primary" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1236,11 +1224,11 @@ function BehaviorSmartInsights({
   insights: BehaviorInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
           <BrainCircuit size={20} />
-          AI Behavior Insights
+          الرؤى الذكية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           توصيات تشغيلية مبنية على المخالفات الحالية.
@@ -1251,9 +1239,9 @@ function BehaviorSmartInsights({
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1275,17 +1263,17 @@ function BehaviorHealthPanel({
   health: BehaviorHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Behavior Health</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">صحة السلوك</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات الإغلاق والمتابعة والتوثيق.
       </p>
 
       <div className="mt-5 space-y-4">
         <BehaviorProgress label="الإغلاق" value={health.closureRate} total={100} tone="green" suffix="%" />
-        <BehaviorProgress label="تحت المتابعة" value={health.followUpRate} total={100} tone="blue" suffix="%" />
+        <BehaviorProgress label="تحت المتابعة" value={health.followUpRate} total={100} tone="primary" suffix="%" />
         <BehaviorProgress label="مرتفعة الخطورة" value={health.highSeverityRate} total={100} tone="red" suffix="%" />
-        <BehaviorProgress label="اكتمال التوثيق" value={health.documentationRate} total={100} tone="teal" suffix="%" />
+        <BehaviorProgress label="اكتمال التوثيق" value={health.documentationRate} total={100} tone="primary" suffix="%" />
       </div>
     </section>
   );
@@ -1303,8 +1291,8 @@ function BehaviorRiskPanel({
   const stable = Math.max(0, totalStudents - danger - watch);
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Behavior Risk Engine</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">مؤشر المخاطر</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         تصنيف الطلاب حسب تكرار المخالفات وحدتها.
       </p>
@@ -1317,7 +1305,7 @@ function BehaviorRiskPanel({
 
       <div className="mt-4 space-y-2">
         {risks.slice(0, 4).map((item) => (
-          <div key={item.studentId} className="rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+          <div key={item.studentId} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
             <p className="text-sm font-black text-[var(--app-text)]">{item.studentName}</p>
             <p className="mt-1 text-xs text-[var(--app-text-muted)]">
               {item.violations} مخالفات · حسم {item.deducted} · {item.label}
@@ -1337,10 +1325,10 @@ function BehaviorDistributionPanel({
   statuses: DistributionItem[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
         <ChartNoAxesCombined size={20} />
-        Behavior Distribution
+        توزيع المخالفات
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         توزيع المخالفات حسب الدرجة والحالة.
@@ -1370,18 +1358,18 @@ function BehaviorViolationDrawer({
   const recommendations = buildBehaviorRecommendations(item);
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex justify-end bg-[color-mix(in_srgb,var(--app-text)_40%,transparent)] backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="تفاصيل المخالفة">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Behavior Drawer V2</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+            <p className="text-xs font-black text-[var(--app-accent)]">تفاصيل المخالفة</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {item.students?.full_name || "غير محدد"}
             </h2>
           </div>
 
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+          <button type="button" onClick={onClose} className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]">
             <X size={20} />
           </button>
         </div>
@@ -1395,7 +1383,7 @@ function BehaviorViolationDrawer({
 
         <div className="mt-5 space-y-3">
           <BehaviorDrawerSection
-            title="Overview"
+            title="الملخص"
             items={[
               `الطالب: ${item.students?.full_name || "غير محدد"}`,
               `الصف: ${item.students?.grade_level || "-"}`,
@@ -1405,7 +1393,7 @@ function BehaviorViolationDrawer({
           />
 
           <BehaviorDrawerSection
-            title="Action & Notes"
+            title="الإجراء والملاحظات"
             items={[
               `الإجراء: ${item.action_taken || "لم يحدد"}`,
               `الملاحظات: ${item.notes || "لا توجد"}`,
@@ -1415,12 +1403,12 @@ function BehaviorViolationDrawer({
           />
 
           <BehaviorDrawerSection
-            title="AI Recommendations"
+            title="التوصيات"
             items={recommendations}
           />
 
           <BehaviorDrawerSection
-            title="Timeline"
+            title="السجل"
             items={[
               `تاريخ المخالفة: ${item.violation_date || "-"}`,
               `تاريخ التسجيل: ${item.created_at || "-"}`,
@@ -1445,8 +1433,8 @@ function BehaviorMetric({
   tone: BehaviorInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1463,7 +1451,7 @@ function BehaviorInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -1506,14 +1494,14 @@ function BehaviorMiniList({
   items: string[];
 }) {
   return (
-    <div className="rounded-3xl bg-[var(--app-card-soft)] p-4">
+    <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-4">
       <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-2">
         {items.length === 0 ? (
           <p className="text-xs text-[var(--app-text-muted)]">لا توجد بيانات.</p>
         ) : (
           items.map((item) => (
-            <div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
+            <div key={item} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
               {item}
             </div>
           ))
@@ -1531,9 +1519,9 @@ function BehaviorDrawerMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-base font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1546,11 +1534,11 @@ function BehaviorDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">
             {item}
           </p>
         ))}

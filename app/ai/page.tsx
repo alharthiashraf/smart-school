@@ -7,24 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-
-import AppShell from "@/components/layout/AppShell";
-import RoleGuard from "@/components/auth/RoleGuard";
-import PageHeader from "@/components/ui/page/PageHeader";
-import PageToolbar, {
-  ToolbarSelect,
-} from "@/components/ui/page/PageToolbar";
-import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import SummaryCard from "@/components/ui/cards/SummaryCard";
-import { PageLoader } from "@/components/ui/loading";
-import { EmptyState } from "@/components/ui/empty-state";
-import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
-import ErrorState from "@/components/ui/feedback/ErrorState";
-
-import { useSchool } from "@/contexts/SchoolContext";
-import { supabase } from "@/lib/supabase";
-import { type SchoolRole } from "@/lib/permissions";
-
 import {
   Activity,
   AlertTriangle,
@@ -49,14 +31,33 @@ import {
   X,
 } from "lucide-react";
 
-type AnyRow = Record<string, unknown>;
+import RoleGuard from "@/components/auth/RoleGuard";
+import AppShell from "@/components/layout/AppShell";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, {
+  ToolbarSelect,
+} from "@/components/ui/page/PageToolbar";
+
+import { useSchool } from "@/contexts/SchoolContext";
+import type { SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type DataRow = Record<string, unknown>;
 
 type Toast = {
   type: "success" | "error";
   message: string;
 };
 
-type AiTone = "green" | "gold" | "red" | "blue" | "teal";
+type AiTone = "green" | "gold" | "red" | "primary" | "neutral";
 
 type AiInsight = {
   title: string;
@@ -114,7 +115,32 @@ const PAGE_ROLES: SchoolRole[] = [
   "teacher",
 ];
 
-function numberValue(row: AnyRow, keys: string[], fallback = 0) {
+const TONE_CLASSES: Record<AiTone, string> = {
+  green:
+    "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+  gold:
+    "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+  red:
+    "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+  primary:
+    "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+  neutral:
+    "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+};
+
+const PROGRESS_CLASSES: Record<AiTone, string> = {
+  green: "bg-[var(--app-success)]",
+  gold: "bg-[var(--app-accent)]",
+  red: "bg-[var(--app-danger)]",
+  primary: "bg-[var(--app-primary)]",
+  neutral: "bg-[var(--app-text-muted)]",
+};
+
+function numberValue(
+  row: DataRow,
+  keys: string[],
+  fallback = 0,
+) {
   for (const key of keys) {
     const value = Number(row[key]);
     if (Number.isFinite(value)) return value;
@@ -138,7 +164,7 @@ function normalizeAttendance(value: unknown) {
   return "other";
 }
 
-function gradePercent(row: AnyRow) {
+function gradePercent(row: DataRow) {
   const direct = numberValue(row, ["percentage"], 0);
   if (direct > 0) return Math.round(direct);
 
@@ -165,46 +191,14 @@ function isOpenReferral(value: unknown) {
   ].includes(status);
 }
 
-function insightTone(tone: AiTone) {
-  const tones: Record<AiTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
-  };
-
-  return tones[tone];
-}
-
-function progressTone(tone: AiTone) {
-  const tones: Record<AiTone, string> = {
-    green: "bg-[var(--app-green)]",
-    gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
-  };
-
-  return tones[tone];
-}
-
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
 ): Promise<T> {
   try {
     const result = await query;
-
-    if (result.error) {
-      console.warn(`ai-center query skipped: ${label}`, result.error);
-      return fallback;
-    }
-
-    return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`ai-center query failed: ${label}`, error);
+    return result.error ? fallback : (result.data ?? fallback);
+  } catch {
     return fallback;
   }
 }
@@ -216,17 +210,21 @@ function nowLabel() {
   }).format(new Date());
 }
 
+function createMessageId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
 export default function AiCenterPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
 
-  const [students, setStudents] = useState<AnyRow[]>([]);
-  const [teachers, setTeachers] = useState<AnyRow[]>([]);
-  const [classrooms, setClassrooms] = useState<AnyRow[]>([]);
-  const [subjects, setSubjects] = useState<AnyRow[]>([]);
-  const [attendance, setAttendance] = useState<AnyRow[]>([]);
-  const [grades, setGrades] = useState<AnyRow[]>([]);
-  const [behavior, setBehavior] = useState<AnyRow[]>([]);
-  const [referrals, setReferrals] = useState<AnyRow[]>([]);
+  const [students, setStudents] = useState<DataRow[]>([]);
+  const [teachers, setTeachers] = useState<DataRow[]>([]);
+  const [classrooms, setClassrooms] = useState<DataRow[]>([]);
+  const [subjects, setSubjects] = useState<DataRow[]>([]);
+  const [attendance, setAttendance] = useState<DataRow[]>([]);
+  const [grades, setGrades] = useState<DataRow[]>([]);
+  const [behavior, setBehavior] = useState<DataRow[]>([]);
+  const [referrals, setReferrals] = useState<DataRow[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -238,19 +236,29 @@ export default function AiCenterPage() {
       id: "welcome",
       role: "assistant",
       content:
-        "مرحبًا بك في مركز الذكاء الاصطناعي. اسألني عن الطلاب المعرضين للخطر، الحضور، الدرجات، السلوك، أو جودة بيانات المدرسة.",
+        "مرحبًا. اسأل عن المخاطر أو الحضور أو الدرجات أو جودة البيانات.",
       createdAt: nowLabel(),
     },
   ]);
-  const [selectedInsight, setSelectedInsight] = useState<AiInsight | null>(null);
+  const [selectedInsight, setSelectedInsight] =
+    useState<AiInsight | null>(null);
 
-  const showToast = useCallback((type: Toast["type"], message: string) => {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3200);
-  }, []);
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3200);
+    },
+    [],
+  );
 
   const loadAiData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
 
@@ -266,57 +274,69 @@ export default function AiCenterPage() {
       behaviorData,
       referralsData,
     ] = await Promise.all([
-      safeQuery<AnyRow[]>(
-        supabase.from("students").select("*").eq("school_id", schoolId).limit(1500),
+      safeQuery<DataRow[]>(
+        supabase
+          .from("students")
+          .select("*")
+          .eq("school_id", schoolId)
+          .limit(1500),
         [],
-        "students",
       ),
-      safeQuery<AnyRow[]>(
-        supabase.from("teachers").select("*").eq("school_id", schoolId).limit(1000),
+      safeQuery<DataRow[]>(
+        supabase
+          .from("teachers")
+          .select("*")
+          .eq("school_id", schoolId)
+          .limit(1000),
         [],
-        "teachers",
       ),
-      safeQuery<AnyRow[]>(
-        supabase.from("classrooms").select("*").eq("school_id", schoolId).limit(500),
+      safeQuery<DataRow[]>(
+        supabase
+          .from("classrooms")
+          .select("*")
+          .eq("school_id", schoolId)
+          .limit(500),
         [],
-        "classrooms",
       ),
-      safeQuery<AnyRow[]>(
-        supabase.from("subjects").select("*").eq("school_id", schoolId).limit(500),
+      safeQuery<DataRow[]>(
+        supabase
+          .from("subjects")
+          .select("*")
+          .eq("school_id", schoolId)
+          .limit(500),
         [],
-        "subjects",
       ),
-      safeQuery<AnyRow[]>(
+      safeQuery<DataRow[]>(
         supabase
           .from("student_attendance_records")
           .select("*")
           .eq("school_id", schoolId)
           .limit(2000),
         [],
-        "attendance",
       ),
-      safeQuery<AnyRow[]>(
-        supabase.from("grades").select("*").eq("school_id", schoolId).limit(2000),
+      safeQuery<DataRow[]>(
+        supabase
+          .from("grades")
+          .select("*")
+          .eq("school_id", schoolId)
+          .limit(2000),
         [],
-        "grades",
       ),
-      safeQuery<AnyRow[]>(
+      safeQuery<DataRow[]>(
         supabase
           .from("student_behavior")
           .select("*")
           .eq("school_id", schoolId)
           .limit(1000),
         [],
-        "behavior",
       ),
-      safeQuery<AnyRow[]>(
+      safeQuery<DataRow[]>(
         supabase
           .from("student_referrals")
           .select("*")
           .eq("school_id", schoolId)
           .limit(1000),
         [],
-        "referrals",
       ),
     ]);
 
@@ -328,7 +348,6 @@ export default function AiCenterPage() {
     setGrades(gradesData);
     setBehavior(behaviorData);
     setReferrals(referralsData);
-
     setLoading(false);
   }, [currentSchool?.id]);
 
@@ -351,7 +370,10 @@ export default function AiCenterPage() {
         ) === "present",
     ).length;
 
-    const attendanceRate = percentage(present, attendance.length);
+    const attendanceRate = percentage(
+      present,
+      attendance.length,
+    );
 
     const gradeValues = grades
       .map(gradePercent)
@@ -374,25 +396,32 @@ export default function AiCenterPage() {
       const absent = attendance.filter(
         (row) =>
           String(row.student_id || "") === studentId &&
-          normalizeAttendance(row.attendance_status ?? row.status) ===
-            "absent",
+          normalizeAttendance(
+            row.attendance_status ?? row.status,
+          ) === "absent",
       ).length;
 
       const studentGrades = grades
-        .filter((row) => String(row.student_id || "") === studentId)
+        .filter(
+          (row) =>
+            String(row.student_id || "") === studentId,
+        )
         .map(gradePercent)
         .filter((value) => value > 0);
 
-      const avg = studentGrades.length
-        ? studentGrades.reduce((sum, value) => sum + value, 0) /
-          studentGrades.length
+      const average = studentGrades.length
+        ? studentGrades.reduce(
+            (sum, value) => sum + value,
+            0,
+          ) / studentGrades.length
         : 100;
 
-      const studentBehavior = behavior.filter(
-        (row) => String(row.student_id || "") === studentId,
+      const behaviorCount = behavior.filter(
+        (row) =>
+          String(row.student_id || "") === studentId,
       ).length;
 
-      return absent >= 3 || avg < 60 || studentBehavior >= 2;
+      return absent >= 3 || average < 60 || behaviorCount >= 2;
     }).length;
 
     const qualitySignals = [
@@ -409,7 +438,7 @@ export default function AiCenterPage() {
     const aiReadiness = Math.round(
       dataQuality * 0.4 +
         attendanceRate * 0.2 +
-        (gradeAverage || 0) * 0.2 +
+        gradeAverage * 0.2 +
         Math.max(0, 100 - riskStudents * 3) * 0.2,
     );
 
@@ -445,46 +474,51 @@ export default function AiCenterPage() {
     if (metrics.riskStudents > 0) {
       items.push({
         title: "طلاب معرضون للخطر",
-        description: `تم رصد ${metrics.riskStudents} طالب لديهم مؤشرات تعثر أكاديمي أو سلوكي أو حضور متكرر.`,
+        description: `تم رصد ${metrics.riskStudents} طالب بحاجة إلى متابعة.`,
         tone: "red",
-        icon: <ShieldAlert className="h-5 w-5" />,
+        icon: <ShieldAlert className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
-    if (metrics.attendanceRecords > 0 && metrics.attendanceRate < 85) {
+    if (
+      metrics.attendanceRecords > 0 &&
+      metrics.attendanceRate < 85
+    ) {
       items.push({
         title: "الحضور أقل من المستهدف",
-        description: `نسبة الحضور الحالية ${metrics.attendanceRate}% وتحتاج إلى تدخل تشغيلي.`,
+        description: `نسبة الحضور الحالية ${metrics.attendanceRate}%.`,
         tone: "gold",
-        icon: <Activity className="h-5 w-5" />,
+        icon: <Activity className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
-    if (metrics.gradeRecords > 0 && metrics.gradeAverage < 70) {
+    if (
+      metrics.gradeRecords > 0 &&
+      metrics.gradeAverage < 70
+    ) {
       items.push({
         title: "التحصيل يحتاج دعمًا",
-        description: `متوسط الدرجات الحالي ${metrics.gradeAverage}%، ويُنصح بخطط علاجية للمواد الأضعف.`,
-        tone: "blue",
-        icon: <BookOpen className="h-5 w-5" />,
+        description: `متوسط الدرجات ${metrics.gradeAverage}%.`,
+        tone: "primary",
+        icon: <BookOpen className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
     if (metrics.openReferrals > 0) {
       items.push({
         title: "إحالات مفتوحة",
-        description: `يوجد ${metrics.openReferrals} إحالة ما زالت قيد المتابعة.`,
-        tone: "teal",
-        icon: <HeartPulse className="h-5 w-5" />,
+        description: `يوجد ${metrics.openReferrals} إحالة قيد المتابعة.`,
+        tone: "primary",
+        icon: <HeartPulse className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
     if (items.length === 0) {
       items.push({
         title: "الوضع مستقر",
-        description:
-          "لا توجد مؤشرات حرجة في البيانات الحالية. استمر في المتابعة الدورية.",
+        description: "لا توجد مؤشرات حرجة حاليًا.",
         tone: "green",
-        icon: <CheckCircle2 className="h-5 w-5" />,
+        icon: <CheckCircle2 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -496,49 +530,44 @@ export default function AiCenterPage() {
       {
         id: "assistant",
         title: "المساعد الذكي",
-        description:
-          "اسأل عن بيانات المدرسة واحصل على إجابة فورية مبنية على المؤشرات الحالية.",
-        icon: <Bot className="h-6 w-6" />,
+        description: "أسئلة مباشرة عن بيانات المدرسة.",
+        icon: <Bot className="h-6 w-6" aria-hidden="true" />,
         badge: "مباشر",
-        tone: "blue",
+        tone: "primary",
         prompt: "أعطني ملخصًا تنفيذيًا عن المدرسة",
       },
       {
         id: "risk",
-        title: "محرك مخاطر الطلاب",
-        description:
-          "تحليل الحضور والدرجات والسلوك والإحالات لاكتشاف الطلاب الأعلى احتياجًا.",
-        icon: <ShieldAlert className="h-6 w-6" />,
+        title: "مخاطر الطلاب",
+        description: "تحليل الحضور والدرجات والسلوك.",
+        icon: <ShieldAlert className="h-6 w-6" aria-hidden="true" />,
         badge: `${metrics.riskStudents} حالة`,
         tone: "red",
         prompt: "من هم الطلاب المعرضون للخطر؟",
       },
       {
         id: "reports",
-        title: "مولد التقارير الذكي",
-        description:
-          "إنشاء ملخصات تنفيذية وتوصيات جاهزة للإدارة والمعلمين.",
-        icon: <WandSparkles className="h-6 w-6" />,
+        title: "التقارير الذكية",
+        description: "ملخصات وتوصيات تنفيذية.",
+        icon: <WandSparkles className="h-6 w-6" aria-hidden="true" />,
         badge: "تلقائي",
-        tone: "teal",
+        tone: "primary",
         prompt: "أنشئ تقريرًا تنفيذيًا مختصرًا",
       },
       {
         id: "files",
         title: "محلل الملفات",
-        description:
-          "واجهة مركزية لتحليل ملفات Excel وPDF وCSV التعليمية والإدارية.",
-        icon: <FileSearch className="h-6 w-6" />,
+        description: "تحليل Excel وPDF وCSV.",
+        icon: <FileSearch className="h-6 w-6" aria-hidden="true" />,
         badge: "جاهز للربط",
         tone: "gold",
         prompt: "كيف أستخدم محلل الملفات؟",
       },
       {
         id: "recommendations",
-        title: "التوصيات التربوية",
-        description:
-          "خطط علاجية وتحسينية مبنية على التحصيل والحضور والسلوك.",
-        icon: <Lightbulb className="h-6 w-6" />,
+        title: "التوصيات",
+        description: "إجراءات علاجية وتحسينية.",
+        icon: <Lightbulb className="h-6 w-6" aria-hidden="true" />,
         badge: `${insights.length} توصية`,
         tone: "green",
         prompt: "أعطني أهم التوصيات التربوية",
@@ -546,11 +575,10 @@ export default function AiCenterPage() {
       {
         id: "decision",
         title: "دعم القرار",
-        description:
-          "مؤشرات تنفيذية تساعد الإدارة على تحديد الأولويات والإجراءات القادمة.",
-        icon: <Target className="h-6 w-6" />,
+        description: "ترتيب الأولويات والإجراءات.",
+        icon: <Target className="h-6 w-6" aria-hidden="true" />,
         badge: `${metrics.aiReadiness}%`,
-        tone: "blue",
+        tone: "primary",
         prompt: "ما أهم قرار يجب اتخاذه الآن؟",
       },
     ],
@@ -562,7 +590,9 @@ export default function AiCenterPage() {
 
     return modules.filter((module) => {
       const matchesType =
-        selectedModule === "all" || module.id === selectedModule;
+        selectedModule === "all" ||
+        module.id === selectedModule;
+
       const matchesSearch =
         !keyword ||
         `${module.title} ${module.description}`
@@ -582,7 +612,7 @@ export default function AiCenterPage() {
         normalized.includes("متعثر") ||
         normalized.includes("متابعة")
       ) {
-        return `تم رصد ${metrics.riskStudents} طالب ضمن مؤشرات المخاطر. يعتمد التصنيف على تكرار الغياب، انخفاض الدرجات، وتعدد السجلات السلوكية. الأولوية: مراجعة الحالات الأعلى تكرارًا ثم إعداد خطة تدخل مشتركة مع المرشد وولي الأمر.`;
+        return `تم رصد ${metrics.riskStudents} طالب ضمن مؤشرات المخاطر.`;
       }
 
       if (
@@ -590,11 +620,7 @@ export default function AiCenterPage() {
         normalized.includes("غياب") ||
         normalized.includes("تأخر")
       ) {
-        return `نسبة الحضور الحالية ${metrics.attendanceRate}% من ${metrics.attendanceRecords} سجل حضور. ${
-          metrics.attendanceRate >= 85
-            ? "المؤشر جيد، مع ضرورة متابعة الحالات المتكررة."
-            : "المؤشر أقل من المستوى المستهدف ويحتاج متابعة الفصول الأعلى غيابًا."
-        }`;
+        return `نسبة الحضور ${metrics.attendanceRate}% من ${metrics.attendanceRecords} سجل.`;
       }
 
       if (
@@ -602,18 +628,14 @@ export default function AiCenterPage() {
         normalized.includes("تحصيل") ||
         normalized.includes("أكاديمي")
       ) {
-        return `متوسط الدرجات الحالي ${metrics.gradeAverage || 0}% من ${metrics.gradeRecords} سجل. ${
-          metrics.gradeAverage >= 80
-            ? "الأداء الأكاديمي جيد."
-            : "يوصى بتحليل المواد الأقل متوسطًا وإعداد خطط علاجية."
-        }`;
+        return `متوسط الدرجات ${metrics.gradeAverage}% من ${metrics.gradeRecords} سجل.`;
       }
 
       if (
         normalized.includes("تقرير") ||
         normalized.includes("ملخص")
       ) {
-        return `الملخص التنفيذي: ${metrics.students} طالب، ${metrics.teachers} معلم، ${metrics.classrooms} فصل، حضور ${metrics.attendanceRate}%، متوسط درجات ${metrics.gradeAverage || 0}%، ${metrics.riskStudents} طالب يحتاج متابعة، و${metrics.openReferrals} إحالة مفتوحة. جاهزية الذكاء الاصطناعي ${metrics.aiReadiness}%.`;
+        return `الملخص: ${metrics.students} طالب، ${metrics.teachers} معلم، حضور ${metrics.attendanceRate}%، متوسط درجات ${metrics.gradeAverage}%، و${metrics.riskStudents} حالة متابعة.`;
       }
 
       if (
@@ -621,18 +643,18 @@ export default function AiCenterPage() {
         normalized.includes("أولوية")
       ) {
         if (metrics.riskStudents > 0) {
-          return `الأولوية الأولى هي معالجة ${metrics.riskStudents} حالة خطر طلابي، ثم متابعة الحضور والدرجات للحالات نفسها.`;
+          return `الأولوية متابعة ${metrics.riskStudents} حالة خطر طلابي.`;
         }
 
         if (metrics.attendanceRate < 85) {
-          return "الأولوية الحالية هي رفع نسبة الحضور وتحليل الغياب المتكرر حسب الفصل والطالب.";
+          return "الأولوية رفع نسبة الحضور وتحليل الغياب المتكرر.";
         }
 
         if (metrics.gradeAverage < 70) {
-          return "الأولوية الحالية هي بناء خطة علاجية للمواد الأقل متوسطًا ومراجعة أدوات التقويم.";
+          return "الأولوية إعداد خطة علاجية للمواد الأقل متوسطًا.";
         }
 
-        return "المؤشرات مستقرة. الأولوية المناسبة هي رفع جودة البيانات وتوسيع التحليلات التنبؤية.";
+        return "المؤشرات مستقرة؛ ركز على جودة البيانات.";
       }
 
       if (
@@ -640,40 +662,39 @@ export default function AiCenterPage() {
         normalized.includes("excel") ||
         normalized.includes("pdf")
       ) {
-        return "محلل الملفات سيكون نقطة موحدة لرفع Excel وPDF وCSV وتحليل المحتوى واكتشاف الأخطاء وإنتاج توصيات. هذه النسخة تعرض الواجهة وجاهزية الربط، ولا ترسل الملف إلى خدمة ذكاء اصطناعي خارجية تلقائيًا.";
+        return "محلل الملفات جاهز للربط بمحرك تحليل خارجي.";
       }
 
-      return `بناءً على البيانات الحالية: جاهزية الذكاء الاصطناعي ${metrics.aiReadiness}%، جودة البيانات ${metrics.dataQuality}%، الحضور ${metrics.attendanceRate}%، ومتوسط الدرجات ${metrics.gradeAverage || 0}%. يمكنك سؤالي عن المخاطر أو الحضور أو الدرجات أو القرارات التنفيذية.`;
+      return `جاهزية AI ${metrics.aiReadiness}%، جودة البيانات ${metrics.dataQuality}%، الحضور ${metrics.attendanceRate}%، ومتوسط الدرجات ${metrics.gradeAverage}%.`;
     },
     [metrics],
   );
 
-  function sendMessage(value?: string) {
-    const question = (value ?? chatInput).trim();
-    if (!question) return;
+  const sendMessage = useCallback(
+    (value?: string) => {
+      const question = (value ?? chatInput).trim();
+      if (!question) return;
 
-    const userMessage: ChatMessage = {
-      id: `user-${crypto.randomUUID()}`,
-      role: "user",
-      content: question,
-      createdAt: nowLabel(),
-    };
+      setChatMessages((current) => [
+        ...current,
+        {
+          id: createMessageId("user"),
+          role: "user",
+          content: question,
+          createdAt: nowLabel(),
+        },
+        {
+          id: createMessageId("assistant"),
+          role: "assistant",
+          content: generateAnswer(question),
+          createdAt: nowLabel(),
+        },
+      ]);
 
-    const answerMessage: ChatMessage = {
-      id: `assistant-${crypto.randomUUID()}`,
-      role: "assistant",
-      content: generateAnswer(question),
-      createdAt: nowLabel(),
-    };
-
-    setChatMessages((current) => [
-      ...current,
-      userMessage,
-      answerMessage,
-    ]);
-
-    setChatInput("");
-  }
+      setChatInput("");
+    },
+    [chatInput, generateAnswer],
+  );
 
   if (schoolLoading || loading) {
     return (
@@ -689,7 +710,7 @@ export default function AiCenterPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6 pb-10" dir="rtl">
-          {toast && (
+          {toast ? (
             <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))]">
               {toast.type === "success" ? (
                 <SuccessBanner description={toast.message} />
@@ -697,17 +718,17 @@ export default function AiCenterPage() {
                 <ErrorState description={toast.message} />
               )}
             </div>
-          )}
+          ) : null}
 
           <PageHeader
             variant="hero"
             title="مركز الذكاء الاصطناعي"
-            description="مركز موحد للمساعد الذكي، تحليل مخاطر الطلاب، التوصيات التربوية، دعم القرار، توليد التقارير، وتحليل الملفات."
-            badge="AI Center Enterprise V3"
-            icon={<BrainCircuit size={18} />}
+            description="تحليل المخاطر ودعم القرار والتوصيات."
+            badge="AI Center"
+            icon={<BrainCircuit size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
-              { label: "مركز الذكاء الاصطناعي" },
+              { label: "الذكاء الاصطناعي" },
             ]}
             meta={[
               {
@@ -715,7 +736,7 @@ export default function AiCenterPage() {
                 value: currentSchool?.school_name || "غير متوفر",
               },
               {
-                label: "جاهزية الذكاء الاصطناعي",
+                label: "جاهزية AI",
                 value: `${metrics.aiReadiness}%`,
               },
               {
@@ -731,95 +752,123 @@ export default function AiCenterPage() {
               {
                 label: "الطلاب",
                 value: metrics.students,
-                icon: <Users size={20} />,
-                tone: "blue",
+                icon: <Users size={20} aria-hidden="true" />,
+                tone: "primary",
               },
               {
                 label: "المخاطر",
                 value: metrics.riskStudents,
-                icon: <ShieldAlert size={20} />,
-                tone: metrics.riskStudents > 0 ? "red" : "green",
+                icon: <ShieldAlert size={20} aria-hidden="true" />,
+                tone:
+                  metrics.riskStudents > 0 ? "red" : "green",
               },
               {
                 label: "الحضور",
                 value: `${metrics.attendanceRate}%`,
-                icon: <Activity size={20} />,
-                tone: metrics.attendanceRate >= 85 ? "green" : "gold",
+                icon: <Activity size={20} aria-hidden="true" />,
+                tone:
+                  metrics.attendanceRate >= 85
+                    ? "green"
+                    : "gold",
               },
               {
                 label: "الدرجات",
-                value: `${metrics.gradeAverage || 0}%`,
-                icon: <GraduationCap size={20} />,
-                tone: metrics.gradeAverage >= 80 ? "green" : "gold",
+                value: `${metrics.gradeAverage}%`,
+                icon: <GraduationCap size={20} aria-hidden="true" />,
+                tone:
+                  metrics.gradeAverage >= 80
+                    ? "green"
+                    : "gold",
               },
             ]}
             actions={
               <>
-                <button
-                  type="button"
-                  onClick={() => void loadAiData()}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A]"
-                >
-                  <RefreshCcw size={17} />
-                  تحديث البيانات
-                </button>
+                <SecondaryButton onClick={() => void loadAiData()}>
+                  <RefreshCcw size={17} aria-hidden="true" />
+                  تحديث
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
                   onClick={() => {
-                    setChatMessages((current) => current.slice(0, 1));
-                    showToast("success", "تم بدء جلسة جديدة");
+                    setChatMessages((current) =>
+                      current.slice(0, 1),
+                    );
+                    showToast("success", "تم بدء جلسة جديدة.");
                   }}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white"
                 >
-                  <Sparkles size={17} />
+                  <Sparkles size={17} aria-hidden="true" />
                   جلسة جديدة
-                </button>
+                </PrimaryButton>
               </>
             }
           />
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+            aria-label="مؤشرات الذكاء الاصطناعي"
+          >
             <ExecutiveCard
-              title="جاهزية الذكاء الاصطناعي"
+              title="جاهزية AI"
               value={`${metrics.aiReadiness}%`}
-              subtitle="اعتمادًا على جودة واكتمال البيانات"
-              icon={<BrainCircuit size={24} />}
-              tone={metrics.aiReadiness >= 80 ? "green" : "gold"}
+              subtitle="جودة واكتمال البيانات"
+              icon={<BrainCircuit size={24} aria-hidden="true" />}
+              tone={
+                metrics.aiReadiness >= 80 ? "green" : "gold"
+              }
               progress={metrics.aiReadiness}
             />
 
             <ExecutiveCard
               title="جودة البيانات"
               value={`${metrics.dataQuality}%`}
-              subtitle="الطلاب والمعلمون والفصول والحضور والدرجات"
-              icon={<BarChart3 size={24} />}
-              tone={metrics.dataQuality >= 80 ? "green" : "gold"}
+              subtitle="المصادر الأساسية"
+              icon={<BarChart3 size={24} aria-hidden="true" />}
+              tone={
+                metrics.dataQuality >= 80 ? "green" : "gold"
+              }
               progress={metrics.dataQuality}
             />
 
             <ExecutiveCard
-              title="طلاب معرضون للخطر"
+              title="مخاطر الطلاب"
               value={metrics.riskStudents}
-              subtitle="تحليل التحصيل والحضور والسلوك"
-              icon={<AlertTriangle size={24} />}
-              tone={metrics.riskStudents > 0 ? "red" : "green"}
-              progress={metrics.students ? percentage(metrics.riskStudents, metrics.students) : 0}
+              subtitle="حضور ودرجات وسلوك"
+              icon={<AlertTriangle size={24} aria-hidden="true" />}
+              tone={
+                metrics.riskStudents > 0 ? "red" : "green"
+              }
+              progress={
+                metrics.students
+                  ? percentage(
+                      metrics.riskStudents,
+                      metrics.students,
+                    )
+                  : 0
+              }
             />
 
             <ExecutiveCard
-              title="الإحالات المفتوحة"
+              title="الإحالات"
               value={metrics.openReferrals}
-              subtitle="حالات تحتاج متابعة"
-              icon={<HeartPulse size={24} />}
-              tone={metrics.openReferrals > 0 ? "gold" : "green"}
-              progress={metrics.students ? percentage(metrics.openReferrals, metrics.students) : 0}
+              subtitle="قيد المتابعة"
+              icon={<HeartPulse size={24} aria-hidden="true" />}
+              tone={
+                metrics.openReferrals > 0 ? "gold" : "green"
+              }
+              progress={
+                metrics.students
+                  ? percentage(
+                      metrics.openReferrals,
+                      metrics.students,
+                    )
+                  : 0
+              }
             />
           </section>
 
           <SummaryCard
-            title="الملخص التنفيذي للذكاء الاصطناعي"
-            description="قراءة موحدة لمدى جاهزية المدرسة للاستفادة من التحليلات الذكية والتنبؤ بالمخاطر ودعم القرار."
+            title="الملخص التنفيذي"
+            description="قراءة موحدة لجاهزية التحليلات الذكية."
             tone={
               metrics.riskStudents > 0 ||
               metrics.attendanceRate < 85 ||
@@ -832,17 +881,23 @@ export default function AiCenterPage() {
               { label: "المعلمون", value: metrics.teachers },
               { label: "الفصول", value: metrics.classrooms },
               { label: "المواد", value: metrics.subjects },
-              { label: "جودة البيانات", value: `${metrics.dataQuality}%` },
-              { label: "جاهزية AI", value: `${metrics.aiReadiness}%` },
+              {
+                label: "جودة البيانات",
+                value: `${metrics.dataQuality}%`,
+              },
+              {
+                label: "جاهزية AI",
+                value: `${metrics.aiReadiness}%`,
+              },
             ]}
-            footer="هذه النسخة تستخدم تحليلًا ذكيًا محليًا قائمًا على بيانات المنصة، وهي جاهزة لاحقًا للربط بخدمة نماذج ذكاء اصطناعي خارجية."
+            footer="التحليل محلي وجاهز للربط بخدمة AI خارجية."
           />
 
           <PageToolbar
             search={{
               value: search,
               onChange: setSearch,
-              placeholder: "ابحث عن مساعد، مخاطر، تقارير، توصيات...",
+              placeholder: "بحث في الوحدات...",
             }}
             filters={
               <ToolbarSelect
@@ -862,6 +917,7 @@ export default function AiCenterPage() {
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <AiExecutiveAnalytics metrics={metrics} />
+
             <AiSmartInsights
               insights={insights}
               onSelect={setSelectedInsight}
@@ -883,14 +939,16 @@ export default function AiCenterPage() {
                   setSelectedModule(module.id);
                   sendMessage(module.prompt);
                 }}
-                className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-right shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-right shadow-[var(--app-shadow-sm)] transition hover:-translate-y-1 hover:shadow-[var(--app-shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${insightTone(module.tone)}`}
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] ${TONE_CLASSES[module.tone]}`}
+                    aria-hidden="true"
                   >
                     {module.icon}
-                  </div>
+                  </span>
+
                   <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
                     {module.badge}
                   </span>
@@ -899,6 +957,7 @@ export default function AiCenterPage() {
                 <h3 className="mt-4 text-xl font-black text-[var(--app-text)]">
                   {module.title}
                 </h3>
+
                 <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
                   {module.description}
                 </p>
@@ -906,13 +965,13 @@ export default function AiCenterPage() {
             ))}
           </section>
 
-          {filteredModules.length === 0 && (
+          {filteredModules.length === 0 ? (
             <EmptyState
-              title="لا توجد وحدات مطابقة"
-              description="جرّب تغيير البحث أو تحديد كل الوحدات."
-              icon={<Search className="h-8 w-8" />}
+              title="لا توجد وحدات"
+              description="غيّر البحث أو الفلتر."
+              icon={<Search className="h-8 w-8" aria-hidden="true" />}
             />
-          )}
+          ) : null}
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
             <AiChat
@@ -926,16 +985,45 @@ export default function AiCenterPage() {
             <AiFileAnalyzer />
           </section>
 
-          {selectedInsight && (
+          {selectedInsight ? (
             <AiInsightDrawer
               insight={selectedInsight}
               metrics={metrics}
               onClose={() => setSelectedInsight(null)}
             />
-          )}
+          ) : null}
         </main>
       </AppShell>
     </RoleGuard>
+  );
+}
+
+function Panel({
+  title,
+  description,
+  icon,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
+        {icon}
+        {title}
+      </h2>
+
+      {description ? (
+        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+          {description}
+        </p>
+      ) : null}
+
+      <div className="mt-5">{children}</div>
+    </section>
   );
 }
 
@@ -945,41 +1033,42 @@ function AiExecutiveAnalytics({
   metrics: SchoolMetrics;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">
-        AI Executive Analytics
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        المؤشرات التنفيذية التي يعتمد عليها مركز الذكاء الاصطناعي.
-      </p>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <Panel
+      title="التحليلات التنفيذية"
+      description="المؤشرات الأساسية للتحليل."
+    >
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AiMetric
           label="جاهزية AI"
           value={`${metrics.aiReadiness}%`}
-          icon={<BrainCircuit size={18} />}
+          icon={<BrainCircuit size={18} aria-hidden="true" />}
           tone="green"
         />
+
         <AiMetric
           label="جودة البيانات"
           value={`${metrics.dataQuality}%`}
-          icon={<BarChart3 size={18} />}
-          tone="blue"
+          icon={<BarChart3 size={18} aria-hidden="true" />}
+          tone="primary"
         />
+
         <AiMetric
-          label="مخاطر الطلاب"
+          label="المخاطر"
           value={metrics.riskStudents}
-          icon={<ShieldAlert size={18} />}
-          tone={metrics.riskStudents > 0 ? "red" : "green"}
+          icon={<ShieldAlert size={18} aria-hidden="true" />}
+          tone={
+            metrics.riskStudents > 0 ? "red" : "green"
+          }
         />
+
         <AiMetric
           label="الإحالات"
           value={metrics.openReferrals}
-          icon={<HeartPulse size={18} />}
+          icon={<HeartPulse size={18} aria-hidden="true" />}
           tone="gold"
         />
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -991,40 +1080,39 @@ function AiSmartInsights({
   onSelect: (insight: AiInsight) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <BrainCircuit size={20} />
-        AI Smart Insights
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        أبرز الملاحظات الذكية المستخرجة من بيانات المدرسة.
-      </p>
-
-      <div className="mt-5 space-y-3">
+    <Panel
+      title="الرؤى الذكية"
+      description="أبرز الملاحظات المستخرجة."
+      icon={<BrainCircuit size={20} aria-hidden="true" />}
+    >
+      <div className="space-y-3">
         {insights.map((insight) => (
           <button
             key={insight.title}
             type="button"
             onClick={() => onSelect(insight)}
-            className="flex w-full gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+            className="flex w-full gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
           >
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(insight.tone)}`}
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${TONE_CLASSES[insight.tone]}`}
+              aria-hidden="true"
             >
               {insight.icon}
-            </div>
-            <div>
-              <p className="text-sm font-black text-[var(--app-text)]">
+            </span>
+
+            <span>
+              <span className="block text-sm font-black text-[var(--app-text)]">
                 {insight.title}
-              </p>
-              <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
+              </span>
+
+              <span className="mt-1 block text-xs leading-6 text-[var(--app-text-muted)]">
                 {insight.description}
-              </p>
-            </div>
+              </span>
+            </span>
           </button>
         ))}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1034,19 +1122,12 @@ function AiHealthPanel({
   metrics: SchoolMetrics;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">
-        AI Health
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        صحة البيانات والمؤشرات المستخدمة في التحليل.
-      </p>
-
-      <div className="mt-5 space-y-4">
+    <Panel title="صحة البيانات" description="جودة المؤشرات المستخدمة.">
+      <div className="space-y-4">
         <AiProgress
           label="جودة البيانات"
           value={metrics.dataQuality}
-          tone="blue"
+          tone="primary"
         />
         <AiProgress
           label="جاهزية AI"
@@ -1056,7 +1137,7 @@ function AiHealthPanel({
         <AiProgress
           label="الحضور"
           value={metrics.attendanceRate}
-          tone="teal"
+          tone="primary"
         />
         <AiProgress
           label="التحصيل"
@@ -1064,7 +1145,7 @@ function AiHealthPanel({
           tone="gold"
         />
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1075,29 +1156,25 @@ function AiDecisionPanel({
 }) {
   const decision =
     metrics.riskStudents > 0
-      ? `ابدأ بمتابعة ${metrics.riskStudents} طالب ذوي المخاطر الأعلى.`
+      ? `ابدأ بمتابعة ${metrics.riskStudents} حالة خطر.`
       : metrics.attendanceRate < 85
-        ? "ابدأ بتحليل الغياب المتكرر ورفع نسبة الحضور."
+        ? "ابدأ بتحليل الغياب المتكرر."
         : metrics.gradeAverage < 70
-          ? "ابدأ بخطة علاجية للمواد الأقل متوسطًا."
-          : "المؤشرات مستقرة؛ ركز على التحسين المستمر.";
+          ? "ابدأ بخطة علاجية للتحصيل."
+          : "المؤشرات مستقرة؛ ركز على جودة البيانات.";
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Target size={20} />
-        Decision Support
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        القرار المقترح حاليًا حسب أولوية المؤشرات.
-      </p>
-
-      <div className="mt-5 rounded-3xl bg-[var(--app-card-soft)] p-5">
+    <Panel
+      title="دعم القرار"
+      description="الأولوية المقترحة حاليًا."
+      icon={<Target size={20} aria-hidden="true" />}
+    >
+      <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-5">
         <p className="text-lg font-black leading-8 text-[var(--app-text)]">
           {decision}
         </p>
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1107,31 +1184,28 @@ function AiRecommendations({
   insights: AiInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Lightbulb size={20} />
-        Smart Recommendations
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        إجراءات عملية مقترحة.
-      </p>
-
-      <div className="mt-5 space-y-3">
+    <Panel
+      title="التوصيات"
+      description="إجراءات عملية مقترحة."
+      icon={<Lightbulb size={20} aria-hidden="true" />}
+    >
+      <div className="space-y-3">
         {insights.map((insight, index) => (
           <div
             key={insight.title}
-            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-sm font-black text-[var(--app-primary)]">
               {index + 1}
             </span>
+
             <p className="text-sm leading-7 text-[var(--app-text)]">
               {insight.description}
             </p>
           </div>
         ))}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1152,39 +1226,41 @@ function AiChat({
     "أعطني ملخصًا تنفيذيًا",
     "من هم الطلاب المعرضون للخطر؟",
     "حلل الحضور والغياب",
-    "ما أهم قرار يجب اتخاذه الآن؟",
+    "ما أهم قرار الآن؟",
   ];
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <MessageSquareText size={20} />
-        المساعد الذكي
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        محادثة مباشرة مع مؤشرات المدرسة الحالية.
-      </p>
-
-      <div className="mt-5 max-h-[480px] space-y-3 overflow-y-auto rounded-3xl bg-[var(--app-card-soft)] p-4">
+    <Panel
+      title="المساعد الذكي"
+      description="محادثة مع مؤشرات المدرسة."
+      icon={<MessageSquareText size={20} aria-hidden="true" />}
+    >
+      <div
+        className="max-h-[480px] space-y-3 overflow-y-auto rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-4"
+        aria-live="polite"
+      >
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`max-w-[88%] rounded-2xl p-4 ${
+            className={`max-w-[88%] rounded-[var(--app-radius-lg)] p-4 ${
               message.role === "assistant"
-                ? "mr-auto bg-white text-slate-700"
-                : "ml-auto bg-[#15445A] text-white"
+                ? "mr-auto bg-[var(--app-card)] text-[var(--app-text)]"
+                : "ml-auto bg-[var(--app-primary)] text-[var(--app-text-inverse)]"
             }`}
           >
-            <p className="text-sm leading-7">{message.content}</p>
-            <p
-              className={`mt-2 text-[10px] ${
+            <p className="text-sm leading-7">
+              {message.content}
+            </p>
+
+            <time
+              className={`mt-2 block text-[10px] ${
                 message.role === "assistant"
-                  ? "text-slate-400"
-                  : "text-white/60"
+                  ? "text-[var(--app-text-subtle)]"
+                  : "text-[color-mix(in_srgb,var(--app-text-inverse)_65%,transparent)]"
               }`}
             >
               {message.createdAt}
-            </p>
+            </time>
           </div>
         ))}
       </div>
@@ -1195,7 +1271,7 @@ function AiChat({
             key={suggestion}
             type="button"
             onClick={() => onSuggestion(suggestion)}
-            className="rounded-2xl bg-[var(--app-card-soft)] px-3 py-2 text-xs font-black text-[var(--app-text)]"
+            className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2 text-xs font-black text-[var(--app-text)] transition hover:bg-[var(--app-card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
           >
             {suggestion}
           </button>
@@ -1209,61 +1285,67 @@ function AiChat({
           onKeyDown={(event) => {
             if (event.key === "Enter") onSend();
           }}
-          placeholder="اكتب سؤالك عن بيانات المدرسة..."
-          className="h-12 flex-1 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none"
+          placeholder="اكتب سؤالك..."
+          aria-label="سؤال المساعد الذكي"
+          className="h-12 flex-1 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
         />
+
         <button
           type="button"
           onClick={onSend}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#15445A] text-white"
+          aria-label="إرسال السؤال"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-[var(--app-text-inverse)] transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
         >
-          <Send size={18} />
+          <Send size={18} aria-hidden="true" />
         </button>
       </div>
-    </section>
+    </Panel>
   );
 }
 
 function AiFileAnalyzer() {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <FileSearch size={20} />
-        محلل الملفات
-      </h2>
-      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        واجهة جاهزة لربط تحليل Excel وPDF وCSV.
-      </p>
+    <Panel
+      title="محلل الملفات"
+      description="واجهة جاهزة للربط."
+      icon={<FileSearch size={20} aria-hidden="true" />}
+    >
+      <label className="flex cursor-pointer flex-col items-center justify-center rounded-[var(--app-radius-xl)] border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-8 text-center transition hover:bg-[var(--app-card)]">
+        <FileSearch
+          className="h-10 w-10 text-[var(--app-primary)]"
+          aria-hidden="true"
+        />
 
-      <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-8 text-center">
-        <FileSearch className="h-10 w-10 text-[var(--app-teal)]" />
         <span className="mt-3 font-black text-[var(--app-text)]">
-          اختر ملفًا للتحليل
+          اختر ملفًا
         </span>
+
         <span className="mt-1 text-xs text-[var(--app-text-muted)]">
           PDF · Excel · CSV · JSON
         </span>
+
         <input
           type="file"
           accept=".pdf,.xlsx,.xls,.csv,.json"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
+
             if (file) {
               window.alert(
-                `تم اختيار الملف: ${file.name}\nواجهة التحليل جاهزة، ويحتاج التحليل الحقيقي إلى ربط خدمة AI أو محرك الملفات.`,
+                `تم اختيار الملف: ${file.name}\nيلزم ربط محرك التحليل لإكمال العملية.`,
               );
             }
+
             event.currentTarget.value = "";
           }}
         />
       </label>
 
-      <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-6 text-amber-800">
-        لا يتم إرسال الملفات حاليًا إلى أي مزود خارجي. هذه الواجهة جاهزة
-        للربط لاحقًا مع محرك التحليل الذي تختاره.
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-warning)_10%,transparent)] p-4 text-xs leading-6 text-[var(--app-warning-foreground)]">
+        لا يتم إرسال الملفات إلى أي مزود خارجي حاليًا.
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -1277,38 +1359,47 @@ function AiInsightDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-text)_40%,transparent)] backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={insight.title}
+    >
       <button
         type="button"
         className="flex-1"
         onClick={onClose}
-        aria-label="إغلاق"
+        aria-label="إغلاق النافذة"
       />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">
-              AI Insight Details
+            <p className="text-xs font-black text-[var(--app-accent)]">
+              AI Insight
             </p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {insight.title}
             </h2>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-slate-100 p-2 text-slate-600"
+            aria-label="إغلاق"
+            className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]"
           >
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
         <div className="mt-6 space-y-3">
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+          <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-sm leading-7 text-[var(--app-text-muted)]">
             {insight.description}
           </div>
 
-          <AiDrawerSection
+          <DrawerSection
             title="البيانات الداعمة"
             items={[
               `جاهزية AI: ${metrics.aiReadiness}%`,
@@ -1320,14 +1411,14 @@ function AiInsightDrawer({
             ]}
           />
 
-          <AiDrawerSection
+          <DrawerSection
             title="الإجراء المقترح"
             items={[
               insight.tone === "red"
                 ? "ابدأ تدخلًا عاجلًا وحدد مسؤول المتابعة."
                 : insight.tone === "gold"
-                  ? "أنشئ خطة متابعة قصيرة وراجع المؤشر أسبوعيًا."
-                  : "استمر في المتابعة والتحسين التدريجي.",
+                  ? "أنشئ خطة متابعة قصيرة."
+                  : "استمر في المتابعة والتحسين.",
             ]}
           />
         </div>
@@ -1348,15 +1439,18 @@ function AiMetric({
   tone: AiTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div
-        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <span
+        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${TONE_CLASSES[tone]}`}
+        aria-hidden="true"
       >
         {icon}
-      </div>
+      </span>
+
       <p className="text-xs font-bold text-[var(--app-text-muted)]">
         {label}
       </p>
+
       <p className="mt-1 text-2xl font-black text-[var(--app-text)]">
         {value}
       </p>
@@ -1373,23 +1467,33 @@ function AiProgress({
   value: number;
   tone: AiTone;
 }) {
+  const safeValue = Math.max(0, Math.min(100, value));
+
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs font-bold text-[var(--app-text-muted)]">
         <span>{label}</span>
-        <span>{value}%</span>
+        <span>{safeValue}%</span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
+
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]"
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={safeValue}
+      >
         <div
-          className={`h-full rounded-full ${progressTone(tone)}`}
-          style={{ width: `${Math.max(4, Math.min(100, value))}%` }}
+          className={`h-full rounded-full ${PROGRESS_CLASSES[tone]}`}
+          style={{ width: `${safeValue}%` }}
         />
       </div>
     </div>
   );
 }
 
-function AiDrawerSection({
+function DrawerSection({
   title,
   items,
 }: {
@@ -1397,11 +1501,17 @@ function AiDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">
+        {title}
+      </p>
+
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
+          <p
+            key={item}
+            className="text-xs leading-6 text-[var(--app-text-muted)]"
+          >
             {item}
           </p>
         ))}

@@ -1,15 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import AppShell from "@/components/layout/AppShell";
-import RoleGuard from "@/components/auth/RoleGuard";
-import { type SchoolRole } from "@/lib/permissions";
-import { supabase } from "@/lib/supabase";
-import { useSchool } from "@/contexts/SchoolContext";
-import { exportTableToPDF } from "@/lib/exports/pdf";
-import { exportTableToExcel } from "@/lib/exports/excel";
-
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   CheckCircle2,
   Edit,
@@ -23,24 +19,29 @@ import {
   XCircle,
 } from "lucide-react";
 
-import {
-  ActivityEmpty,
-  ActivityError,
-  ActivityHero,
-  ActivityInfo,
-  ActivityInput,
-  ActivityLoading,
-  ActivityPanel,
-  ActivitySelect,
-  ActivitySummaryCard,
-  ActivityTextarea,
-  ActivityToastBox,
-  DangerButton,
-  DarkButton,
-  LightButton,
-  PrimaryButton,
-  type ActivityToast,
-} from "../../../components/activities/ActivityPageParts";
+import RoleGuard from "@/components/auth/RoleGuard";
+import AppShell from "@/components/layout/AppShell";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageSection from "@/components/ui/page/PageSection";
+
+import { useSchool } from "@/contexts/SchoolContext";
+import { exportTableToExcel } from "@/lib/exports/excel";
+import { exportTableToPDF } from "@/lib/exports/pdf";
+import type { SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type Toast = {
+  type: "success" | "error";
+  message: string;
+};
 
 type Activity = {
   id: string;
@@ -87,61 +88,98 @@ type FormState = {
   created_by: string;
 };
 
-const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "activity_leader"];
-
-const emptyForm: FormState = {
-  activity_id: "",
-  competition_id: "",
-  title: "",
-  report_type: "طھظ‚ط±ظٹط± ظ†ط´ط§ط·",
-  report_date: new Date().toISOString().slice(0, 10),
-  summary: "",
-  recommendations: "",
-  file_url: "",
-  created_by: "",
-};
-
-const REPORT_TYPES = [
-  "طھظ‚ط±ظٹط± ظ†ط´ط§ط·",
-  "طھظ‚ط±ظٹط± ظ…ط³ط§ط¨ظ‚ط©",
-  "طھظ‚ط±ظٹط± ط¥ظ†ط¬ط§ط²",
-  "طھظ‚ط±ظٹط± ظ…ط´ط§ط±ظƒط©",
-  "طھظ‚ط±ظٹط± ط®طھط§ظ…ظٹ",
-  "طھظ‚ط±ظٹط± ط´ظ‡ط±ظٹ",
-  "طھظ‚ط±ظٹط± ظپطµظ„ظٹ",
+const PAGE_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "activity_leader",
 ];
 
-function formatDate(value?: string | null) {
-  if (!value) return "â€”";
+const REPORT_TYPES = [
+  "تقرير نشاط",
+  "تقرير مسابقة",
+  "تقرير إنجاز",
+  "تقرير مشاركة",
+  "تقرير ختامي",
+  "تقرير شهري",
+  "تقرير فصلي",
+] as const;
 
-  return new Date(value).toLocaleDateString("ar-SA", {
+const LINK_TYPES = ["نشاط", "مسابقة", "عام"] as const;
+
+function getTodayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function createEmptyForm(): FormState {
+  return {
+    activity_id: "",
+    competition_id: "",
+    title: "",
+    report_type: "تقرير نشاط",
+    report_date: getTodayIso(),
+    summary: "",
+    recommendations: "",
+    file_url: "",
+    created_by: "",
+  };
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("ar-SA", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  });
+  }).format(date);
 }
 
-function optionLabel(id: string | null | undefined, options: OptionItem[]) {
-  if (!id) return "â€”";
-  return options.find((item) => item.id === id)?.label || "â€”";
+function optionLabel(
+  id: string | null | undefined,
+  options: OptionItem[],
+) {
+  if (!id) return "—";
+
+  return options.find((item) => item.id === id)?.label || "—";
 }
 
 function getReportLinkType(item: ActivityReport) {
-  if (item.competition_id) return "ظ…ط³ط§ط¨ظ‚ط©";
-  if (item.activity_id) return "ظ†ط´ط§ط·";
-  return "ط¹ط§ظ…";
+  if (item.competition_id) return "مسابقة";
+  if (item.activity_id) return "نشاط";
+  return "عام";
 }
 
-function reportTypeStyle(type?: string | null) {
+function getReportTypeClass(type?: string | null) {
   const value = String(type || "");
 
-  if (value.includes("ط¥ظ†ط¬ط§ط²")) return "bg-emerald-50 text-emerald-700";
-  if (value.includes("ظ…ط³ط§ط¨ظ‚ط©")) return "bg-amber-50 text-amber-700";
-  if (value.includes("ط®طھط§ظ…ظٹ") || value.includes("ظپطµظ„ظٹ")) {
-    return "bg-blue-50 text-blue-700";
+  if (value.includes("إنجاز")) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
 
-  return "bg-slate-100 text-slate-700";
+  if (value.includes("مسابقة")) {
+    return "bg-[color-mix(in_srgb,var(--app-warning)_14%,transparent)] text-[var(--app-warning-foreground)]";
+  }
+
+  if (value.includes("ختامي") || value.includes("فصلي")) {
+    return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
+  }
+
+  return "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
+}
+
+function isValidExternalUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export default function ActivityReportsPage() {
@@ -151,40 +189,56 @@ export default function ActivityReportsPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
 
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(() => createEmptyForm());
   const [showForm, setShowForm] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("ط§ظ„ظƒظ„");
-  const [linkFilter, setLinkFilter] = useState("ط§ظ„ظƒظ„");
+  const [typeFilter, setTypeFilter] = useState("الكل");
+  const [linkFilter, setLinkFilter] = useState("الكل");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [toast, setToast] = useState<ActivityToast | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const activityOptions = useMemo<OptionItem[]>(() => {
-    return activities.map((item) => ({
-      id: item.id,
-      label: item.title || item.activity_name || "ظ†ط´ط§ط·",
-    }));
-  }, [activities]);
+  const activityOptions = useMemo<OptionItem[]>(
+    () =>
+      activities.map((item) => ({
+        id: item.id,
+        label: item.title || item.activity_name || "نشاط",
+      })),
+    [activities],
+  );
 
-  const competitionOptions = useMemo<OptionItem[]>(() => {
-    return competitions.map((item) => ({
-      id: item.id,
-      label: item.title || item.competition_name || "ظ…ط³ط§ط¨ظ‚ط©",
-    }));
-  }, [competitions]);
+  const competitionOptions = useMemo<OptionItem[]>(
+    () =>
+      competitions.map((item) => ({
+        id: item.id,
+        label: item.title || item.competition_name || "مسابقة",
+      })),
+    [competitions],
+  );
 
-  function showToast(type: ActivityToast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    [],
+  );
 
   const loadData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setItems([]);
+      setActivities([]);
+      setCompetitions([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setErrorMsg("");
@@ -214,12 +268,21 @@ export default function ActivityReportsPage() {
 
     if (reportsResult.error) {
       setErrorMsg(reportsResult.error.message);
+      setItems([]);
       return;
     }
 
-    setItems((reportsResult.data || []) as ActivityReport[]);
-    setActivities((activitiesResult.data || []) as Activity[]);
-    setCompetitions((competitionsResult.data || []) as Competition[]);
+    setItems((reportsResult.data ?? []) as ActivityReport[]);
+    setActivities(
+      activitiesResult.error
+        ? []
+        : ((activitiesResult.data ?? []) as Activity[]),
+    );
+    setCompetitions(
+      competitionsResult.error
+        ? []
+        : ((competitionsResult.data ?? []) as Competition[]),
+    );
   }, [currentSchool?.id]);
 
   useEffect(() => {
@@ -227,28 +290,26 @@ export default function ActivityReportsPage() {
 
     if (!currentSchool?.id) {
       setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
       return;
     }
 
     void loadData();
   }, [currentSchool?.id, loadData, schoolLoading]);
 
-  function resetForm() {
-    setForm({
-      ...emptyForm,
-      report_date: new Date().toISOString().slice(0, 10),
-    });
+  const resetForm = useCallback(() => {
+    setForm(createEmptyForm());
     setShowForm(false);
-  }
+  }, []);
 
-  function editItem(item: ActivityReport) {
+  const editItem = useCallback((item: ActivityReport) => {
     setForm({
       id: item.id,
       activity_id: item.activity_id || "",
       competition_id: item.competition_id || "",
       title: item.title || "",
-      report_type: item.report_type || "طھظ‚ط±ظٹط± ظ†ط´ط§ط·",
-      report_date: item.report_date || new Date().toISOString().slice(0, 10),
+      report_type: item.report_type || "تقرير نشاط",
+      report_date: item.report_date || getTodayIso(),
       summary: item.summary || "",
       recommendations: item.recommendations || "",
       file_url: item.file_url || "",
@@ -256,18 +317,26 @@ export default function ActivityReportsPage() {
     });
 
     setShowForm(true);
-  }
+  }, []);
 
-  async function saveItem() {
-    if (!currentSchool?.id) return;
+  const saveItem = useCallback(async () => {
+    if (!currentSchool?.id) {
+      showToast("error", "تعذر تحديد المدرسة.");
+      return;
+    }
 
     if (!form.title.trim()) {
-      showToast("error", "ط§ظƒطھط¨ ط¹ظ†ظˆط§ظ† ط§ظ„طھظ‚ط±ظٹط± ط£ظˆظ„ط§ظ‹");
+      showToast("error", "أدخل عنوان التقرير.");
       return;
     }
 
     if (!form.summary.trim()) {
-      showToast("error", "ط§ظƒطھط¨ ظ…ظ„ط®طµ ط§ظ„طھظ‚ط±ظٹط± ط£ظˆظ„ط§ظ‹");
+      showToast("error", "أدخل ملخص التقرير.");
+      return;
+    }
+
+    if (form.file_url.trim() && !isValidExternalUrl(form.file_url.trim())) {
+      showToast("error", "رابط الملف غير صالح.");
       return;
     }
 
@@ -279,7 +348,7 @@ export default function ActivityReportsPage() {
       competition_id: form.competition_id || null,
       title: form.title.trim(),
       report_type: form.report_type,
-      report_date: form.report_date || new Date().toISOString().slice(0, 10),
+      report_date: form.report_date || getTodayIso(),
       summary: form.summary.trim(),
       recommendations: form.recommendations.trim() || null,
       file_url: form.file_url.trim() || null,
@@ -302,50 +371,108 @@ export default function ActivityReportsPage() {
       return;
     }
 
-    showToast("success", form.id ? "طھظ… طھط­ط¯ظٹط« ط§ظ„طھظ‚ط±ظٹط±" : "طھظ… ط¥ط¶ط§ظپط© ط§ظ„طھظ‚ط±ظٹط±");
-    resetForm();
-    void loadData();
-  }
-
-  async function deleteItem(item: ActivityReport) {
-    if (!currentSchool?.id) return;
-
-    const ok = window.confirm(
-      `ظ‡ظ„ طھط±ظٹط¯ ط­ط°ظپ ط§ظ„طھظ‚ط±ظٹط±: ${item.title || "طھظ‚ط±ظٹط±"}طں`
+    showToast(
+      "success",
+      form.id ? "تم تحديث التقرير." : "تمت إضافة التقرير.",
     );
 
-    if (!ok) return;
-
-    const { error } = await supabase
-      .from("activity_reports")
-      .delete()
-      .eq("id", item.id)
-      .eq("school_id", currentSchool.id);
-
-    if (error) {
-      showToast("error", error.message);
-      return;
-    }
-
-    showToast("success", "طھظ… ط­ط°ظپ ط§ظ„طھظ‚ط±ظٹط±");
+    resetForm();
     void loadData();
-  }
+  }, [currentSchool?.id, form, loadData, resetForm, showToast]);
 
-  async function exportExcel() {
+  const deleteItem = useCallback(
+    async (item: ActivityReport) => {
+      if (!currentSchool?.id) return;
+
+      const confirmed = window.confirm(
+        `حذف التقرير "${item.title || "تقرير"}"؟`,
+      );
+
+      if (!confirmed) return;
+
+      const { error } = await supabase
+        .from("activity_reports")
+        .delete()
+        .eq("id", item.id)
+        .eq("school_id", currentSchool.id);
+
+      if (error) {
+        showToast("error", error.message);
+        return;
+      }
+
+      showToast("success", "تم حذف التقرير.");
+      void loadData();
+    },
+    [currentSchool?.id, loadData, showToast],
+  );
+
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const linkType = getReportLinkType(item);
+
+      const searchableText = [
+        item.title,
+        item.report_type,
+        item.report_date,
+        item.summary,
+        item.recommendations,
+        item.created_by,
+        optionLabel(item.activity_id, activityOptions),
+        optionLabel(item.competition_id, competitionOptions),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !query || searchableText.includes(query);
+
+      const matchesType =
+        typeFilter === "الكل" || item.report_type === typeFilter;
+
+      const matchesLink =
+        linkFilter === "الكل" || linkFilter === linkType;
+
+      return matchesSearch && matchesType && matchesLink;
+    });
+  }, [
+    activityOptions,
+    competitionOptions,
+    items,
+    linkFilter,
+    search,
+    typeFilter,
+  ]);
+
+  const stats = useMemo(
+    () => ({
+      total: items.length,
+      activityReports: items.filter((item) => item.activity_id).length,
+      competitionReports: items.filter((item) => item.competition_id).length,
+      withFiles: items.filter((item) => Boolean(item.file_url)).length,
+    }),
+    [items],
+  );
+
+  const exportExcel = useCallback(async () => {
     await exportTableToExcel({
-      title: "طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط·",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط· ط§ظ„ط·ظ„ط§ط¨ظٹ",
+      title: "تقارير النشاط",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة تقارير النشاط الطلابي",
       headers: [
-        "ط§ظ„ط¹ظ†ظˆط§ظ†",
-        "ظ†ظˆط¹ ط§ظ„طھظ‚ط±ظٹط±",
-        "طھط§ط±ظٹط® ط§ظ„طھظ‚ط±ظٹط±",
-        "ط§ظ„ظ†ط´ط§ط·",
-        "ط§ظ„ظ…ط³ط§ط¨ظ‚ط©",
-        "ط§ظ„ظ…ط¹ط¯",
-        "ظ…ظ„ط®طµ",
-        "طھظˆطµظٹط§طھ",
-        "ط±ط§ط¨ط· ط§ظ„ظ…ظ„ظپ",
+        "العنوان",
+        "نوع التقرير",
+        "التاريخ",
+        "النشاط",
+        "المسابقة",
+        "المعد",
+        "الملخص",
+        "التوصيات",
+        "رابط الملف",
       ],
       rows: filteredItems.map((item) => [
         item.title || "-",
@@ -361,15 +488,29 @@ export default function ActivityReportsPage() {
       fileName: "activity-reports.xlsx",
     });
 
-    showToast("success", "طھظ… طھطµط¯ظٹط± Excel");
-  }
+    showToast("success", "تم تصدير Excel.");
+  }, [
+    activityOptions,
+    competitionOptions,
+    currentSchool?.school_name,
+    filteredItems,
+    showToast,
+  ]);
 
-  function exportPDF() {
+  const exportPDF = useCallback(() => {
     exportTableToPDF({
-      title: "طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط·",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط· ط§ظ„ط·ظ„ط§ط¨ظٹ",
-      headers: ["ط§ظ„ط¹ظ†ظˆط§ظ†", "ط§ظ„ظ†ظˆط¹", "ط§ظ„طھط§ط±ظٹط®", "ط§ظ„ظ†ط´ط§ط·", "ط§ظ„ظ…ط³ط§ط¨ظ‚ط©", "ط§ظ„ظ…ط¹ط¯"],
+      title: "تقارير النشاط",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة تقارير النشاط الطلابي",
+      headers: [
+        "العنوان",
+        "النوع",
+        "التاريخ",
+        "النشاط",
+        "المسابقة",
+        "المعد",
+      ],
       rows: filteredItems.map((item) => [
         item.title || "-",
         item.report_type || "-",
@@ -381,48 +522,32 @@ export default function ActivityReportsPage() {
       fileName: "activity-reports.pdf",
     });
 
-    showToast("success", "طھظ… طھط¬ظ‡ظٹط² PDF");
-  }
+    showToast("success", "تم تجهيز PDF.");
+  }, [
+    activityOptions,
+    competitionOptions,
+    currentSchool?.school_name,
+    filteredItems,
+    showToast,
+  ]);
 
-  const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const activityProgress = stats.total
+    ? Math.round((stats.activityReports / stats.total) * 100)
+    : 0;
 
-    return items.filter((item) => {
-      const linkType = getReportLinkType(item);
+  const competitionProgress = stats.total
+    ? Math.round((stats.competitionReports / stats.total) * 100)
+    : 0;
 
-      const text = `
-        ${item.title || ""}
-        ${item.report_type || ""}
-        ${item.report_date || ""}
-        ${item.summary || ""}
-        ${item.recommendations || ""}
-        ${item.created_by || ""}
-        ${optionLabel(item.activity_id, activityOptions)}
-        ${optionLabel(item.competition_id, competitionOptions)}
-      `.toLowerCase();
-
-      const matchesSearch = !q || text.includes(q);
-      const matchesType = typeFilter === "ط§ظ„ظƒظ„" || item.report_type === typeFilter;
-      const matchesLink = linkFilter === "ط§ظ„ظƒظ„" || linkFilter === linkType;
-
-      return matchesSearch && matchesType && matchesLink;
-    });
-  }, [items, search, typeFilter, linkFilter, activityOptions, competitionOptions]);
-
-  const stats = useMemo(() => {
-    return {
-      total: items.length,
-      activityReports: items.filter((item) => item.activity_id).length,
-      competitionReports: items.filter((item) => item.competition_id).length,
-      withFiles: items.filter((item) => Boolean(item.file_url)).length,
-    };
-  }, [items]);
+  const filesProgress = stats.total
+    ? Math.round((stats.withFiles / stats.total) * 100)
+    : 0;
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <ActivityLoading text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط·..." />
+          <PageLoader text="جاري تحميل التقارير..." />
         </AppShell>
       </RoleGuard>
     );
@@ -432,298 +557,322 @@ export default function ActivityReportsPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6" dir="rtl">
-          {toast && <ActivityToastBox toast={toast} />}
+          {toast?.type === "success" ? (
+            <SuccessBanner description={toast.message} />
+          ) : toast ? (
+            <ErrorState description={toast.message} />
+          ) : null}
 
-          <ActivityHero
-            title="طھظ‚ط§ط±ظٹط± ط§ظ„ظ†ط´ط§ط·"
-            subtitle="ط¥ظ†ط´ط§ط، ظˆظ…طھط§ط¨ط¹ط© طھظ‚ط§ط±ظٹط± ط§ظ„ط£ظ†ط´ط·ط© ظˆط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ظˆطھظˆط«ظٹظ‚ ط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ ظˆط§ظ„طھظˆطµظٹط§طھ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            icon={<FileText size={32} />}
+          <PageHeader
+            variant="hero"
+            title="تقارير النشاط"
+            description="إنشاء التقارير ومتابعتها."
+            badge="رائد النشاط"
+            icon={<FileText size={18} aria-hidden="true" />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "الأنشطة", href: "/activities" },
+              { label: "التقارير" },
+            ]}
+            meta={[
+              {
+                label: "المدرسة",
+                value: currentSchool?.school_name || "غير متوفر",
+              },
+              { label: "الإجمالي", value: stats.total },
+              { label: "تقارير الأنشطة", value: stats.activityReports },
+              { label: "تقارير المسابقات", value: stats.competitionReports },
+            ]}
+            stats={[
+              {
+                label: "التقارير",
+                value: stats.total,
+                icon: <FileText size={20} aria-hidden="true" />,
+                tone: "primary",
+              },
+              {
+                label: "الأنشطة",
+                value: stats.activityReports,
+                icon: <CheckCircle2 size={20} aria-hidden="true" />,
+                tone: "green",
+              },
+              {
+                label: "المسابقات",
+                value: stats.competitionReports,
+                icon: <FileText size={20} aria-hidden="true" />,
+                tone: "gold",
+              },
+              {
+                label: "الملفات",
+                value: stats.withFiles,
+                icon: <LinkIcon size={20} aria-hidden="true" />,
+                tone: "slate",
+              },
+            ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
-                  <Plus size={16} />
-                  ط¥ط¶ط§ظپط© طھظ‚ط±ظٹط±
+                  <Plus size={16} aria-hidden="true" />
+                  إضافة
                 </PrimaryButton>
 
-                <DarkButton onClick={() => void loadData()}>
-                  <RefreshCcw size={16} />
-                  طھط­ط¯ظٹط«
-                </DarkButton>
+                <SecondaryButton onClick={() => void loadData()}>
+                  <RefreshCcw size={16} aria-hidden="true" />
+                  تحديث
+                </SecondaryButton>
               </>
             }
           />
 
-          {errorMsg && <ActivityError text={errorMsg} />}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <ActivitySummaryCard
-              title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„طھظ‚ط§ط±ظٹط±"
+          <section
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="مؤشرات التقارير"
+          >
+            <ExecutiveCard
+              title="التقارير"
               value={stats.total}
-              icon={<FileText size={22} />}
-              color="blue"
+              subtitle="الإجمالي"
+              icon={<FileText size={22} aria-hidden="true" />}
+              tone="primary"
+              progress={stats.total > 0 ? 100 : 0}
             />
 
-            <ActivitySummaryCard
-              title="طھظ‚ط§ط±ظٹط± ط£ظ†ط´ط·ط©"
+            <ExecutiveCard
+              title="تقارير الأنشطة"
               value={stats.activityReports}
-              icon={<CheckCircle2 size={22} />}
-              color="green"
+              subtitle="مرتبطة بنشاط"
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
+              tone="green"
+              progress={activityProgress}
             />
 
-            <ActivitySummaryCard
-              title="طھظ‚ط§ط±ظٹط± ظ…ط³ط§ط¨ظ‚ط§طھ"
+            <ExecutiveCard
+              title="تقارير المسابقات"
               value={stats.competitionReports}
-              icon={<FileText size={22} />}
-              color="amber"
+              subtitle="مرتبطة بمسابقة"
+              icon={<FileText size={22} aria-hidden="true" />}
+              tone="gold"
+              progress={competitionProgress}
             />
 
-            <ActivitySummaryCard
-              title="ظ…ظ„ظپط§طھ ظ…ط±ظپظ‚ط©"
+            <ExecutiveCard
+              title="ملفات مرفقة"
               value={stats.withFiles}
-              icon={<LinkIcon size={22} />}
-              color="slate"
+              subtitle="روابط ملفات"
+              icon={<LinkIcon size={22} aria-hidden="true" />}
+              tone="slate"
+              progress={filesProgress}
             />
           </section>
 
-          {showForm && (
-            <ActivityPanel
-              title={form.id ? "طھط¹ط¯ظٹظ„ طھظ‚ط±ظٹط±" : "ط¥ط¶ط§ظپط© طھظ‚ط±ظٹط±"}
-              icon={<Edit size={22} />}
+          {showForm ? (
+            <PageSection
+              title={form.id ? "تعديل تقرير" : "إضافة تقرير"}
+              icon={<Edit size={22} aria-hidden="true" />}
             >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <ActivityInput
-                  label="ط¹ظ†ظˆط§ظ† ط§ظ„طھظ‚ط±ظٹط±"
+                <Field
+                  label="عنوان التقرير"
                   value={form.title}
-                  onChange={(value) => setForm({ ...form, title: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      title: value,
+                    }))
+                  }
+                  required
                 />
 
-                <ActivitySelect
-                  label="ظ†ظˆط¹ ط§ظ„طھظ‚ط±ظٹط±"
+                <SelectField
+                  label="نوع التقرير"
                   value={form.report_type}
                   options={REPORT_TYPES}
                   onChange={(value) =>
-                    setForm({ ...form, report_type: value })
+                    setForm((current) => ({
+                      ...current,
+                      report_type: value,
+                    }))
                   }
                 />
 
-                <ActivityInput
-                  label="طھط§ط±ظٹط® ط§ظ„طھظ‚ط±ظٹط±"
+                <Field
+                  label="تاريخ التقرير"
                   type="date"
                   value={form.report_date}
                   onChange={(value) =>
-                    setForm({ ...form, report_date: value })
+                    setForm((current) => ({
+                      ...current,
+                      report_date: value,
+                    }))
                   }
                 />
 
-                <ActivityInput
-                  label="ظ…ط¹ط¯ ط§ظ„طھظ‚ط±ظٹط±"
+                <Field
+                  label="معد التقرير"
                   value={form.created_by}
                   onChange={(value) =>
-                    setForm({ ...form, created_by: value })
+                    setForm((current) => ({
+                      ...current,
+                      created_by: value,
+                    }))
                   }
                 />
 
-                <ActivitySelectId
-                  label="ط§ظ„ظ†ط´ط§ط· ط§ظ„ظ…ط±طھط¨ط·"
+                <IdSelectField
+                  label="النشاط المرتبط"
                   value={form.activity_id}
                   options={activityOptions}
-                  placeholder="ط¨ط¯ظˆظ† ظ†ط´ط§ط·"
+                  placeholder="بدون نشاط"
                   onChange={(value) =>
-                    setForm({ ...form, activity_id: value })
+                    setForm((current) => ({
+                      ...current,
+                      activity_id: value,
+                    }))
                   }
                 />
 
-                <ActivitySelectId
-                  label="ط§ظ„ظ…ط³ط§ط¨ظ‚ط© ط§ظ„ظ…ط±طھط¨ط·ط©"
+                <IdSelectField
+                  label="المسابقة المرتبطة"
                   value={form.competition_id}
                   options={competitionOptions}
-                  placeholder="ط¨ط¯ظˆظ† ظ…ط³ط§ط¨ظ‚ط©"
+                  placeholder="بدون مسابقة"
                   onChange={(value) =>
-                    setForm({ ...form, competition_id: value })
+                    setForm((current) => ({
+                      ...current,
+                      competition_id: value,
+                    }))
                   }
                 />
 
-                <ActivityInput
-                  label="ط±ط§ط¨ط· ظ…ظ„ظپ ط§ظ„طھظ‚ط±ظٹط±"
+                <Field
+                  label="رابط الملف"
+                  type="url"
                   value={form.file_url}
-                  onChange={(value) => setForm({ ...form, file_url: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      file_url: value,
+                    }))
+                  }
                 />
               </div>
 
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ActivityTextarea
-                  label="ظ…ظ„ط®طµ ط§ظ„طھظ‚ط±ظٹط±"
+                <TextAreaField
+                  label="الملخص"
                   value={form.summary}
-                  onChange={(value) => setForm({ ...form, summary: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      summary: value,
+                    }))
+                  }
+                  required
                 />
 
-                <ActivityTextarea
-                  label="ط§ظ„طھظˆطµظٹط§طھ"
+                <TextAreaField
+                  label="التوصيات"
                   value={form.recommendations}
                   onChange={(value) =>
-                    setForm({ ...form, recommendations: value })
+                    setForm((current) => ({
+                      ...current,
+                      recommendations: value,
+                    }))
                   }
                 />
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <PrimaryButton onClick={() => void saveItem()} disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={16} />
-                  )}
-                  ط­ظپط¸
+                <PrimaryButton
+                  onClick={() => void saveItem()}
+                  loading={saving}
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  حفظ
                 </PrimaryButton>
 
-                <LightButton onClick={resetForm}>
-                  <XCircle size={16} />
-                  ط¥ظ„ط؛ط§ط،
-                </LightButton>
+                <SecondaryButton onClick={resetForm}>
+                  <XCircle size={16} aria-hidden="true" />
+                  إلغاء
+                </SecondaryButton>
               </div>
-            </ActivityPanel>
-          )}
+            </PageSection>
+          ) : null}
 
-          <ActivityPanel title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
+          <PageSection
+            title="البحث والتصفية"
+            icon={<Search size={22} aria-hidden="true" />}
+          >
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px_auto_auto]">
-              <div className="relative">
-                <Search
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={18}
-                />
-
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ط¨ط­ط« ظپظٹ ط§ظ„طھظ‚ط§ط±ظٹط±..."
-                  className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm font-bold outline-none transition focus:border-[#d4af37]"
-                />
-              </div>
+              <SearchField value={search} onChange={setSearch} />
 
               <select
                 value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+                onChange={(event) =>
+                  setTypeFilter(event.target.value)
+                }
+                aria-label="تصفية حسب نوع التقرير"
+                className={fieldClassName}
               >
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط£ظ†ظˆط§ط¹</option>
+                <option value="الكل">كل الأنواع</option>
                 {REPORT_TYPES.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
 
               <select
                 value={linkFilter}
-                onChange={(event) => setLinkFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+                onChange={(event) =>
+                  setLinkFilter(event.target.value)
+                }
+                aria-label="تصفية حسب نوع الارتباط"
+                className={fieldClassName}
               >
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط§ط±طھط¨ط§ط·ط§طھ</option>
-                <option value="ظ†ط´ط§ط·">ظ†ط´ط§ط·</option>
-                <option value="ظ…ط³ط§ط¨ظ‚ط©">ظ…ط³ط§ط¨ظ‚ط©</option>
-                <option value="ط¹ط§ظ…">ط¹ط§ظ…</option>
+                <option value="الكل">كل الارتباطات</option>
+                {LINK_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
 
-              <LightButton onClick={() => void exportExcel()}>Excel</LightButton>
+              <SecondaryButton onClick={() => void exportExcel()}>
+                Excel
+              </SecondaryButton>
 
-              <LightButton onClick={exportPDF}>
-                <FileText size={16} />
+              <SecondaryButton onClick={exportPDF}>
+                <FileText size={16} aria-hidden="true" />
                 PDF
-              </LightButton>
+              </SecondaryButton>
             </div>
-          </ActivityPanel>
+          </PageSection>
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            aria-label="قائمة التقارير"
+          >
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <ActivityEmpty text="ظ„ط§ طھظˆط¬ط¯ طھظ‚ط§ط±ظٹط± ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState
+                  title="لا توجد نتائج"
+                  description="غيّر البحث أو أضف تقريرًا."
+                  icon={<Search size={28} aria-hidden="true" />}
+                />
               </div>
             ) : (
               filteredItems.map((item) => (
-                <div
+                <ReportCard
                   key={item.id}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-black ${reportTypeStyle(
-                        item.report_type
-                      )}`}
-                    >
-                      {item.report_type || "طھظ‚ط±ظٹط±"}
-                    </span>
-
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                      {formatDate(item.report_date)}
-                    </span>
-
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
-                      {getReportLinkType(item)}
-                    </span>
-                  </div>
-
-                  <h3 className="text-xl font-black text-[#0f1f3d]">
-                    {item.title || "طھظ‚ط±ظٹط± ظ†ط´ط§ط·"}
-                  </h3>
-
-                  <p className="mt-2 line-clamp-3 text-sm leading-7 text-slate-500">
-                    {item.summary || "ظ„ط§ ظٹظˆط¬ط¯ ظ…ظ„ط®طµ."}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
-                    <ActivityInfo
-                      label="ط§ظ„ظ†ط´ط§ط·"
-                      value={optionLabel(item.activity_id, activityOptions)}
-                    />
-
-                    <ActivityInfo
-                      label="ط§ظ„ظ…ط³ط§ط¨ظ‚ط©"
-                      value={optionLabel(
-                        item.competition_id,
-                        competitionOptions
-                      )}
-                    />
-
-                    <ActivityInfo
-                      label="ظ…ط¹ط¯ ط§ظ„طھظ‚ط±ظٹط±"
-                      value={item.created_by || "â€”"}
-                    />
-                  </div>
-
-                  {item.recommendations && (
-                    <div className="mt-3 rounded-2xl bg-slate-50 p-3">
-                      <p className="mb-1 text-xs font-bold text-slate-400">
-                        ط§ظ„طھظˆطµظٹط§طھ
-                      </p>
-
-                      <p className="line-clamp-3 text-sm leading-7 text-slate-600">
-                        {item.recommendations}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {item.file_url && (
-                      <a
-                        href={item.file_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-blue-50 px-4 text-sm font-black text-blue-700 transition hover:bg-blue-100"
-                      >
-                        <LinkIcon size={15} />
-                        ط§ظ„ظ…ظ„ظپ
-                      </a>
-                    )}
-
-                    <LightButton onClick={() => editItem(item)}>
-                      <Edit size={15} />
-                      طھط¹ط¯ظٹظ„
-                    </LightButton>
-
-                    <DangerButton onClick={() => void deleteItem(item)}>
-                      <Trash2 size={15} />
-                      ط­ط°ظپ
-                    </DangerButton>
-                  </div>
-                </div>
+                  item={item}
+                  activityOptions={activityOptions}
+                  competitionOptions={competitionOptions}
+                  onEdit={editItem}
+                  onDelete={deleteItem}
+                />
               ))
             )}
           </section>
@@ -733,7 +882,207 @@ export default function ActivityReportsPage() {
   );
 }
 
-function ActivitySelectId({
+const fieldClassName =
+  "h-11 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]";
+
+function SearchField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Search
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-subtle)]"
+        size={18}
+        aria-hidden="true"
+      />
+
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="بحث..."
+        aria-label="البحث في التقارير"
+        className={`${fieldClassName} pr-10`}
+      />
+    </div>
+  );
+}
+
+function ReportCard({
+  item,
+  activityOptions,
+  competitionOptions,
+  onEdit,
+  onDelete,
+}: {
+  item: ActivityReport;
+  activityOptions: OptionItem[];
+  competitionOptions: OptionItem[];
+  onEdit: (item: ActivityReport) => void;
+  onDelete: (item: ActivityReport) => Promise<void>;
+}) {
+  return (
+    <article className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-black ${getReportTypeClass(
+            item.report_type,
+          )}`}
+        >
+          {item.report_type || "تقرير"}
+        </span>
+
+        <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
+          {formatDate(item.report_date)}
+        </span>
+
+        <span className="rounded-full bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
+          {getReportLinkType(item)}
+        </span>
+      </div>
+
+      <h3 className="text-xl font-black text-[var(--app-text)]">
+        {item.title || "تقرير نشاط"}
+      </h3>
+
+      <p className="mt-2 line-clamp-3 text-sm leading-7 text-[var(--app-text-muted)]">
+        {item.summary || "لا يوجد ملخص."}
+      </p>
+
+      <div className="mt-4 grid gap-2 text-sm">
+        <InfoBox
+          label="النشاط"
+          value={optionLabel(item.activity_id, activityOptions)}
+        />
+
+        <InfoBox
+          label="المسابقة"
+          value={optionLabel(
+            item.competition_id,
+            competitionOptions,
+          )}
+        />
+
+        <InfoBox
+          label="معد التقرير"
+          value={item.created_by || "—"}
+        />
+      </div>
+
+      {item.recommendations ? (
+        <div className="mt-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3">
+          <p className="mb-1 text-xs font-bold text-[var(--app-text-subtle)]">
+            التوصيات
+          </p>
+
+          <p className="line-clamp-3 text-sm leading-7 text-[var(--app-text-muted)]">
+            {item.recommendations}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {item.file_url && isValidExternalUrl(item.file_url) ? (
+          <a
+            href={item.file_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 text-xs font-black text-[var(--app-primary)] transition hover:bg-[var(--app-card)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
+          >
+            <LinkIcon size={15} aria-hidden="true" />
+            الملف
+          </a>
+        ) : null}
+
+        <SecondaryButton size="sm" onClick={() => onEdit(item)}>
+          <Edit size={15} aria-hidden="true" />
+          تعديل
+        </SecondaryButton>
+
+        <DangerButton
+          size="sm"
+          onClick={() => void onDelete(item)}
+          icon={<Trash2 size={15} aria-hidden="true" />}
+        >
+          حذف
+        </DangerButton>
+      </div>
+    </article>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+}) {
+  const id = `report-field-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <input
+        id={id}
+        type={type}
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClassName}
+      />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  const id = `report-select-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClassName}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function IdSelectField({
   label,
   value,
   options,
@@ -746,16 +1095,19 @@ function ActivitySelectId({
   placeholder: string;
   onChange: (value: string) => void;
 }) {
+  const id = `report-id-select-${label}`;
+
   return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-bold text-slate-600">
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
         {label}
       </span>
 
       <select
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+        className={fieldClassName}
       >
         <option value="">{placeholder}</option>
 
@@ -766,5 +1118,56 @@ function ActivitySelectId({
         ))}
       </select>
     </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  const id = `report-textarea-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <textarea
+        id={id}
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className={`${fieldClassName} h-auto resize-none py-3`}
+      />
+    </label>
+  );
+}
+
+function InfoBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">
+        {label}
+      </p>
+
+      <p className="mt-1 line-clamp-1 font-black text-[var(--app-text)]">
+        {value}
+      </p>
+    </div>
   );
 }

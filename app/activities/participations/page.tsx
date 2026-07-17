@@ -1,22 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import AppShell from "@/components/layout/AppShell";
-import PageHeader from "@/components/ui/page/PageHeader";
-import Section from "@/components/ui/page/PageSection";
-import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
-import { EmptyState } from "@/components/ui/empty-state";
-import { PageLoader } from "@/components/ui/loading";
-import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
-import ErrorState from "@/components/ui/feedback/ErrorState";
-import RoleGuard from "@/components/auth/RoleGuard";
-import { type SchoolRole } from "@/lib/permissions";
-import { supabase } from "@/lib/supabase";
-import { useSchool } from "@/contexts/SchoolContext";
-import { exportTableToPDF } from "@/lib/exports/pdf";
-import { exportTableToExcel } from "@/lib/exports/excel";
-
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Award,
   CheckCircle2,
@@ -33,17 +22,29 @@ import {
   XCircle,
 } from "lucide-react";
 
-import {
-  ActivityInfo,
-  ActivityInput,
-  ActivitySelect,
-  ActivityTextarea,
-  DangerButton,
-  DarkButton,
-  LightButton,
-  PrimaryButton,
-  type ActivityToast,
-} from "../../../components/activities/ActivityPageParts";
+import RoleGuard from "@/components/auth/RoleGuard";
+import AppShell from "@/components/layout/AppShell";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
+import PageHeader from "@/components/ui/page/PageHeader";
+import Section from "@/components/ui/page/PageSection";
+
+import { useSchool } from "@/contexts/SchoolContext";
+import { exportTableToExcel } from "@/lib/exports/excel";
+import { exportTableToPDF } from "@/lib/exports/pdf";
+import type { SchoolRole } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type ActivityToast = {
+  type: "success" | "error";
+  message: string;
+};
 
 type Participant = {
   id: string;
@@ -100,9 +101,13 @@ type FormState = {
   notes: string;
 };
 
-const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "activity_leader"];
+const PAGE_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "activity_leader",
+];
 
-const emptyForm: FormState = {
+const EMPTY_FORM: FormState = {
   activity_id: "",
   team_id: "",
   competition_id: "",
@@ -110,59 +115,70 @@ const emptyForm: FormState = {
   student_name: "",
   class_name: "",
   section: "",
-  role: "ظ…ط´ط§ط±ظƒ",
-  participation_status: "ظ…ط´ط§ط±ظƒ",
+  role: "مشارك",
+  participation_status: "مشارك",
   achievement: "",
   notes: "",
 };
 
 const STATUS_OPTIONS = [
-  "ظ…ط´ط§ط±ظƒ",
-  "ظ…ط±ط´ط­",
-  "ط­ط§ط¶ط±",
-  "ط؛ط§ط¦ط¨",
-  "ظپط§ط¦ط²",
-  "ظ…ظ†ط³ط­ط¨",
-  "ظ…ظƒط±ظ…",
-];
+  "مشارك",
+  "مرشح",
+  "حاضر",
+  "غائب",
+  "فائز",
+  "منسحب",
+  "مكرم",
+] as const;
 
 const ROLE_OPTIONS = [
-  "ظ…ط´ط§ط±ظƒ",
-  "ظ‚ط§ط¦ط¯ ظپط±ظٹظ‚",
-  "ظ…ظ†ط¸ظ…",
-  "ظ…ظ…ط«ظ„ ط§ظ„ظ…ط¯ط±ط³ط©",
-  "ظپط§ط¦ط²",
-  "ظ…ط±ط´ط­",
-];
+  "مشارك",
+  "قائد فريق",
+  "منظم",
+  "ممثل المدرسة",
+  "فائز",
+  "مرشح",
+] as const;
 
-function statusStyle(status?: string | null) {
+const KIND_OPTIONS = [
+  "نشاط",
+  "فريق",
+  "مسابقة",
+  "عام",
+] as const;
+
+function getStatusClass(status?: string | null) {
   const value = String(status || "");
 
-  if (["ظپط§ط¦ط²", "ظ…ظƒط±ظ…", "ط­ط§ط¶ط±"].includes(value)) {
-    return "bg-emerald-50 text-emerald-700";
+  if (["فائز", "مكرم", "حاضر"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
 
-  if (["ظ…ط´ط§ط±ظƒ", "ظ…ط±ط´ط­"].includes(value)) {
-    return "bg-blue-50 text-blue-700";
+  if (["مشارك", "مرشح"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
   }
 
-  if (["ط؛ط§ط¦ط¨", "ظ…ظ†ط³ط­ط¨"].includes(value)) {
-    return "bg-red-50 text-red-700";
+  if (["غائب", "منسحب"].includes(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
   }
 
-  return "bg-slate-100 text-slate-700";
+  return "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
-function optionLabel(id: string | null | undefined, options: OptionItem[]) {
-  if (!id) return "â€”";
-  return options.find((item) => item.id === id)?.label || "â€”";
+function optionLabel(
+  id: string | null | undefined,
+  options: OptionItem[],
+) {
+  if (!id) return "—";
+
+  return options.find((item) => item.id === id)?.label || "—";
 }
 
 function getParticipationKind(item: Participant) {
-  if (item.competition_id) return "ظ…ط³ط§ط¨ظ‚ط©";
-  if (item.team_id) return "ظپط±ظٹظ‚";
-  if (item.activity_id) return "ظ†ط´ط§ط·";
-  return "ط¹ط§ظ…";
+  if (item.competition_id) return "مسابقة";
+  if (item.team_id) return "فريق";
+  if (item.activity_id) return "نشاط";
+  return "عام";
 }
 
 export default function ActivityParticipationsPage() {
@@ -173,12 +189,12 @@ export default function ActivityParticipationsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
 
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [showForm, setShowForm] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ط§ظ„ظƒظ„");
-  const [kindFilter, setKindFilter] = useState("ط§ظ„ظƒظ„");
+  const [statusFilter, setStatusFilter] = useState("الكل");
+  const [kindFilter, setKindFilter] = useState("الكل");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -186,34 +202,53 @@ export default function ActivityParticipationsPage() {
   const [toast, setToast] = useState<ActivityToast | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const activityOptions = useMemo<OptionItem[]>(() => {
-    return activities.map((item) => ({
-      id: item.id,
-      label: item.title || item.activity_name || "ظ†ط´ط§ط·",
-    }));
-  }, [activities]);
+  const activityOptions = useMemo<OptionItem[]>(
+    () =>
+      activities.map((item) => ({
+        id: item.id,
+        label: item.title || item.activity_name || "نشاط",
+      })),
+    [activities],
+  );
 
-  const teamOptions = useMemo<OptionItem[]>(() => {
-    return teams.map((item) => ({
-      id: item.id,
-      label: item.team_name || item.title || "ظپط±ظٹظ‚",
-    }));
-  }, [teams]);
+  const teamOptions = useMemo<OptionItem[]>(
+    () =>
+      teams.map((item) => ({
+        id: item.id,
+        label: item.team_name || item.title || "فريق",
+      })),
+    [teams],
+  );
 
-  const competitionOptions = useMemo<OptionItem[]>(() => {
-    return competitions.map((item) => ({
-      id: item.id,
-      label: item.title || item.competition_name || "ظ…ط³ط§ط¨ظ‚ط©",
-    }));
-  }, [competitions]);
+  const competitionOptions = useMemo<OptionItem[]>(
+    () =>
+      competitions.map((item) => ({
+        id: item.id,
+        label: item.title || item.competition_name || "مسابقة",
+      })),
+    [competitions],
+  );
 
-  function showToast(type: ActivityToast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const showToast = useCallback(
+    (type: ActivityToast["type"], message: string) => {
+      setToast({ type, message });
+
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    [],
+  );
 
   const loadData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setItems([]);
+      setActivities([]);
+      setTeams([]);
+      setCompetitions([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setErrorMsg("");
@@ -253,13 +288,26 @@ export default function ActivityParticipationsPage() {
 
     if (participantsResult.error) {
       setErrorMsg(participantsResult.error.message);
+      setItems([]);
       return;
     }
 
-    setItems((participantsResult.data || []) as Participant[]);
-    setActivities((activitiesResult.data || []) as Activity[]);
-    setTeams((teamsResult.data || []) as Team[]);
-    setCompetitions((competitionsResult.data || []) as Competition[]);
+    setItems((participantsResult.data ?? []) as Participant[]);
+    setActivities(
+      activitiesResult.error
+        ? []
+        : ((activitiesResult.data ?? []) as Activity[]),
+    );
+    setTeams(
+      teamsResult.error
+        ? []
+        : ((teamsResult.data ?? []) as Team[]),
+    );
+    setCompetitions(
+      competitionsResult.error
+        ? []
+        : ((competitionsResult.data ?? []) as Competition[]),
+    );
   }, [currentSchool?.id]);
 
   useEffect(() => {
@@ -267,18 +315,19 @@ export default function ActivityParticipationsPage() {
 
     if (!currentSchool?.id) {
       setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
       return;
     }
 
     void loadData();
   }, [currentSchool?.id, loadData, schoolLoading]);
 
-  function resetForm() {
-    setForm(emptyForm);
+  const resetForm = useCallback(() => {
+    setForm(EMPTY_FORM);
     setShowForm(false);
-  }
+  }, []);
 
-  function editItem(item: Participant) {
+  const editItem = useCallback((item: Participant) => {
     setForm({
       id: item.id,
       activity_id: item.activity_id || "",
@@ -288,25 +337,28 @@ export default function ActivityParticipationsPage() {
       student_name: item.student_name || "",
       class_name: item.class_name || "",
       section: item.section || "",
-      role: item.role || "ظ…ط´ط§ط±ظƒ",
-      participation_status: item.participation_status || "ظ…ط´ط§ط±ظƒ",
+      role: item.role || "مشارك",
+      participation_status: item.participation_status || "مشارك",
       achievement: item.achievement || "",
       notes: item.notes || "",
     });
 
     setShowForm(true);
-  }
+  }, []);
 
-  async function saveItem() {
-    if (!currentSchool?.id) return;
+  const saveItem = useCallback(async () => {
+    if (!currentSchool?.id) {
+      showToast("error", "تعذر تحديد المدرسة.");
+      return;
+    }
 
     if (!form.student_name.trim()) {
-      showToast("error", "ط§ظƒطھط¨ ط§ط³ظ… ط§ظ„ط·ط§ظ„ط¨ ط£ظˆظ„ط§ظ‹");
+      showToast("error", "أدخل اسم الطالب.");
       return;
     }
 
     if (!form.activity_id && !form.team_id && !form.competition_id) {
-      showToast("error", "ط§ط±ط¨ط· ط§ظ„ظ…ط´ط§ط±ظƒط© ط¨ظ†ط´ط§ط· ط£ظˆ ظپط±ظٹظ‚ ط£ظˆ ظ…ط³ط§ط¨ظ‚ط©");
+      showToast("error", "اربط المشاركة بنشاط أو فريق أو مسابقة.");
       return;
     }
 
@@ -317,7 +369,7 @@ export default function ActivityParticipationsPage() {
       activity_id: form.activity_id || null,
       team_id: form.team_id || null,
       competition_id: form.competition_id || null,
-      student_id: form.student_id || null,
+      student_id: form.student_id.trim() || null,
       student_name: form.student_name.trim(),
       class_name: form.class_name.trim() || null,
       section: form.section.trim() || null,
@@ -333,7 +385,9 @@ export default function ActivityParticipationsPage() {
           .update(payload)
           .eq("id", form.id)
           .eq("school_id", currentSchool.id)
-      : await supabase.from("activity_participants").insert(payload);
+      : await supabase
+          .from("activity_participants")
+          .insert(payload);
 
     setSaving(false);
 
@@ -342,50 +396,116 @@ export default function ActivityParticipationsPage() {
       return;
     }
 
-    showToast("success", form.id ? "طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ط´ط§ط±ظƒط©" : "طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظ…ط´ط§ط±ظƒط©");
-    resetForm();
-    void loadData();
-  }
-
-  async function deleteItem(item: Participant) {
-    if (!currentSchool?.id) return;
-
-    const ok = window.confirm(
-      `ظ‡ظ„ طھط±ظٹط¯ ط­ط°ظپ ظ…ط´ط§ط±ظƒط© ط§ظ„ط·ط§ظ„ط¨: ${item.student_name || "ط·ط§ظ„ط¨"}طں`
+    showToast(
+      "success",
+      form.id ? "تم تحديث المشاركة." : "تمت إضافة المشاركة.",
     );
 
-    if (!ok) return;
-
-    const { error } = await supabase
-      .from("activity_participants")
-      .delete()
-      .eq("id", item.id)
-      .eq("school_id", currentSchool.id);
-
-    if (error) {
-      showToast("error", error.message);
-      return;
-    }
-
-    showToast("success", "طھظ… ط­ط°ظپ ط§ظ„ظ…ط´ط§ط±ظƒط©");
+    resetForm();
     void loadData();
-  }
+  }, [currentSchool?.id, form, loadData, resetForm, showToast]);
 
-  async function exportExcel() {
+  const deleteItem = useCallback(
+    async (item: Participant) => {
+      if (!currentSchool?.id) return;
+
+      const confirmed = window.confirm(
+        `حذف مشاركة الطالب "${item.student_name || "طالب"}"؟`,
+      );
+
+      if (!confirmed) return;
+
+      const { error } = await supabase
+        .from("activity_participants")
+        .delete()
+        .eq("id", item.id)
+        .eq("school_id", currentSchool.id);
+
+      if (error) {
+        showToast("error", error.message);
+        return;
+      }
+
+      showToast("success", "تم حذف المشاركة.");
+      void loadData();
+    },
+    [currentSchool?.id, loadData, showToast],
+  );
+
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const kind = getParticipationKind(item);
+
+      const searchableText = [
+        item.student_name,
+        item.class_name,
+        item.section,
+        item.role,
+        item.participation_status,
+        item.achievement,
+        item.notes,
+        optionLabel(item.activity_id, activityOptions),
+        optionLabel(item.team_id, teamOptions),
+        optionLabel(item.competition_id, competitionOptions),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch =
+        !query || searchableText.includes(query);
+
+      const matchesStatus =
+        statusFilter === "الكل" ||
+        item.participation_status === statusFilter;
+
+      const matchesKind =
+        kindFilter === "الكل" || kindFilter === kind;
+
+      return matchesSearch && matchesStatus && matchesKind;
+    });
+  }, [
+    activityOptions,
+    competitionOptions,
+    items,
+    kindFilter,
+    search,
+    statusFilter,
+    teamOptions,
+  ]);
+
+  const stats = useMemo(
+    () => ({
+      total: items.length,
+      winners: items.filter((item) =>
+        ["فائز", "مكرم"].includes(
+          String(item.participation_status || ""),
+        ),
+      ).length,
+      competitions: items.filter((item) => item.competition_id).length,
+      teams: items.filter((item) => item.team_id).length,
+    }),
+    [items],
+  );
+
+  const exportExcel = useCallback(async () => {
     await exportTableToExcel({
-      title: "ظ…ط´ط§ط±ظƒط§طھ ط§ظ„ظ†ط´ط§ط·",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© ط§ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط´ط§ط±ظƒظٹظ†",
+      title: "مشاركات النشاط",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة الطلاب المشاركين",
       headers: [
-        "ط§ظ„ط·ط§ظ„ط¨",
-        "ط§ظ„ظپطµظ„",
-        "ط§ظ„ط´ط¹ط¨ط©",
-        "ط§ظ„ط¯ظˆط±",
-        "ط§ظ„ط­ط§ظ„ط©",
-        "ط§ظ„ظ†ط´ط§ط·",
-        "ط§ظ„ظپط±ظٹظ‚",
-        "ط§ظ„ظ…ط³ط§ط¨ظ‚ط©",
-        "ط§ظ„ط¥ظ†ط¬ط§ط²",
+        "الطالب",
+        "الفصل",
+        "الشعبة",
+        "الدور",
+        "الحالة",
+        "النشاط",
+        "الفريق",
+        "المسابقة",
+        "الإنجاز",
       ],
       rows: filteredItems.map((item) => [
         item.student_name || "-",
@@ -401,18 +521,32 @@ export default function ActivityParticipationsPage() {
       fileName: "activity-participations.xlsx",
     });
 
-    showToast("success", "طھظ… طھطµط¯ظٹط± Excel");
-  }
+    showToast("success", "تم تصدير Excel.");
+  }, [
+    activityOptions,
+    competitionOptions,
+    currentSchool?.school_name,
+    filteredItems,
+    showToast,
+    teamOptions,
+  ]);
 
-  function exportPDF() {
+  const exportPDF = useCallback(() => {
     exportTableToPDF({
-      title: "ظ…ط´ط§ط±ظƒط§طھ ط§ظ„ظ†ط´ط§ط·",
-      schoolName: currentSchool?.school_name || "ظ…ظ†طµط© ط§ظ„ظ…ط¯ط±ط³ط© ط§ظ„ط°ظƒظٹط©",
-      subtitle: "ظ‚ط§ط¦ظ…ط© ط§ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط´ط§ط±ظƒظٹظ†",
-      headers: ["ط§ظ„ط·ط§ظ„ط¨", "ط§ظ„ظپطµظ„", "ط§ظ„ط¯ظˆط±", "ط§ظ„ط­ط§ظ„ط©", "ط§ظ„ط¥ظ†ط¬ط§ط²"],
+      title: "مشاركات النشاط",
+      schoolName:
+        currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: "قائمة الطلاب المشاركين",
+      headers: [
+        "الطالب",
+        "الفصل",
+        "الدور",
+        "الحالة",
+        "الإنجاز",
+      ],
       rows: filteredItems.map((item) => [
         item.student_name || "-",
-        `${item.class_name || "-"} ${item.section || ""}`,
+        `${item.class_name || "-"} ${item.section || ""}`.trim(),
         item.role || "-",
         item.participation_status || "-",
         item.achievement || "-",
@@ -420,61 +554,30 @@ export default function ActivityParticipationsPage() {
       fileName: "activity-participations.pdf",
     });
 
-    showToast("success", "طھظ… طھط¬ظ‡ظٹط² PDF");
-  }
-
-  const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return items.filter((item) => {
-      const kind = getParticipationKind(item);
-
-      const text = `
-        ${item.student_name || ""}
-        ${item.class_name || ""}
-        ${item.section || ""}
-        ${item.role || ""}
-        ${item.participation_status || ""}
-        ${item.achievement || ""}
-        ${item.notes || ""}
-        ${optionLabel(item.activity_id, activityOptions)}
-        ${optionLabel(item.team_id, teamOptions)}
-        ${optionLabel(item.competition_id, competitionOptions)}
-      `.toLowerCase();
-
-      const matchesSearch = !q || text.includes(q);
-      const matchesStatus =
-        statusFilter === "ط§ظ„ظƒظ„" || item.participation_status === statusFilter;
-      const matchesKind = kindFilter === "ط§ظ„ظƒظ„" || kindFilter === kind;
-
-      return matchesSearch && matchesStatus && matchesKind;
-    });
+    showToast("success", "تم تجهيز PDF.");
   }, [
-    items,
-    search,
-    statusFilter,
-    kindFilter,
-    activityOptions,
-    teamOptions,
-    competitionOptions,
+    currentSchool?.school_name,
+    filteredItems,
+    showToast,
   ]);
 
-  const stats = useMemo(() => {
-    return {
-      total: items.length,
-      winners: items.filter((item) =>
-        ["ظپط§ط¦ط²", "ظ…ظƒط±ظ…"].includes(String(item.participation_status || ""))
-      ).length,
-      competitions: items.filter((item) => item.competition_id).length,
-      teams: items.filter((item) => item.team_id).length,
-    };
-  }, [items]);
+  const winnersProgress = stats.total
+    ? Math.round((stats.winners / stats.total) * 100)
+    : 0;
+
+  const competitionsProgress = stats.total
+    ? Math.round((stats.competitions / stats.total) * 100)
+    : 0;
+
+  const teamsProgress = stats.total
+    ? Math.round((stats.teams / stats.total) * 100)
+    : 0;
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <PageLoader text="ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ط§ظ„ظ…ط´ط§ط±ظƒط§طھ..." />
+          <PageLoader text="جاري تحميل المشاركات..." />
         </AppShell>
       </RoleGuard>
     );
@@ -492,321 +595,336 @@ export default function ActivityParticipationsPage() {
 
           <PageHeader
             variant="hero"
-            title="ط§ظ„ظ…ط´ط§ط±ظƒط§طھ"
-            description="ط¥ط¯ط§ط±ط© ط§ظ„ط·ظ„ط§ط¨ ط§ظ„ظ…ط´ط§ط±ظƒظٹظ† ظپظٹ ط§ظ„ط£ظ†ط´ط·ط© ظˆط§ظ„ظپط±ظ‚ ظˆط§ظ„ظ…ط³ط§ط¨ظ‚ط§طھ ظˆطھظˆط«ظٹظ‚ ط§ظ„ط¥ظ†ط¬ط§ط²ط§طھ ط¶ظ…ظ† ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·."
-            badge="ط¨ظˆط§ط¨ط© ط±ط§ط¦ط¯ ط§ظ„ظ†ط´ط§ط·"
-            icon={<UserCheck size={18} />}
+            title="المشاركات"
+            description="إدارة الطلاب المشاركين والإنجازات."
+            badge="رائد النشاط"
+            icon={<UserCheck size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الأنشطة", href: "/activities" },
               { label: "المشاركات" },
             ]}
             meta={[
-              { label: "المدرسة", value: currentSchool?.school_name || "غير متوفر" },
-              { label: "إجمالي المشاركات", value: stats.total },
+              {
+                label: "المدرسة",
+                value: currentSchool?.school_name || "غير متوفر",
+              },
+              { label: "الإجمالي", value: stats.total },
               { label: "الفائزون والمكرمون", value: stats.winners },
             ]}
             stats={[
-              { label: "إجمالي المشاركات", value: stats.total, icon: <Users size={20} />, tone: "blue" },
-              { label: "فائزون ومكرمون", value: stats.winners, icon: <Trophy size={20} />, tone: "green" },
-              { label: "مسابقات", value: stats.competitions, icon: <Award size={20} />, tone: "gold" },
-              { label: "فرق", value: stats.teams, icon: <UserCheck size={20} />, tone: "slate" },
+              {
+                label: "المشاركات",
+                value: stats.total,
+                icon: <Users size={20} aria-hidden="true" />,
+                tone: "primary",
+              },
+              {
+                label: "الفائزون",
+                value: stats.winners,
+                icon: <Trophy size={20} aria-hidden="true" />,
+                tone: "green",
+              },
+              {
+                label: "المسابقات",
+                value: stats.competitions,
+                icon: <Award size={20} aria-hidden="true" />,
+                tone: "gold",
+              },
+              {
+                label: "الفرق",
+                value: stats.teams,
+                icon: <UserCheck size={20} aria-hidden="true" />,
+                tone: "slate",
+              },
             ]}
             actions={
               <>
                 <PrimaryButton onClick={() => setShowForm(true)}>
-                  <Plus size={16} />
-                  ط¥ط¶ط§ظپط© ظ…ط´ط§ط±ظƒط©
+                  <Plus size={16} aria-hidden="true" />
+                  إضافة
                 </PrimaryButton>
 
-                <DarkButton onClick={() => void loadData()}>
-                  <RefreshCcw size={16} />
-                  طھط­ط¯ظٹط«
-                </DarkButton>
+                <SecondaryButton onClick={() => void loadData()}>
+                  <RefreshCcw size={16} aria-hidden="true" />
+                  تحديث
+                </SecondaryButton>
               </>
             }
           />
 
-          {errorMsg && <ErrorState description={errorMsg} />}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="مؤشرات المشاركات"
+          >
             <ExecutiveCard
-              title="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط´ط§ط±ظƒط§طھ"
+              title="المشاركات"
               value={stats.total}
-              subtitle="إجمالي المشاركات المسجلة"
-              icon={<Users size={22} />}
-              tone="blue"
+              subtitle="الإجمالي"
+              icon={<Users size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
             <ExecutiveCard
-              title="ظپط§ط¦ط²ظˆظ† ظˆظ…ظƒط±ظ…ظˆظ†"
+              title="فائزون ومكرمون"
               value={stats.winners}
-              subtitle="إنجازات وتكريمات"
-              icon={<Trophy size={22} />}
+              subtitle="إنجازات"
+              icon={<Trophy size={22} aria-hidden="true" />}
               tone="green"
-              progress={stats.total ? Math.round((stats.winners / stats.total) * 100) : 0}
+              progress={winnersProgress}
             />
 
             <ExecutiveCard
-              title="ظ…ط´ط§ط±ظƒط§طھ ظ…ط³ط§ط¨ظ‚ط§طھ"
+              title="مسابقات"
               value={stats.competitions}
-              subtitle="مرتبطة بالمسابقات"
-              icon={<Award size={22} />}
+              subtitle="مرتبطة بمسابقة"
+              icon={<Award size={22} aria-hidden="true" />}
               tone="gold"
-              progress={stats.total ? Math.round((stats.competitions / stats.total) * 100) : 0}
+              progress={competitionsProgress}
             />
 
             <ExecutiveCard
-              title="ظ…ط´ط§ط±ظƒط§طھ ظپط±ظ‚"
+              title="فرق"
               value={stats.teams}
-              subtitle="مرتبطة بالفرق"
-              icon={<UserCheck size={22} />}
+              subtitle="مرتبطة بفريق"
+              icon={<UserCheck size={22} aria-hidden="true" />}
               tone="slate"
-              progress={stats.total ? Math.round((stats.teams / stats.total) * 100) : 0}
+              progress={teamsProgress}
             />
           </section>
 
-          {showForm && (
+          {showForm ? (
             <Section
-              title={form.id ? "طھط¹ط¯ظٹظ„ ظ…ط´ط§ط±ظƒط©" : "ط¥ط¶ط§ظپط© ظ…ط´ط§ط±ظƒط©"}
-              icon={<Edit size={22} />}
+              title={form.id ? "تعديل مشاركة" : "إضافة مشاركة"}
+              icon={<Edit size={22} aria-hidden="true" />}
             >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <ActivityInput
-                  label="ط§ط³ظ… ط§ظ„ط·ط§ظ„ط¨"
+                <Field
+                  label="اسم الطالب"
                   value={form.student_name}
                   onChange={(value) =>
-                    setForm({ ...form, student_name: value })
+                    setForm((current) => ({
+                      ...current,
+                      student_name: value,
+                    }))
+                  }
+                  required
+                />
+
+                <Field
+                  label="رقم الطالب"
+                  value={form.student_id}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      student_id: value,
+                    }))
                   }
                 />
 
-                <ActivityInput
-                  label="ط±ظ‚ظ… ط§ظ„ط·ط§ظ„ط¨ / ID ط§ط®طھظٹط§ط±ظٹ"
-                  value={form.student_id}
-                  onChange={(value) => setForm({ ...form, student_id: value })}
-                />
-
-                <ActivityInput
-                  label="ط§ظ„ظپطµظ„"
+                <Field
+                  label="الفصل"
                   value={form.class_name}
-                  onChange={(value) => setForm({ ...form, class_name: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      class_name: value,
+                    }))
+                  }
                 />
 
-                <ActivityInput
-                  label="ط§ظ„ط´ط¹ط¨ط©"
+                <Field
+                  label="الشعبة"
                   value={form.section}
-                  onChange={(value) => setForm({ ...form, section: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      section: value,
+                    }))
+                  }
                 />
 
-                <ActivitySelect
-                  label="ط§ظ„ط¯ظˆط±"
+                <SelectField
+                  label="الدور"
                   value={form.role}
                   options={ROLE_OPTIONS}
-                  onChange={(value) => setForm({ ...form, role: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      role: value,
+                    }))
+                  }
                 />
 
-                <ActivitySelect
-                  label="ط§ظ„ط­ط§ظ„ط©"
+                <SelectField
+                  label="الحالة"
                   value={form.participation_status}
                   options={STATUS_OPTIONS}
                   onChange={(value) =>
-                    setForm({ ...form, participation_status: value })
+                    setForm((current) => ({
+                      ...current,
+                      participation_status: value,
+                    }))
                   }
                 />
 
-                <ActivitySelectId
-                  label="ط§ظ„ظ†ط´ط§ط·"
+                <IdSelectField
+                  label="النشاط"
                   value={form.activity_id}
                   options={activityOptions}
-                  placeholder="ط¨ط¯ظˆظ† ظ†ط´ط§ط·"
+                  placeholder="بدون نشاط"
                   onChange={(value) =>
-                    setForm({ ...form, activity_id: value })
+                    setForm((current) => ({
+                      ...current,
+                      activity_id: value,
+                    }))
                   }
                 />
 
-                <ActivitySelectId
-                  label="ط§ظ„ظپط±ظٹظ‚"
+                <IdSelectField
+                  label="الفريق"
                   value={form.team_id}
                   options={teamOptions}
-                  placeholder="ط¨ط¯ظˆظ† ظپط±ظٹظ‚"
-                  onChange={(value) => setForm({ ...form, team_id: value })}
-                />
-
-                <ActivitySelectId
-                  label="ط§ظ„ظ…ط³ط§ط¨ظ‚ط©"
-                  value={form.competition_id}
-                  options={competitionOptions}
-                  placeholder="ط¨ط¯ظˆظ† ظ…ط³ط§ط¨ظ‚ط©"
+                  placeholder="بدون فريق"
                   onChange={(value) =>
-                    setForm({ ...form, competition_id: value })
+                    setForm((current) => ({
+                      ...current,
+                      team_id: value,
+                    }))
                   }
                 />
 
-                <ActivityInput
-                  label="ط§ظ„ط¥ظ†ط¬ط§ط²"
+                <IdSelectField
+                  label="المسابقة"
+                  value={form.competition_id}
+                  options={competitionOptions}
+                  placeholder="بدون مسابقة"
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      competition_id: value,
+                    }))
+                  }
+                />
+
+                <Field
+                  label="الإنجاز"
                   value={form.achievement}
                   onChange={(value) =>
-                    setForm({ ...form, achievement: value })
+                    setForm((current) => ({
+                      ...current,
+                      achievement: value,
+                    }))
                   }
                 />
               </div>
 
               <div className="mt-3">
-                <ActivityTextarea
-                  label="ظ…ظ„ط§ط­ط¸ط§طھ"
+                <TextAreaField
+                  label="ملاحظات"
                   value={form.notes}
-                  onChange={(value) => setForm({ ...form, notes: value })}
+                  onChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      notes: value,
+                    }))
+                  }
                 />
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <PrimaryButton onClick={() => void saveItem()} disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={16} />
-                  )}
-                  ط­ظپط¸
+                <PrimaryButton
+                  onClick={() => void saveItem()}
+                  loading={saving}
+                >
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  حفظ
                 </PrimaryButton>
 
-                <LightButton onClick={resetForm}>
-                  <XCircle size={16} />
-                  ط¥ظ„ط؛ط§ط،
-                </LightButton>
+                <SecondaryButton onClick={resetForm}>
+                  <XCircle size={16} aria-hidden="true" />
+                  إلغاء
+                </SecondaryButton>
               </div>
             </Section>
-          )}
+          ) : null}
 
-          <Section title="ط§ظ„ط¨ط­ط« ظˆط§ظ„ظپظ„طھط±ط©" icon={<Search size={22} />}>
+          <Section
+            title="البحث والتصفية"
+            icon={<Search size={22} aria-hidden="true" />}
+          >
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_180px_180px_auto_auto]">
-              <div className="relative">
-                <Search
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={18}
-                />
-
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="ط¨ط­ط« ظپظٹ ط§ظ„ظ…ط´ط§ط±ظƒط§طھ..."
-                  className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm font-bold outline-none transition focus:border-[#d4af37]"
-                />
-              </div>
+              <SearchField value={search} onChange={setSearch} />
 
               <select
                 value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+                onChange={(event) =>
+                  setStatusFilter(event.target.value)
+                }
+                aria-label="تصفية حسب الحالة"
+                className={fieldClassName}
               >
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط­ط§ظ„ط§طھ</option>
+                <option value="الكل">كل الحالات</option>
                 {STATUS_OPTIONS.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
                 ))}
               </select>
 
               <select
                 value={kindFilter}
-                onChange={(event) => setKindFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+                onChange={(event) =>
+                  setKindFilter(event.target.value)
+                }
+                aria-label="تصفية حسب نوع الارتباط"
+                className={fieldClassName}
               >
-                <option value="ط§ظ„ظƒظ„">ظƒظ„ ط§ظ„ط§ط±طھط¨ط§ط·ط§طھ</option>
-                <option value="ظ†ط´ط§ط·">ظ†ط´ط§ط·</option>
-                <option value="ظپط±ظٹظ‚">ظپط±ظٹظ‚</option>
-                <option value="ظ…ط³ط§ط¨ظ‚ط©">ظ…ط³ط§ط¨ظ‚ط©</option>
-                <option value="ط¹ط§ظ…">ط¹ط§ظ…</option>
+                <option value="الكل">كل الارتباطات</option>
+                {KIND_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
 
-              <LightButton onClick={() => void exportExcel()}>Excel</LightButton>
+              <SecondaryButton onClick={() => void exportExcel()}>
+                Excel
+              </SecondaryButton>
 
-              <LightButton onClick={exportPDF}>
-                <FileText size={16} />
+              <SecondaryButton onClick={exportPDF}>
+                <FileText size={16} aria-hidden="true" />
                 PDF
-              </LightButton>
+              </SecondaryButton>
             </div>
           </Section>
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section
+            className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+            aria-label="قائمة المشاركات"
+          >
             {filteredItems.length === 0 ? (
               <div className="md:col-span-2 xl:col-span-3">
-                <EmptyState title="لا توجد بيانات" description="ظ„ط§ طھظˆط¬ط¯ ظ…ط´ط§ط±ظƒط§طھ ظ…ط·ط§ط¨ظ‚ط©." />
+                <EmptyState
+                  title="لا توجد نتائج"
+                  description="غيّر البحث أو أضف مشاركة."
+                  icon={<Search size={28} aria-hidden="true" />}
+                />
               </div>
             ) : (
               filteredItems.map((item) => (
-                <div
+                <ParticipationCard
                   key={item.id}
-                  className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle(
-                        item.participation_status
-                      )}`}
-                    >
-                      {item.participation_status || "ظ…ط´ط§ط±ظƒ"}
-                    </span>
-
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                      {item.role || "ظ…ط´ط§ط±ظƒ"}
-                    </span>
-
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
-                      {getParticipationKind(item)}
-                    </span>
-                  </div>
-
-                  <h3 className="text-xl font-black text-[#0f1f3d]">
-                    {item.student_name || "ط·ط§ظ„ط¨"}
-                  </h3>
-
-                  <p className="mt-1 text-sm font-bold text-slate-500">
-                    {item.class_name || "ظپطµظ„ ط؛ظٹط± ظ…ط­ط¯ط¯"}
-                    {item.section ? ` - ${item.section}` : ""}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
-                    <ActivityInfo
-                      label="ط§ظ„ظ†ط´ط§ط·"
-                      value={optionLabel(item.activity_id, activityOptions)}
-                    />
-
-                    <ActivityInfo
-                      label="ط§ظ„ظپط±ظٹظ‚"
-                      value={optionLabel(item.team_id, teamOptions)}
-                    />
-
-                    <ActivityInfo
-                      label="ط§ظ„ظ…ط³ط§ط¨ظ‚ط©"
-                      value={optionLabel(
-                        item.competition_id,
-                        competitionOptions
-                      )}
-                    />
-
-                    <ActivityInfo
-                      label="ط§ظ„ط¥ظ†ط¬ط§ط²"
-                      value={item.achievement || "â€”"}
-                    />
-                  </div>
-
-                  {item.notes && (
-                    <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm leading-7 text-slate-600">
-                      {item.notes}
-                    </p>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <LightButton onClick={() => editItem(item)}>
-                      <Edit size={15} />
-                      طھط¹ط¯ظٹظ„
-                    </LightButton>
-
-                    <DangerButton onClick={() => void deleteItem(item)}>
-                      <Trash2 size={15} />
-                      ط­ط°ظپ
-                    </DangerButton>
-                  </div>
-                </div>
+                  item={item}
+                  activityOptions={activityOptions}
+                  teamOptions={teamOptions}
+                  competitionOptions={competitionOptions}
+                  onEdit={editItem}
+                  onDelete={deleteItem}
+                />
               ))
             )}
           </section>
@@ -816,7 +934,194 @@ export default function ActivityParticipationsPage() {
   );
 }
 
-function ActivitySelectId({
+const fieldClassName =
+  "h-11 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]";
+
+function SearchField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Search
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-subtle)]"
+        size={18}
+        aria-hidden="true"
+      />
+
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="بحث..."
+        aria-label="البحث في المشاركات"
+        className={`${fieldClassName} pr-10`}
+      />
+    </div>
+  );
+}
+
+function ParticipationCard({
+  item,
+  activityOptions,
+  teamOptions,
+  competitionOptions,
+  onEdit,
+  onDelete,
+}: {
+  item: Participant;
+  activityOptions: OptionItem[];
+  teamOptions: OptionItem[];
+  competitionOptions: OptionItem[];
+  onEdit: (item: Participant) => void;
+  onDelete: (item: Participant) => Promise<void>;
+}) {
+  return (
+    <article className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-black ${getStatusClass(
+            item.participation_status,
+          )}`}
+        >
+          {item.participation_status || "مشارك"}
+        </span>
+
+        <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
+          {item.role || "مشارك"}
+        </span>
+
+        <span className="rounded-full bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
+          {getParticipationKind(item)}
+        </span>
+      </div>
+
+      <h3 className="text-xl font-black text-[var(--app-text)]">
+        {item.student_name || "طالب"}
+      </h3>
+
+      <p className="mt-1 text-sm font-bold text-[var(--app-text-muted)]">
+        {item.class_name || "فصل غير محدد"}
+        {item.section ? ` - ${item.section}` : ""}
+      </p>
+
+      <div className="mt-4 grid gap-2 text-sm">
+        <InfoBox
+          label="النشاط"
+          value={optionLabel(item.activity_id, activityOptions)}
+        />
+
+        <InfoBox
+          label="الفريق"
+          value={optionLabel(item.team_id, teamOptions)}
+        />
+
+        <InfoBox
+          label="المسابقة"
+          value={optionLabel(
+            item.competition_id,
+            competitionOptions,
+          )}
+        />
+
+        <InfoBox
+          label="الإنجاز"
+          value={item.achievement || "—"}
+        />
+      </div>
+
+      {item.notes ? (
+        <p className="mt-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3 text-sm leading-7 text-[var(--app-text-muted)]">
+          {item.notes}
+        </p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <SecondaryButton size="sm" onClick={() => onEdit(item)}>
+          <Edit size={15} aria-hidden="true" />
+          تعديل
+        </SecondaryButton>
+
+        <DangerButton
+          size="sm"
+          onClick={() => void onDelete(item)}
+          icon={<Trash2 size={15} aria-hidden="true" />}
+        >
+          حذف
+        </DangerButton>
+      </div>
+    </article>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  const id = `participation-field-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <input
+        id={id}
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClassName}
+      />
+    </label>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  const id = `participation-select-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={fieldClassName}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function IdSelectField({
   label,
   value,
   options,
@@ -829,16 +1134,19 @@ function ActivitySelectId({
   placeholder: string;
   onChange: (value: string) => void;
 }) {
+  const id = `participation-id-select-${label}`;
+
   return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-bold text-slate-600">
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
         {label}
       </span>
 
       <select
+        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition focus:border-[#d4af37]"
+        className={fieldClassName}
       >
         <option value="">{placeholder}</option>
 
@@ -849,5 +1157,53 @@ function ActivitySelectId({
         ))}
       </select>
     </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = `participation-textarea-${label}`;
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
+        {label}
+      </span>
+
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={4}
+        className={`${fieldClassName} h-auto resize-none py-3`}
+      />
+    </label>
+  );
+}
+
+function InfoBox({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">
+        {label}
+      </p>
+
+      <p className="mt-1 line-clamp-1 font-black text-[var(--app-text)]">
+        {value}
+      </p>
+    </div>
   );
 }

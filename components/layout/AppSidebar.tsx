@@ -35,18 +35,19 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
 import type { SchoolRole } from "@/lib/permissions";
 import type { PermissionKey } from "@/lib/permissions/permissions";
+import { supabase } from "@/lib/supabase";
 
 import { Skeleton } from "@/components/ui/loading";
+
 import {
+  SidebarFooter,
   SidebarHeader,
+  SidebarItem,
   SidebarSearch,
   SidebarSection,
-  SidebarItem,
-  SidebarFooter,
 } from "./sidebar";
 
 type SidebarItemType = {
@@ -100,7 +101,11 @@ const STAFF_ROLES: SchoolRole[] = [
   "administrative_staff",
 ];
 
-const TEACHER_ROLES: SchoolRole[] = ["super_admin", "school_admin", "teacher"];
+const TEACHER_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "teacher",
+];
 
 const COUNSELOR_ROLES: SchoolRole[] = [
   "super_admin",
@@ -417,18 +422,33 @@ const SECTIONS: SidebarSectionType[] = [
   },
 ];
 
-function hasRole(currentRole: SchoolRole | null, allowedRoles?: SchoolRole[]) {
-  if (!allowedRoles || allowedRoles.length === 0) return true;
-  if (!currentRole) return false;
-  if (currentRole === "super_admin") return true;
+function hasRole(
+  currentRole: SchoolRole | null,
+  allowedRoles?: SchoolRole[],
+) {
+  if (!allowedRoles || allowedRoles.length === 0) {
+    return true;
+  }
+
+  if (!currentRole) {
+    return false;
+  }
+
+  if (currentRole === "super_admin") {
+    return true;
+  }
+
   return allowedRoles.includes(currentRole);
 }
 
 function readJSON<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
+  if (typeof window === "undefined") {
+    return fallback;
+  }
 
   try {
     const raw = window.localStorage.getItem(key);
+
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -436,43 +456,67 @@ function readJSON<T>(key: string, fallback: T): T {
 }
 
 function writeJSON<T>(key: string, value: T) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
 
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
+  } catch {
+    // تجاهل أخطاء التخزين، مثل تعطيل التخزين في المتصفح.
+  }
 }
 
-function getActiveHref(pathname: string, items: SidebarItemType[]) {
+function getActiveHref(
+  pathname: string,
+  items: SidebarItemType[],
+) {
   const matched = items
     .filter(
-      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+      (item) =>
+        pathname === item.href ||
+        pathname.startsWith(`${item.href}/`),
     )
     .sort((a, b) => b.href.length - a.href.length);
 
   return matched[0]?.href ?? "";
 }
 
-function matchesSearch(item: SidebarItemType, query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
+function matchesSearch(
+  item: SidebarItemType,
+  query: string,
+) {
+  const normalizedQuery = query.trim().toLowerCase();
 
-  const text = [item.label, item.href, ...(item.keywords || [])]
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const searchableText = [
+    item.label,
+    item.href,
+    ...(item.keywords ?? []),
+  ]
     .join(" ")
     .toLowerCase();
 
-  return text.includes(q);
+  return searchableText.includes(normalizedQuery);
 }
 
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+
+  const {
+    resolvedTheme,
+    setTheme,
+  } = useTheme();
 
   const {
     currentSchool,
     currentRole,
     schools,
+    semester,
     loading,
     switchSchool,
     hasPermission,
@@ -481,130 +525,259 @@ export default function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [sectionSearch, setSectionSearch] = useState("");
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [openSections, setOpenSections] = useState<
+    Record<string, boolean>
+  >({});
   const [favorites, setFavorites] = useState<string[]>([]);
 
   const expanded = !collapsed || mobileOpen;
-  const roleName = currentRole ? ROLE_NAME_MAP[currentRole] : "مستخدم";
+
+  const roleName = currentRole
+    ? ROLE_NAME_MAP[currentRole]
+    : "مستخدم";
+
+  const isDarkTheme = resolvedTheme === "dark";
+  const ActiveThemeIcon = isDarkTheme ? Sun : Moon;
 
   const canSeeItem = useCallback(
     (item: SidebarItemType) => {
-      if (!hasRole(currentRole, item.roles)) return false;
-      if (item.permission && !hasPermission(item.permission)) return false;
+      if (!hasRole(currentRole, item.roles)) {
+        return false;
+      }
+
+      if (
+        item.permission &&
+        !hasPermission(item.permission)
+      ) {
+        return false;
+      }
+
       return matchesSearch(item, sectionSearch);
     },
-    [currentRole, hasPermission, sectionSearch],
+    [
+      currentRole,
+      hasPermission,
+      sectionSearch,
+    ],
   );
 
   const allowedSections = useMemo(() => {
-    if (!currentRole) return [];
+    if (!currentRole) {
+      return [];
+    }
 
     return SECTIONS.map((section) => ({
       ...section,
       children: section.children.filter(canSeeItem),
     })).filter(
       (section) =>
-        hasRole(currentRole, section.roles) && section.children.length > 0,
+        hasRole(currentRole, section.roles) &&
+        section.children.length > 0,
     );
   }, [currentRole, canSeeItem]);
 
   const allAllowedItems = useMemo(
-    () => allowedSections.flatMap((section) => section.children),
+    () =>
+      allowedSections.flatMap(
+        (section) => section.children,
+      ),
     [allowedSections],
   );
 
   const activeHref = useMemo(
-    () => getActiveHref(pathname, allAllowedItems),
-    [pathname, allAllowedItems],
+    () =>
+      getActiveHref(
+        pathname,
+        allAllowedItems,
+      ),
+    [
+      pathname,
+      allAllowedItems,
+    ],
   );
 
   const favoriteItems = useMemo(() => {
     return favorites
-      .map((href) => allAllowedItems.find((item) => item.href === href))
-      .filter(Boolean) as SidebarItemType[];
+      .map((href) =>
+        allAllowedItems.find(
+          (item) => item.href === href,
+        ),
+      )
+      .filter(
+        (item): item is SidebarItemType =>
+          Boolean(item),
+      );
   }, [favorites, allAllowedItems]);
 
-  const isDarkTheme = theme === "smart-dark";
-  const ActiveThemeIcon = isDarkTheme ? Sun : Moon;
-  const hasSearchResults = allowedSections.length > 0;
+  const hasSearchResults =
+    allowedSections.length > 0;
 
   useEffect(() => {
-    const savedCollapsed = window.localStorage.getItem(COLLAPSED_KEY);
+    const savedCollapsed =
+      window.localStorage.getItem(
+        COLLAPSED_KEY,
+      );
 
     setCollapsed(savedCollapsed === "true");
-    setOpenSections(readJSON<Record<string, boolean>>(OPEN_SECTIONS_KEY, {}));
-    setFavorites(readJSON<string[]>(FAVORITES_KEY, []));
-  }, []);
 
-  useEffect(() => {
-    writeJSON(COLLAPSED_KEY, collapsed);
-  }, [collapsed]);
-
-  useEffect(() => {
-    writeJSON(OPEN_SECTIONS_KEY, openSections);
-  }, [openSections]);
-
-  useEffect(() => {
-    writeJSON(FAVORITES_KEY, favorites);
-  }, [favorites]);
-
-  useEffect(() => {
-    if (!activeHref) return;
-
-    const activeSection = SECTIONS.find((section) =>
-      section.children.some(
-        (item) =>
-          activeHref === item.href || activeHref.startsWith(`${item.href}/`),
+    setOpenSections(
+      readJSON<Record<string, boolean>>(
+        OPEN_SECTIONS_KEY,
+        {},
       ),
     );
 
-    if (activeSection) {
-      setOpenSections((prev) => ({
-        ...prev,
-        [activeSection.id]: true,
-      }));
+    setFavorites(
+      readJSON<string[]>(
+        FAVORITES_KEY,
+        [],
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    writeJSON(
+      COLLAPSED_KEY,
+      collapsed,
+    );
+  }, [collapsed]);
+
+  useEffect(() => {
+    writeJSON(
+      OPEN_SECTIONS_KEY,
+      openSections,
+    );
+  }, [openSections]);
+
+  useEffect(() => {
+    writeJSON(
+      FAVORITES_KEY,
+      favorites,
+    );
+  }, [favorites]);
+
+  useEffect(() => {
+    if (!activeHref) {
+      return;
     }
+
+    const activeSection = SECTIONS.find(
+      (section) =>
+        section.children.some(
+          (item) =>
+            activeHref === item.href ||
+            activeHref.startsWith(
+              `${item.href}/`,
+            ),
+        ),
+    );
+
+    if (!activeSection) {
+      return;
+    }
+
+    setOpenSections((current) => ({
+      ...current,
+      [activeSection.id]: true,
+    }));
   }, [activeHref]);
 
-  async function handleLogout() {
-    const confirmed = window.confirm("هل تريد تسجيل الخروج؟");
-    if (!confirmed) return;
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
-    await supabase.auth.signOut();
+  async function handleLogout() {
+    const confirmed = window.confirm(
+      "هل تريد تسجيل الخروج؟",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const { error } =
+      await supabase.auth.signOut();
+
+    if (error) {
+      window.alert(
+        "تعذر تسجيل الخروج، حاول مرة أخرى.",
+      );
+      return;
+    }
+
     router.replace("/login");
+    router.refresh();
   }
 
-  const toggleSection = useCallback((sectionId: string) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
-    }));
-  }, []);
+  const toggleSection = useCallback(
+    (sectionId: string) => {
+      setOpenSections((current) => ({
+        ...current,
+        [sectionId]:
+          !current[sectionId],
+      }));
+    },
+    [],
+  );
 
-  const toggleFavorite = useCallback((href: string) => {
-    setFavorites((prev) => {
-      if (prev.includes(href)) {
-        return prev.filter((item) => item !== href);
-      }
+  const toggleFavorite = useCallback(
+    (href: string) => {
+      setFavorites((current) => {
+        if (current.includes(href)) {
+          return current.filter(
+            (item) => item !== href,
+          );
+        }
 
-      return [href, ...prev].slice(0, 8);
-    });
-  }, []);
+        return [
+          href,
+          ...current,
+        ].slice(0, 8);
+      });
+    },
+    [],
+  );
 
   const cycleTheme = useCallback(() => {
-    setTheme(isDarkTheme ? "smart-light" : "smart-dark");
-  }, [isDarkTheme, setTheme]);
+    setTheme(
+      isDarkTheme
+        ? "light"
+        : "dark",
+    );
+  }, [
+    isDarkTheme,
+    setTheme,
+  ]);
 
   const sidebarBackground =
-    "bg-[radial-gradient(circle_at_top_right,rgba(15,118,110,0.22),transparent_28%),var(--sidebar-bg)]";
+    "bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.16),transparent_30%),linear-gradient(180deg,var(--app-sidebar),var(--app-navy-950))]";
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setMobileOpen(true)}
-        className="fixed right-4 top-4 z-[70] flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--sidebar-bg)] text-white shadow-xl lg:hidden"
+        onClick={() =>
+          setMobileOpen(true)
+        }
         aria-label="فتح القائمة"
+        aria-expanded={mobileOpen}
+        className="
+          fixed right-4 top-4
+          z-[70]
+          flex h-11 w-11
+          items-center justify-center
+          rounded-2xl
+          border
+          border-[var(--app-accent-border)]
+          bg-[var(--app-sidebar)]
+          text-[var(--app-accent)]
+          shadow-[var(--app-shadow-lg)]
+          transition-all
+          duration-200
+          hover:bg-[var(--app-sidebar-active)]
+          hover:shadow-[var(--app-shadow-gold)]
+          lg:hidden
+        "
       >
         <Menu size={20} />
       </button>
@@ -612,79 +785,185 @@ export default function AppSidebar() {
       {mobileOpen && (
         <button
           type="button"
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() =>
+            setMobileOpen(false)
+          }
+          className="
+            fixed inset-0
+            z-50
+            bg-[var(--app-overlay)]
+            backdrop-blur-sm
+            lg:hidden
+          "
           aria-label="إغلاق القائمة"
         />
       )}
 
       <aside
-        className={`
-          fixed right-0 top-0 z-[60] h-screen
-          border-l border-[var(--sidebar-border)] ${sidebarBackground}
-          text-[var(--sidebar-text)] shadow-[0_24px_80px_rgba(2,6,23,0.38)] transition-all duration-300
-          lg:sticky lg:top-0 lg:translate-x-0
-          ${expanded ? "lg:w-[288px]" : "lg:w-[72px]"}
-          ${
-            mobileOpen
-              ? "w-[288px] translate-x-0"
-              : "w-[288px] translate-x-full lg:translate-x-0"
-          }
-        `}
+        aria-label="القائمة الرئيسية"
+        className={[
+          "fixed right-0 top-0 z-[60] h-screen",
+          "border-l border-[var(--app-sidebar-border)]",
+          sidebarBackground,
+          "text-[var(--app-sidebar-text)]",
+          "shadow-[0_24px_80px_rgba(2,6,23,0.38)]",
+          "transition-[width,transform] duration-300 ease-out",
+          "lg:sticky lg:top-0 lg:translate-x-0",
+          expanded
+            ? "lg:w-[288px]"
+            : "lg:w-[72px]",
+          mobileOpen
+            ? "w-[288px] translate-x-0"
+            : "w-[288px] translate-x-full lg:translate-x-0",
+        ].join(" ")}
       >
         <div className="relative flex h-full flex-col overflow-hidden">
+          <div
+            aria-hidden="true"
+            className="
+              pointer-events-none
+              absolute inset-x-0 top-0
+              h-40
+              bg-gradient-to-b
+              from-[var(--app-accent-soft)]
+              to-transparent
+              opacity-50
+            "
+          />
+
           <SidebarHeader
             expanded={expanded}
             mobileOpen={mobileOpen}
-            schoolName={currentSchool?.school_name}
+            schoolName={
+              currentSchool?.school_name
+            }
             roleName={roleName}
-            ActiveThemeIcon={ActiveThemeIcon}
-            onToggleCollapse={() => setCollapsed((value) => !value)}
+            semester={semester}
+            ActiveThemeIcon={
+              ActiveThemeIcon
+            }
+            onToggleCollapse={() =>
+              setCollapsed(
+                (value) => !value,
+              )
+            }
             onToggleTheme={cycleTheme}
-            onCloseMobile={() => setMobileOpen(false)}
+            onCloseMobile={() =>
+              setMobileOpen(false)
+            }
           />
 
-          <div className="app-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
+          <div
+            className="
+              app-scrollbar
+              relative
+              flex-1
+              overflow-y-auto
+              overflow-x-hidden
+              px-2 py-3
+            "
+          >
             <nav className="space-y-2.5">
               {loading && (
-                <div className="space-y-2 rounded-2xl bg-white/5 p-3">
-                  {Array.from({ length: expanded ? 8 : 5 }).map((_, index) => (
-                    <Skeleton
-                      key={index}
-                      className={`bg-white/10 ${
-                        expanded ? "h-10 w-full" : "mx-auto h-9 w-9"
-                      }`}
-                    />
-                  ))}
+                <div
+                  className="
+                    space-y-2
+                    rounded-2xl
+                    border
+                    border-[var(--app-sidebar-border)]
+                    bg-[var(--app-sidebar-hover)]
+                    p-3
+                  "
+                >
+                  {Array.from({
+                    length: expanded
+                      ? 8
+                      : 5,
+                  }).map(
+                    (_, index) => (
+                      <Skeleton
+                        key={index}
+                        className={[
+                          "bg-white/10",
+                          expanded
+                            ? "h-10 w-full"
+                            : "mx-auto h-9 w-9",
+                        ].join(" ")}
+                      />
+                    ),
+                  )}
                 </div>
               )}
 
               {!loading && expanded && (
                 <SidebarSearch
                   value={sectionSearch}
-                  onChange={setSectionSearch}
-                  hasResults={hasSearchResults}
+                  onChange={
+                    setSectionSearch
+                  }
+                  hasResults={
+                    hasSearchResults
+                  }
                 >
-                  {favoriteItems.length > 0 && (
-                    <div>
-                      <p className="mb-1.5 flex items-center gap-2 px-2 text-[11px] font-black text-[var(--sidebar-muted)]">
-                        <Star size={13} />
+                  {favoriteItems.length >
+                    0 && (
+                    <div
+                      className="
+                        rounded-2xl
+                        border
+                        border-[var(--app-sidebar-border)]
+                        bg-[var(--app-sidebar-hover)]
+                        p-2
+                      "
+                    >
+                      <p
+                        className="
+                          mb-1.5
+                          flex items-center
+                          gap-2
+                          px-2
+                          text-[11px]
+                          font-black
+                          text-[var(--app-sidebar-muted)]
+                        "
+                      >
+                        <Star
+                          size={13}
+                          className="text-[var(--app-accent)]"
+                        />
                         المفضلة
                       </p>
 
                       <div className="space-y-1">
-                        {favoriteItems.map((item) => (
-                          <SidebarItem
-                            key={item.href}
-                            item={item}
-                            active={activeHref === item.href}
-                            expanded={expanded}
-                            favorite={favorites.includes(item.href)}
-                            compact
-                            onNavigate={() => setMobileOpen(false)}
-                            onToggleFavorite={toggleFavorite}
-                          />
-                        ))}
+                        {favoriteItems.map(
+                          (item) => (
+                            <SidebarItem
+                              key={
+                                item.href
+                              }
+                              item={item}
+                              active={
+                                activeHref ===
+                                item.href
+                              }
+                              expanded={
+                                expanded
+                              }
+                              favorite={favorites.includes(
+                                item.href,
+                              )}
+                              compact
+                              onNavigate={() =>
+                                setMobileOpen(
+                                  false,
+                                )
+                              }
+                              onToggleFavorite={
+                                toggleFavorite
+                              }
+                            />
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
@@ -692,43 +971,133 @@ export default function AppSidebar() {
               )}
 
               {!loading &&
-                allowedSections.map((section) => {
-                  const opened = expanded
-                    ? openSections[section.id] ?? section.id === "main"
-                    : true;
+                allowedSections.map(
+                  (section) => {
+                    const opened =
+                      expanded
+                        ? (openSections[
+                            section.id
+                          ] ??
+                          section.id ===
+                            "main")
+                        : true;
 
-                  return (
-                    <SidebarSection
-                      key={section.id}
-                      title={section.label}
-                      icon={section.icon}
-                      expanded={expanded}
-                      opened={opened}
-                      count={section.children.length}
-                      onToggle={() => toggleSection(section.id)}
-                    >
-                      {section.children.map((item) => (
-                        <SidebarItem
-                          key={item.href}
-                          item={item}
-                          active={activeHref === item.href}
-                          expanded={expanded}
-                          favorite={favorites.includes(item.href)}
-                          onNavigate={() => setMobileOpen(false)}
-                          onToggleFavorite={toggleFavorite}
-                        />
-                      ))}
-                    </SidebarSection>
-                  );
-                })}
+                    return (
+                      <SidebarSection
+                        key={section.id}
+                        title={
+                          section.label
+                        }
+                        icon={section.icon}
+                        expanded={
+                          expanded
+                        }
+                        opened={opened}
+                        count={
+                          section.children
+                            .length
+                        }
+                        onToggle={() =>
+                          toggleSection(
+                            section.id,
+                          )
+                        }
+                      >
+                        {section.children.map(
+                          (item) => (
+                            <SidebarItem
+                              key={
+                                item.href
+                              }
+                              item={item}
+                              active={
+                                activeHref ===
+                                item.href
+                              }
+                              expanded={
+                                expanded
+                              }
+                              favorite={favorites.includes(
+                                item.href,
+                              )}
+                              onNavigate={() =>
+                                setMobileOpen(
+                                  false,
+                                )
+                              }
+                              onToggleFavorite={
+                                toggleFavorite
+                              }
+                            />
+                          ),
+                        )}
+                      </SidebarSection>
+                    );
+                  },
+                )}
+
+              {!loading &&
+                allowedSections.length ===
+                  0 && (
+                  <div
+                    className="
+                      rounded-2xl
+                      border
+                      border-[var(--app-sidebar-border)]
+                      bg-[var(--app-sidebar-hover)]
+                      p-4
+                      text-center
+                    "
+                  >
+                    <Search
+                      size={22}
+                      className="
+                        mx-auto
+                        text-[var(--app-accent)]
+                      "
+                    />
+
+                    {expanded && (
+                      <>
+                        <p
+                          className="
+                            mt-3
+                            text-sm
+                            font-black
+                            text-[var(--app-sidebar-text)]
+                          "
+                        >
+                          لا توجد عناصر
+                        </p>
+
+                        <p
+                          className="
+                            mt-1
+                            text-xs
+                            leading-6
+                            text-[var(--app-sidebar-muted)]
+                          "
+                        >
+                          لا توجد نتائج
+                          مطابقة للبحث أو
+                          الصلاحيات الحالية.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
             </nav>
           </div>
 
           <SidebarFooter
             expanded={expanded}
             schools={schools}
-            currentSchoolId={currentSchool?.id}
-            onSwitchSchool={switchSchool}
+            currentSchoolId={
+              currentSchool?.id
+            }
+            onSwitchSchool={
+              switchSchool
+            }
             onLogout={handleLogout}
           />
         </div>

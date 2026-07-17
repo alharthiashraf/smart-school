@@ -1,18 +1,19 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonProps } from "./Button";
 import Button from "./Button";
 
-type PrimaryButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  icon?: ReactNode;
-  children: ReactNode;
-};
+export type PrimaryButtonProps = Omit<ButtonProps, "variant">;
 
 export default function PrimaryButton({
-  icon,
   children,
+  type = "button",
   ...props
 }: PrimaryButtonProps) {
   return (
-    <Button variant="primary" icon={icon} {...props}>
+    <Button
+      type={type}
+      variant="primary"
+      {...props}
+    >
       {children}
     </Button>
   );

@@ -11,6 +11,9 @@ import {
 
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import { PageLoader } from "@/components/ui/loading";
 import { EmptyState as UiEmptyState } from "@/components/ui/empty-state";
@@ -138,7 +141,7 @@ type SchoolUserRow = {
 type QueryResult<T> = { data: T | null; error: unknown };
 type QueryLike<T> = PromiseLike<QueryResult<T>>;
 
-type ParentInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type ParentInsightTone = "green" | "gold" | "red" | "primary" | "neutral";
 
 type ParentInsight = {
   title: string;
@@ -167,10 +170,18 @@ type ChildComparisonItem = {
 };
 
 
-const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "parent"];
+const PAGE_ROLES: readonly SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "parent",
+];
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offset * 60 * 1000);
+
+  return localDate.toISOString().slice(0, 10);
 }
 
 function todayLabel() {
@@ -185,15 +196,15 @@ function todayLabel() {
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
-  try {
-    return new Date(value).toLocaleDateString("ar-SA", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return value;
-  }
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("ar-SA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -220,13 +231,13 @@ async function safeQuery<T>(
     const result = await query;
 
     if (result.error) {
-      console.warn(`parent portal query skipped: ${label}`, result.error);
+      void label;
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`parent portal query failed: ${label}`, error);
+  } catch {
+    void label;
     return fallback;
   }
 }
@@ -307,11 +318,19 @@ function gradeValue(item: GradeRow) {
 function attendanceStatusTone(status?: string | null) {
   const normalized = normalizeAttendanceStatus(status);
 
-  if (normalized === "حاضر") return "bg-emerald-50 text-emerald-700";
-  if (normalized === "غائب") return "bg-red-50 text-red-700";
-  if (normalized === "متأخر") return "bg-amber-50 text-amber-700";
+  if (normalized === "حاضر") {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  }
 
-  return "bg-slate-100 text-slate-700";
+  if (normalized === "غائب") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (normalized === "متأخر") {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function isAdminRole(role?: string | null) {
@@ -330,11 +349,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: ParentInsightTone) {
   const tones: Record<ParentInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -342,11 +366,11 @@ function insightTone(tone: ParentInsightTone) {
 
 function progressTone(tone: ParentInsightTone) {
   const tones: Record<ParentInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -365,28 +389,28 @@ function buildParentRecommendations(
   const items: string[] = [];
 
   if (health.academicScore < 70) {
-    items.push("راجع المواد الأقل نتيجة وحدد خطة مراجعة أسبوعية مع ابنك.");
+    items.push("راجع المواد الأقل وحدد خطة أسبوعية.");
   }
 
   if (health.attendanceScore < 85 || stats.absent >= 3) {
-    items.push("تابع الانتظام يوميًا وتواصل مع المدرسة عند تكرر الغياب.");
+    items.push("تابع الانتظام وتواصل عند تكرر الغياب.");
   }
 
   if (stats.late >= 3) {
-    items.push("نظّم وقت النوم والاستعداد الصباحي لتقليل التأخر.");
+    items.push("نظّم النوم والاستعداد لتقليل التأخر.");
   }
 
   if (health.behaviorScore < 85 || stats.behaviorCount > 0) {
-    items.push("راجع السجلات السلوكية ونسّق مع المرشد الطلابي.");
+    items.push("راجع السلوك ونسّق مع المرشد.");
   }
 
   if (stats.openReferrals > 0) {
-    items.push("تابع الإحالات المفتوحة حتى إغلاقها وتوثيق النتائج.");
+    items.push("تابع الإحالات حتى إغلاقها.");
   }
 
   return items.length
     ? items
-    : ["وضع الطالب مستقر؛ استمر في المتابعة والتحفيز الدوري."];
+    : ["الوضع مستقر؛ استمر في المتابعة."];
 }
 
 
@@ -874,7 +898,7 @@ export default function ParentPortalPage() {
         title: "متابعة عاجلة مطلوبة",
         description: `المؤشر العام الحالي ${health.overallScore}% ويحتاج تدخلًا منظمًا.`,
         tone: "red",
-        icon: <AlertTriangle className="h-5 w-5" />,
+        icon: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -883,7 +907,7 @@ export default function ParentPortalPage() {
         title: "تحصيل دراسي منخفض",
         description: `متوسط الدرجات الحالي ${stats.averageGrade}%.`,
         tone: "gold",
-        icon: <Award className="h-5 w-5" />,
+        icon: <Award className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -891,8 +915,8 @@ export default function ParentPortalPage() {
       items.push({
         title: "الحضور يحتاج تحسينًا",
         description: `نسبة الحضور الحالية ${stats.attendanceRate}%.`,
-        tone: "blue",
-        icon: <CalendarDays className="h-5 w-5" />,
+        tone: "primary",
+        icon: <CalendarDays className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -900,8 +924,8 @@ export default function ParentPortalPage() {
       items.push({
         title: "إحالات قيد المتابعة",
         description: `يوجد ${stats.openReferrals} إحالة مفتوحة.`,
-        tone: "teal",
-        icon: <HeartPulse className="h-5 w-5" />,
+        tone: "primary",
+        icon: <HeartPulse className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -910,7 +934,7 @@ export default function ParentPortalPage() {
         title: "الوضع مستقر",
         description: "لا توجد مؤشرات حرجة حاليًا، واستمرار المتابعة كافٍ.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -938,7 +962,7 @@ export default function ParentPortalPage() {
         date: item.created_at,
         tone: item.is_read === false
           ? ("gold" as ParentInsightTone)
-          : ("teal" as ParentInsightTone),
+          : ("primary" as ParentInsightTone),
       })),
       ...attendance.slice(0, 8).map((item) => ({
         id: `attendance-${item.id}`,
@@ -988,9 +1012,9 @@ export default function ParentPortalPage() {
           <PageHeader
             variant="hero"
             title="متابعة الأبناء"
-            description="متابعة حضور الأبناء، الدرجات، السلوك، الإحالات، والتنبيهات المهمة من المدرسة في مكان واحد."
+            description="الحضور والدرجات والسلوك والتنبيهات."
             badge="بوابة ولي الأمر"
-            icon={<Users size={18} />}
+            icon={<Users size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة ولي الأمر" },
@@ -1002,43 +1026,40 @@ export default function ParentPortalPage() {
               { label: "الطالب المحدد", value: selectedStudent ? studentName(selectedStudent) : "لا يوجد طالب مرتبط" },
             ]}
             stats={[
-              { label: "نسبة الحضور", value: stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—", icon: <CalendarDays size={20} />, tone: stats.attendanceRecords === 0 ? "slate" : stats.attendanceRate >= 90 ? "green" : stats.attendanceRate >= 75 ? "gold" : "red" },
-              { label: "متوسط الدرجات", value: stats.averageGrade ? `${stats.averageGrade}%` : "—", icon: <Award size={20} />, tone: stats.averageGrade >= 90 ? "green" : stats.averageGrade >= 70 ? "gold" : stats.averageGrade > 0 ? "red" : "slate" },
-              { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
-              { label: "مؤشر المتابعة", value: stats.followUpLabel, icon: <ShieldAlert size={20} />, tone: stats.followUpLabel === "يحتاج متابعة عاجلة" ? "red" : stats.followUpLabel === "يحتاج متابعة" ? "gold" : "green" },
+              { label: "نسبة الحضور", value: stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—", icon: <CalendarDays size={20} aria-hidden="true" />, tone: stats.attendanceRecords === 0 ? "primary" : stats.attendanceRate >= 90 ? "green" : stats.attendanceRate >= 75 ? "gold" : "red" },
+              { label: "متوسط الدرجات", value: stats.averageGrade ? `${stats.averageGrade}%` : "—", icon: <Award size={20} aria-hidden="true" />, tone: stats.averageGrade >= 90 ? "green" : stats.averageGrade >= 70 ? "gold" : stats.averageGrade > 0 ? "red" : "primary" },
+              { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} aria-hidden="true" />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
+              { label: "مؤشر المتابعة", value: stats.followUpLabel, icon: <ShieldAlert size={20} aria-hidden="true" />, tone: stats.followUpLabel === "يحتاج متابعة عاجلة" ? "red" : stats.followUpLabel === "يحتاج متابعة" ? "gold" : "green" },
             ]}
             actions={
               <>
-                {students.length > 1 && (
-                  <select
+                {students.length > 1 ? (
+                  <ToolbarSelect
                     value={selectedStudent?.id || ""}
-                    onChange={(event) => setSelectedStudentId(event.target.value)}
-                    className="h-11 min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm outline-none transition focus:border-[#0DA9A6]"
+                    onChange={setSelectedStudentId}
+                    className="min-w-[220px]"
                   >
                     {students.map((student) => (
                       <option key={student.id} value={student.id}>
                         {studentName(student)}
                       </option>
                     ))}
-                  </select>
-                )}
+                  </ToolbarSelect>
+                ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => void loadPage()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <RefreshCcw size={17} />
+                <SecondaryButton onClick={() => void loadPage()}>
+                  <RefreshCcw size={17} aria-hidden="true" />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <Link
-                  href="/notifications"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                <PrimaryButton
+                  onClick={() => {
+                    window.location.href = "/notifications";
+                  }}
                 >
-                  <Bell size={17} />
+                  <Bell size={17} aria-hidden="true" />
                   التنبيهات
-                </Link>
+                </PrimaryButton>
               </>
             }
           />
@@ -1051,24 +1072,22 @@ export default function ParentPortalPage() {
           )}
 
           {!selectedStudent ? (
-            <EmptyBox text="لم يتم العثور على طالب مرتبط بحساب ولي الأمر الحالي. يجب وجود ربط معتمد في جدول parent_students بحالة verified." />
+            <EmptyBox text="لا يوجد طالب مرتبط بالحساب." />
           ) : (
             <>
-              {studentDataLoading && (
-                <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold text-blue-700">
-                  جاري تحديث بيانات الطالب...
-                </div>
-              )}
+              {studentDataLoading ? (
+                <PageLoader text="جاري تحديث بيانات الطالب..." />
+              ) : null}
 
               <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7">
                 <ExecutiveCard
                   title="نسبة الحضور"
                   value={stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—"}
                   subtitle="حسب آخر سجلات الحضور"
-                  icon={<CalendarDays size={22} />}
+                  icon={<CalendarDays size={22} aria-hidden="true" />}
                   tone={
                     stats.attendanceRecords === 0
-                      ? "slate"
+                      ? "primary"
                       : stats.attendanceRate >= 90
                         ? "green"
                         : stats.attendanceRate >= 75
@@ -1082,7 +1101,7 @@ export default function ParentPortalPage() {
                   title="غياب / تأخر"
                   value={`${stats.absent} / ${stats.late}`}
                   subtitle="مؤشرات تحتاج متابعة"
-                  icon={<AlertTriangle size={22} />}
+                  icon={<AlertTriangle size={22} aria-hidden="true" />}
                   tone={stats.absent > 2 ? "red" : "gold"}
                 />
 
@@ -1090,7 +1109,7 @@ export default function ParentPortalPage() {
                   title="تنبيهات"
                   value={stats.unreadNotifications}
                   subtitle="تنبيهات غير مقروءة"
-                  icon={<Bell size={22} />}
+                  icon={<Bell size={22} aria-hidden="true" />}
                   tone={stats.unreadNotifications > 0 ? "red" : "green"}
                 />
 
@@ -1100,15 +1119,15 @@ export default function ParentPortalPage() {
                     todayAttendance?.attendance_status || todayAttendance?.status,
                   )}
                   subtitle="حضور اليوم الحالي"
-                  icon={<CheckCircle2 size={22} />}
-                  tone={todayAttendance ? "green" : "slate"}
+                  icon={<CheckCircle2 size={22} aria-hidden="true" />}
+                  tone={todayAttendance ? "green" : "primary"}
                 />
 
                 <ExecutiveCard
                   title="متوسط الدرجات"
                   value={stats.averageGrade ? `${stats.averageGrade}%` : "—"}
                   subtitle="متوسط النتائج المسجلة"
-                  icon={<Award size={22} />}
+                  icon={<Award size={22} aria-hidden="true" />}
                   tone={
                     stats.averageGrade >= 90
                       ? "green"
@@ -1116,7 +1135,7 @@ export default function ParentPortalPage() {
                         ? "gold"
                         : stats.averageGrade > 0
                           ? "red"
-                          : "slate"
+                          : "primary"
                   }
                   progress={stats.averageGrade || 0}
                 />
@@ -1125,7 +1144,7 @@ export default function ParentPortalPage() {
                   title="السلوك"
                   value={stats.behaviorCount}
                   subtitle="سجلات سلوكية"
-                  icon={<ShieldAlert size={22} />}
+                  icon={<ShieldAlert size={22} aria-hidden="true" />}
                   tone={stats.behaviorCount > 0 ? "gold" : "green"}
                 />
 
@@ -1133,18 +1152,18 @@ export default function ParentPortalPage() {
                   title="إحالات مفتوحة"
                   value={stats.openReferrals}
                   subtitle="إحالات قيد المتابعة"
-                  icon={<HeartPulse size={22} />}
+                  icon={<HeartPulse size={22} aria-hidden="true" />}
                   tone={stats.openReferrals > 0 ? "red" : "green"}
                 />
               </section>
 
               <section
-                className={`rounded-3xl border p-5 shadow-sm ${
+                className={`rounded-[var(--app-radius-xl)] border p-5 shadow-[var(--app-shadow-sm)] ${
                   stats.followUpLabel === "يحتاج متابعة عاجلة"
-                    ? "border-red-100 bg-red-50 text-red-700"
+                    ? "border-[color-mix(in_srgb,var(--app-danger)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
                     : stats.followUpLabel === "يحتاج متابعة"
-                      ? "border-amber-100 bg-amber-50 text-amber-700"
-                      : "border-emerald-100 bg-emerald-50 text-emerald-700"
+                      ? "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent-foreground)]"
+                      : "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
                 }`}
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1159,7 +1178,7 @@ export default function ParentPortalPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-white/70 px-5 py-4 text-center">
+                  <div className="rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-card)_75%,transparent)] px-5 py-4 text-center">
                     <p className="text-xs font-black">درجة المتابعة</p>
                     <p className="mt-1 text-3xl font-black">
                       {stats.followUpScore}
@@ -1199,7 +1218,7 @@ export default function ParentPortalPage() {
               )}
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.85fr_1.15fr]">
-                <Panel title="بطاقة الطالب" icon={<User size={24} />}>
+                <Panel title="بطاقة الطالب" icon={<User size={24} aria-hidden="true" />}>
                   <div className="space-y-3">
                     <InfoRow label="الاسم" value={studentName(selectedStudent)} />
                     <InfoRow
@@ -1237,7 +1256,7 @@ export default function ParentPortalPage() {
                   </div>
                 </Panel>
 
-                <Panel title="مؤشرات المتابعة" icon={<Sparkles size={24} />}>
+                <Panel title="مؤشرات المتابعة" icon={<Sparkles size={24} aria-hidden="true" />}>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <MetricBox
                       title="مؤشر الحضور"
@@ -1247,28 +1266,28 @@ export default function ParentPortalPage() {
                           : "—"
                       }
                       description="يعتمد على آخر سجلات الحضور المسجلة."
-                      icon={<CalendarDays size={24} />}
+                      icon={<CalendarDays size={24} aria-hidden="true" />}
                     />
 
                     <MetricBox
                       title="المستوى الدراسي"
                       value={stats.averageGrade ? `${stats.averageGrade}%` : "—"}
                       description="متوسط الدرجات المسجلة للطالب."
-                      icon={<Award size={24} />}
+                      icon={<Award size={24} aria-hidden="true" />}
                     />
 
                     <MetricBox
                       title="السلوك"
                       value={stats.behaviorCount}
                       description="عدد السجلات السلوكية المسجلة."
-                      icon={<ShieldAlert size={24} />}
+                      icon={<ShieldAlert size={24} aria-hidden="true" />}
                     />
 
                     <MetricBox
                       title="الإحالات المفتوحة"
                       value={stats.openReferrals}
                       description="الإحالات التي لا تزال قيد المتابعة."
-                      icon={<HeartPulse size={24} />}
+                      icon={<HeartPulse size={24} aria-hidden="true" />}
                     />
                   </div>
                 </Panel>
@@ -1290,47 +1309,47 @@ export default function ParentPortalPage() {
                   href="/parent-portal/attendance"
                   title="الحضور والغياب"
                   description="متابعة حضور الطالب والغياب والتأخر."
-                  icon={<CalendarDays size={24} />}
+                  icon={<CalendarDays size={24} aria-hidden="true" />}
                 />
 
                 <QuickLink
                   href="/parent-portal/grades"
                   title="الدرجات"
                   description="متابعة الدرجات والنتائج الدراسية."
-                  icon={<Award size={24} />}
+                  icon={<Award size={24} aria-hidden="true" />}
                 />
 
                 <QuickLink
                   href="/parent-portal/behavior"
                   title="السلوك"
                   description="متابعة السجلات السلوكية والإجراءات."
-                  icon={<ShieldAlert size={24} />}
+                  icon={<ShieldAlert size={24} aria-hidden="true" />}
                 />
 
                 <QuickLink
                   href="/notifications"
                   title="التنبيهات"
                   description="آخر التنبيهات والرسائل المهمة."
-                  icon={<Bell size={24} />}
+                  icon={<Bell size={24} aria-hidden="true" />}
                 />
 
                 <QuickLink
                   href={`/students/${selectedStudent.id}`}
                   title="ملف الطالب"
                   description="عرض الملف الشامل للطالب."
-                  icon={<GraduationCap size={24} />}
+                  icon={<GraduationCap size={24} aria-hidden="true" />}
                 />
 
                 <QuickLink
                   href="/student-referrals"
                   title="الإحالات"
                   description="متابعة الإحالات وحالة المعالجة."
-                  icon={<HeartPulse size={24} />}
+                  icon={<HeartPulse size={24} aria-hidden="true" />}
                 />
               </section>
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-                <Panel title="سجل الحضور الأخير" icon={<CalendarDays size={24} />}>
+                <Panel title="سجل الحضور الأخير" icon={<CalendarDays size={24} aria-hidden="true" />}>
                   {attendance.length === 0 ? (
                     <EmptyBox text="لا توجد سجلات حضور." />
                   ) : (
@@ -1343,14 +1362,14 @@ export default function ParentPortalPage() {
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3"
+                            className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3"
                           >
                             <div>
-                              <p className="font-black text-[#0f1f3d]">
+                              <p className="font-black text-[var(--app-text)]">
                                 {formatDate(item.attendance_date)}
                               </p>
 
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-[var(--app-text-subtle)]">
                                 {item.notes || "—"}
                               </p>
                             </div>
@@ -1369,7 +1388,7 @@ export default function ParentPortalPage() {
                   )}
                 </Panel>
 
-                <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} />}>
+                <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} aria-hidden="true" />}>
                   {notifications.length === 0 ? (
                     <EmptyBox text="لا توجد تنبيهات حاليًا." />
                   ) : (
@@ -1378,23 +1397,23 @@ export default function ParentPortalPage() {
                         <Link
                           key={item.id}
                           href="/notifications"
-                          className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm"
+                          className="block rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]"
                         >
                           <div className="mb-1 flex items-center justify-between gap-2">
-                            <h3 className="line-clamp-1 font-black text-[#0f1f3d]">
+                            <h3 className="line-clamp-1 font-black text-[var(--app-text)]">
                               {item.title || "تنبيه"}
                             </h3>
 
                             {item.is_read === false && (
-                              <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                              <span className="h-2.5 w-2.5 rounded-full bg-[var(--app-danger)]" />
                             )}
                           </div>
 
-                          <p className="line-clamp-2 text-sm leading-7 text-slate-500">
+                          <p className="line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
                             {item.message || "لا توجد تفاصيل."}
                           </p>
 
-                          <p className="mt-2 text-xs font-bold text-slate-400">
+                          <p className="mt-2 text-xs font-bold text-[var(--app-text-subtle)]">
                             {formatDate(item.created_at)}
                           </p>
                         </Link>
@@ -1405,7 +1424,7 @@ export default function ParentPortalPage() {
               </section>
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-                <Panel title="آخر الدرجات" icon={<Award size={24} />}>
+                <Panel title="آخر الدرجات" icon={<Award size={24} aria-hidden="true" />}>
                   {grades.length === 0 ? (
                     <EmptyBox text="لا توجد درجات مسجلة حتى الآن." />
                   ) : (
@@ -1413,26 +1432,26 @@ export default function ParentPortalPage() {
                       {grades.slice(0, 6).map((item) => (
                         <div
                           key={item.id}
-                          className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                          className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <h3 className="font-black text-[#0f1f3d]">
+                              <h3 className="font-black text-[var(--app-text)]">
                                 {item.subject_name || item.subject || "مادة"}
                               </h3>
 
-                              <p className="mt-1 text-sm text-slate-500">
+                              <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                                 {item.semester || "الفصل الدراسي"} —{" "}
                                 {item.academic_year || "العام الدراسي"}
                               </p>
                             </div>
 
-                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+                            <span className="rounded-full bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
                               {gradeValue(item) ? `${gradeValue(item)}%` : "—"}
                             </span>
                           </div>
 
-                          <p className="mt-3 text-sm font-bold text-slate-500">
+                          <p className="mt-3 text-sm font-bold text-[var(--app-text-muted)]">
                             {item.grade_label || item.result_status || "—"}
                           </p>
                         </div>
@@ -1441,10 +1460,10 @@ export default function ParentPortalPage() {
                   )}
                 </Panel>
 
-                <Panel title="السلوك والإحالات" icon={<ShieldAlert size={24} />}>
+                <Panel title="السلوك والإحالات" icon={<ShieldAlert size={24} aria-hidden="true" />}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <h3 className="mb-3 font-black text-[#0f1f3d]">
+                      <h3 className="mb-3 font-black text-[var(--app-text)]">
                         السجلات السلوكية
                       </h3>
 
@@ -1465,7 +1484,7 @@ export default function ParentPortalPage() {
                     </div>
 
                     <div>
-                      <h3 className="mb-3 font-black text-[#0f1f3d]">
+                      <h3 className="mb-3 font-black text-[var(--app-text)]">
                         الإحالات
                       </h3>
 
@@ -1505,13 +1524,13 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f1f3d]/5 text-[#0f1f3d]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-text)]">
           {icon}
         </div>
 
-        <h2 className="text-2xl font-black text-[#0f1f3d]">{title}</h2>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
 
       {children}
@@ -1521,9 +1540,9 @@ function Panel({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-      <span className="text-sm font-bold text-slate-500">{label}</span>
-      <span className="text-left font-black text-[#0f1f3d]">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <span className="text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-left font-black text-[var(--app-text)]">{value}</span>
     </div>
   );
 }
@@ -1540,14 +1559,14 @@ function MetricBox({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#0f1f3d]">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-card)] text-[var(--app-text)]">
         {icon}
       </div>
 
-      <p className="text-sm font-bold text-slate-500">{title}</p>
-      <h3 className="mt-2 text-3xl font-black text-[#0f1f3d]">{value}</h3>
-      <p className="mt-3 text-sm leading-7 text-slate-500">{description}</p>
+      <p className="text-sm font-bold text-[var(--app-text-muted)]">{title}</p>
+      <h3 className="mt-2 text-3xl font-black text-[var(--app-text)]">{value}</h3>
+      <p className="mt-3 text-sm leading-7 text-[var(--app-text-muted)]">{description}</p>
     </div>
   );
 }
@@ -1566,19 +1585,19 @@ function QuickLink({
   return (
     <Link
       href={href}
-      className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#24477f]/30 hover:shadow-lg"
+      className="group rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--app-primary)_30%,transparent)] hover:shadow-[var(--app-shadow-lg)]"
     >
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#0f1f3d]">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] text-[var(--app-text)]">
         {icon}
       </div>
 
-      <h3 className="text-xl font-black text-[#0f1f3d]">{title}</h3>
+      <h3 className="text-xl font-black text-[var(--app-text)]">{title}</h3>
 
-      <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-500">
+      <p className="mt-3 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
         {description}
       </p>
 
-      <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-center text-sm font-black text-[#0f1f3d] transition group-hover:bg-[#0f1f3d] group-hover:text-white">
+      <div className="mt-5 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3 text-center text-sm font-black text-[var(--app-text)] transition group-hover:bg-[var(--app-text)] group-hover:text-[var(--app-text-inverse)]">
         فتح
       </div>
     </Link>
@@ -1595,10 +1614,10 @@ function SmallRecord({
   date?: string | null;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="line-clamp-1 font-black text-[#0f1f3d]">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-      <p className="mt-1 text-xs font-bold text-slate-400">
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="line-clamp-1 font-black text-[var(--app-text)]">{title}</p>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">{subtitle}</p>
+      <p className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
         {formatDate(date)}
       </p>
     </div>
@@ -1637,10 +1656,10 @@ function ParentExecutiveAnalytics({
   studentNameValue: string;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
-          Parent Executive Analytics
+          المؤشرات التنفيذية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           قراءة تنفيذية شاملة لأداء الطالب واحتياجات المتابعة.
@@ -1648,10 +1667,10 @@ function ParentExecutiveAnalytics({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ParentMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Target size={18} />} tone={health.level === "مستقر" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
-        <ParentMetric label="الأكاديمي" value={`${health.academicScore}%`} icon={<Award size={18} />} tone="blue" />
-        <ParentMetric label="الحضور" value={`${health.attendanceScore}%`} icon={<CalendarDays size={18} />} tone="teal" />
-        <ParentMetric label="السلوك" value={`${health.behaviorScore}%`} icon={<ShieldAlert size={18} />} tone="green" />
+        <ParentMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Target size={18} aria-hidden="true" />} tone={health.level === "مستقر" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <ParentMetric label="الأكاديمي" value={`${health.academicScore}%`} icon={<Award size={18} aria-hidden="true" />} tone="primary" />
+        <ParentMetric label="الحضور" value={`${health.attendanceScore}%`} icon={<CalendarDays size={18} aria-hidden="true" />} tone="primary" />
+        <ParentMetric label="السلوك" value={`${health.behaviorScore}%`} icon={<ShieldAlert size={18} aria-hidden="true" />} tone="green" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1670,11 +1689,11 @@ function ParentSmartInsights({
   insights: ParentInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
-          AI Parent Insights
+          <BrainCircuit size={20} aria-hidden="true" />
+          الرؤى الذكية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
           توصيات ذكية تساعد ولي الأمر في المتابعة اليومية.
@@ -1685,9 +1704,9 @@ function ParentSmartInsights({
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1709,19 +1728,19 @@ function ParentHealthPanel({
   health: ParentHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Activity size={20} />
-        Parent Monitoring Health
+        <Activity size={20} aria-hidden="true" />
+        صحة المتابعة
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         توازن الأداء والحضور والسلوك والمتابعة.
       </p>
 
       <div className="mt-5 space-y-4">
-        <ParentProgress label="الأكاديمي" value={health.academicScore} total={100} tone="blue" suffix="%" />
+        <ParentProgress label="الأكاديمي" value={health.academicScore} total={100} tone="primary" suffix="%" />
         <ParentProgress label="الحضور" value={health.attendanceScore} total={100} tone="green" suffix="%" />
-        <ParentProgress label="السلوك" value={health.behaviorScore} total={100} tone="teal" suffix="%" />
+        <ParentProgress label="السلوك" value={health.behaviorScore} total={100} tone="primary" suffix="%" />
         <ParentProgress label="المتابعة" value={health.followUpScore} total={100} tone="gold" suffix="%" />
       </div>
     </section>
@@ -1736,10 +1755,10 @@ function ParentAcademicProgress({
   average: number;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <ChartNoAxesCombined size={20} />
-        Academic Progress
+        <ChartNoAxesCombined size={20} aria-hidden="true" />
+        التقدم الأكاديمي
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مقارنة نتائج المواد بمتوسط الطالب.
@@ -1773,10 +1792,10 @@ function ParentActionPlan({
   recommendations: string[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <TrendingUp size={20} />
-        Parent Action Plan
+        <TrendingUp size={20} aria-hidden="true" />
+        خطة المتابعة
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         خطوات عملية مقترحة لولي الأمر.
@@ -1786,9 +1805,9 @@ function ParentActionPlan({
         {recommendations.map((item, index) => (
           <div
             key={`${index}-${item}`}
-            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-sm font-black text-[var(--app-primary)]">
               {index + 1}
             </span>
             <p className="text-sm leading-7 text-[var(--app-text)]">{item}</p>
@@ -1809,10 +1828,10 @@ function ChildrenComparisonPanel({
   onSelect: (studentId: string) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BarChart3 size={20} />
+          <BarChart3 size={20} aria-hidden="true" />
           مقارنة الأبناء
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1826,9 +1845,9 @@ function ChildrenComparisonPanel({
             key={item.studentId}
             type="button"
             onClick={() => onSelect(item.studentId)}
-            className={`rounded-3xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-md ${
+            className={`rounded-[var(--app-radius-xl)] border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)] ${
               selectedStudentId === item.studentId
-                ? "border-[var(--app-teal)] bg-[var(--app-teal-soft)]"
+                ? "border-[var(--app-primary)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)]"
                 : "border-[var(--app-border)] bg-[var(--app-card-soft)]"
             }`}
           >
@@ -1856,30 +1875,30 @@ function ParentCommunicationHub({
   selectedStudentId: string;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <MessagesSquare size={20} />
-        Communication Hub
+        <MessagesSquare size={20} aria-hidden="true" />
+        مركز التواصل
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         بوابة سريعة للتنبيهات والإحالات وملف الطالب.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Link href="/notifications" className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
-          <Bell className="mx-auto text-[var(--app-teal)]" size={22} />
+        <Link href="/notifications" className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
+          <Bell className="mx-auto text-[var(--app-primary)]" size={22} aria-hidden="true" />
           <p className="mt-2 text-sm font-black text-[var(--app-text)]">التنبيهات</p>
           <p className="mt-1 text-xs text-[var(--app-text-muted)]">{unreadNotifications} غير مقروءة</p>
         </Link>
 
-        <Link href="/student-referrals" className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
-          <HeartPulse className="mx-auto text-[var(--app-teal)]" size={22} />
+        <Link href="/student-referrals" className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
+          <HeartPulse className="mx-auto text-[var(--app-primary)]" size={22} aria-hidden="true" />
           <p className="mt-2 text-sm font-black text-[var(--app-text)]">الإحالات</p>
           <p className="mt-1 text-xs text-[var(--app-text-muted)]">{openReferrals} مفتوحة</p>
         </Link>
 
-        <Link href={`/students/${selectedStudentId}`} className="rounded-2xl bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
-          <GraduationCap className="mx-auto text-[var(--app-teal)]" size={22} />
+        <Link href={`/students/${selectedStudentId}`} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-center transition hover:-translate-y-0.5">
+          <GraduationCap className="mx-auto text-[var(--app-primary)]" size={22} aria-hidden="true" />
           <p className="mt-2 text-sm font-black text-[var(--app-text)]">ملف الطالب</p>
           <p className="mt-1 text-xs text-[var(--app-text-muted)]">عرض شامل</p>
         </Link>
@@ -1900,10 +1919,10 @@ function ParentUnifiedTimeline({
   }>;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Activity size={20} />
-        Unified Timeline
+        <Activity size={20} aria-hidden="true" />
+        السجل الزمني
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         أحدث التنبيهات والحضور والإحالات.
@@ -1918,7 +1937,7 @@ function ParentUnifiedTimeline({
           items.map((item) => (
             <div
               key={item.id}
-              className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+              className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4"
             >
               <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${progressTone(item.tone)}`} />
               <div>
@@ -1950,8 +1969,8 @@ function ParentMetric({
   tone: ParentInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1968,7 +1987,7 @@ function ParentInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -1996,8 +2015,17 @@ function ParentProgress({
         <span>{label}</span>
         <span>{value}{suffix}</span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.min(100, Math.max(0, value))}
+      >
+        <div
+          className={`h-full rounded-full ${progressTone(tone)}`}
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  type LucideIcon,
   BarChart3,
   BookOpen,
   ChevronDown,
@@ -20,6 +19,21 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
+
+import { StatusBadge } from "@/components/ui/badges";
+import {
+  ExportButton,
+  PrimaryButton,
+  SecondaryButton,
+} from "@/components/ui/buttons";
+import { BaseCard } from "@/components/ui/cards";
+import {
+  SearchInput,
+  Select,
+  type SelectOption,
+} from "@/components/ui/inputs";
+import { Tabs } from "@/components/ui/navigation";
+import { TableFilters } from "@/components/ui/tables";
 
 export type GradesTab =
   | "subjects"
@@ -43,7 +57,7 @@ export type ClassroomOption = {
   classroom_name: string;
 };
 
-type Props = {
+export type GradesToolbarProps = {
   activeTab: GradesTab;
   onTabChange: (tab: GradesTab) => void;
 
@@ -67,8 +81,38 @@ type Props = {
   onSettings?: () => void;
 };
 
+const tabs = [
+  {
+    value: "subjects",
+    label: "درجات المواد",
+    icon: <BookOpen aria-hidden="true" className="h-4 w-4" />,
+  },
+  {
+    value: "behavior",
+    label: "السلوك",
+    icon: <ShieldCheck aria-hidden="true" className="h-4 w-4" />,
+  },
+  {
+    value: "attendance",
+    label: "المواظبة",
+    icon: <Clock3 aria-hidden="true" className="h-4 w-4" />,
+  },
+  {
+    value: "analytics",
+    label: "التحليلات",
+    icon: <BarChart3 aria-hidden="true" className="h-4 w-4" />,
+  },
+  {
+    value: "history",
+    label: "السجل",
+    icon: <History aria-hidden="true" className="h-4 w-4" />,
+  },
+];
+
 function clean(value: string | null | undefined) {
-  return String(value || "").trim().replace(/\s+/g, " ");
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function normalizeArabic(value: string | null | undefined) {
@@ -79,84 +123,155 @@ function normalizeArabic(value: string | null | undefined) {
 }
 
 function displayStage(value: string | null | undefined) {
-  const n = normalizeArabic(value);
+  const normalized = normalizeArabic(value);
 
-  if (n.includes("ابتدائي")) return "المرحلة الابتدائية";
-  if (n.includes("متوسط")) return "المرحلة المتوسطة";
-  if (n.includes("ثانوي")) return "المرحلة الثانوية";
+  if (normalized.includes("ابتدائي")) {
+    return "المرحلة الابتدائية";
+  }
+
+  if (normalized.includes("متوسط")) {
+    return "المرحلة المتوسطة";
+  }
+
+  if (normalized.includes("ثانوي")) {
+    return "المرحلة الثانوية";
+  }
 
   return clean(value);
 }
 
 function stageKey(value: string | null | undefined) {
-  const n = normalizeArabic(value);
+  const normalized = normalizeArabic(value);
 
-  if (n.includes("ابتدائي")) return "ابتدائي";
-  if (n.includes("متوسط")) return "متوسط";
-  if (n.includes("ثانوي")) return "ثانوي";
+  if (normalized.includes("ابتدائي")) return "ابتدائي";
+  if (normalized.includes("متوسط")) return "متوسط";
+  if (normalized.includes("ثانوي")) return "ثانوي";
 
-  return n;
+  return normalized;
 }
 
 function normalizeSemester(value: string | null | undefined) {
-  const n = normalizeArabic(value);
+  const normalized = normalizeArabic(value);
 
-  if (n.includes("اول")) return "الفصل الدراسي الأول";
-  if (n.includes("ثاني")) return "الفصل الدراسي الثاني";
-  if (n.includes("ثالث")) return "الفصل الدراسي الثالث";
+  if (normalized.includes("اول")) {
+    return "الفصل الدراسي الأول";
+  }
+
+  if (normalized.includes("ثاني")) {
+    return "الفصل الدراسي الثاني";
+  }
+
+  if (normalized.includes("ثالث")) {
+    return "الفصل الدراسي الثالث";
+  }
 
   return clean(value);
 }
 
 function unique(values: (string | null | undefined)[]) {
-  return Array.from(new Set(values.map(clean).filter(Boolean)));
+  return Array.from(
+    new Set(values.map(clean).filter(Boolean)),
+  );
 }
 
-function uniqueStages(values: (string | null | undefined)[]) {
+function uniqueStages(
+  values: (string | null | undefined)[],
+) {
   const map = new Map<string, string>();
 
   values.forEach((value) => {
     const key = stageKey(value);
     const display = displayStage(value);
-    if (key && display) map.set(key, display);
+
+    if (key && display) {
+      map.set(key, display);
+    }
   });
 
   return Array.from(map.values());
 }
 
-function uniqueSemesters(values: (string | null | undefined)[]) {
+function uniqueSemesters(
+  values: (string | null | undefined)[],
+) {
   const map = new Map<string, string>();
 
   values.forEach((value) => {
     const display = normalizeSemester(value);
-    if (display) map.set(display, display);
+
+    if (display) {
+      map.set(display, display);
+    }
   });
 
   return Array.from(map.values());
 }
 
-function sameYear(scheme: SchemeOption, academicYear: string) {
-  return !academicYear || clean(scheme.academic_year) === academicYear;
+function sameYear(
+  scheme: SchemeOption,
+  academicYear: string,
+) {
+  return (
+    !academicYear ||
+    clean(scheme.academic_year) === academicYear
+  );
 }
 
-function sameSemester(scheme: SchemeOption, semester: string) {
-  return !semester || normalizeSemester(scheme.semester) === semester;
+function sameSemester(
+  scheme: SchemeOption,
+  semester: string,
+) {
+  return (
+    !semester ||
+    normalizeSemester(scheme.semester) === semester
+  );
 }
 
-function sameStage(scheme: SchemeOption, stageName: string) {
-  return !stageName || displayStage(scheme.stage_name) === stageName;
+function sameStage(
+  scheme: SchemeOption,
+  stageName: string,
+) {
+  return (
+    !stageName ||
+    displayStage(scheme.stage_name) === stageName
+  );
 }
 
-function sameGrade(scheme: SchemeOption, gradeName: string) {
-  return !gradeName || clean(scheme.grade_name) === gradeName;
+function sameGrade(
+  scheme: SchemeOption,
+  gradeName: string,
+) {
+  return (
+    !gradeName ||
+    clean(scheme.grade_name) === gradeName
+  );
 }
 
-function sameTrack(scheme: SchemeOption, trackName: string) {
-  return !trackName || clean(scheme.track_name) === trackName;
+function sameTrack(
+  scheme: SchemeOption,
+  trackName: string,
+) {
+  return (
+    !trackName ||
+    clean(scheme.track_name) === trackName
+  );
 }
 
-function sameSubject(scheme: SchemeOption, subjectName: string) {
-  return !subjectName || clean(scheme.subject_name) === subjectName;
+function sameSubject(
+  scheme: SchemeOption,
+  subjectName: string,
+) {
+  return (
+    !subjectName ||
+    clean(scheme.subject_name) === subjectName
+  );
+}
+
+function toSelectOptions(values: string[]): SelectOption[] {
+  return values.map((value) => ({
+    label: value,
+    value,
+  }));
 }
 
 export default function GradesToolbar({
@@ -177,8 +292,8 @@ export default function GradesToolbar({
   onApprove,
   onLock,
   onSettings,
-}: Props) {
-  const [open, setOpen] = useState(true);
+}: GradesToolbarProps) {
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   const [academicYear, setAcademicYear] = useState("");
   const [semester, setSemester] = useState("");
@@ -188,78 +303,209 @@ export default function GradesToolbar({
   const [subjectName, setSubjectName] = useState("");
 
   const selectedScheme = useMemo(
-    () => schemes.find((scheme) => scheme.id === selectedSchemeId) || null,
-    [schemes, selectedSchemeId]
+    () =>
+      schemes.find(
+        (scheme) => scheme.id === selectedSchemeId,
+      ) ?? null,
+    [schemes, selectedSchemeId],
   );
 
   useEffect(() => {
     if (!selectedScheme) return;
 
-    setAcademicYear(clean(selectedScheme.academic_year));
-    setSemester(normalizeSemester(selectedScheme.semester));
-    setStageName(displayStage(selectedScheme.stage_name));
-    setGradeName(clean(selectedScheme.grade_name));
-    setTrackName(clean(selectedScheme.track_name));
-    setSubjectName(clean(selectedScheme.subject_name));
+    setAcademicYear(
+      clean(selectedScheme.academic_year),
+    );
+
+    setSemester(
+      normalizeSemester(selectedScheme.semester),
+    );
+
+    setStageName(
+      displayStage(selectedScheme.stage_name),
+    );
+
+    setGradeName(
+      clean(selectedScheme.grade_name),
+    );
+
+    setTrackName(
+      clean(selectedScheme.track_name),
+    );
+
+    setSubjectName(
+      clean(selectedScheme.subject_name),
+    );
   }, [selectedScheme]);
 
   const yearOptions = useMemo(
-    () => unique(schemes.map((scheme) => scheme.academic_year)),
-    [schemes]
+    () =>
+      toSelectOptions(
+        unique(
+          schemes.map(
+            (scheme) => scheme.academic_year,
+          ),
+        ),
+      ),
+    [schemes],
   );
 
-  const semesterOptions = useMemo(() => {
-    return uniqueSemesters(
-      schemes
-        .filter((scheme) => sameYear(scheme, academicYear))
-        .map((scheme) => scheme.semester)
-    );
-  }, [schemes, academicYear]);
+  const semesterOptions = useMemo(
+    () =>
+      toSelectOptions(
+        uniqueSemesters(
+          schemes
+            .filter((scheme) =>
+              sameYear(scheme, academicYear),
+            )
+            .map((scheme) => scheme.semester),
+        ),
+      ),
+    [academicYear, schemes],
+  );
 
-  const stageOptions = useMemo(() => {
-    return uniqueStages(
-      schemes
-        .filter((scheme) => sameYear(scheme, academicYear))
-        .filter((scheme) => sameSemester(scheme, semester))
-        .map((scheme) => scheme.stage_name)
-    );
-  }, [schemes, academicYear, semester]);
+  const stageOptions = useMemo(
+    () =>
+      toSelectOptions(
+        uniqueStages(
+          schemes
+            .filter((scheme) =>
+              sameYear(scheme, academicYear),
+            )
+            .filter((scheme) =>
+              sameSemester(scheme, semester),
+            )
+            .map((scheme) => scheme.stage_name),
+        ),
+      ),
+    [academicYear, schemes, semester],
+  );
 
-  const gradeOptions = useMemo(() => {
-    return unique(
-      schemes
-        .filter((scheme) => sameYear(scheme, academicYear))
-        .filter((scheme) => sameSemester(scheme, semester))
-        .filter((scheme) => sameStage(scheme, stageName))
-        .map((scheme) => scheme.grade_name)
-    );
-  }, [schemes, academicYear, semester, stageName]);
+  const gradeOptions = useMemo(
+    () =>
+      toSelectOptions(
+        unique(
+          schemes
+            .filter((scheme) =>
+              sameYear(scheme, academicYear),
+            )
+            .filter((scheme) =>
+              sameSemester(scheme, semester),
+            )
+            .filter((scheme) =>
+              sameStage(scheme, stageName),
+            )
+            .map((scheme) => scheme.grade_name),
+        ),
+      ),
+    [academicYear, schemes, semester, stageName],
+  );
 
-  const trackOptions = useMemo(() => {
-    return unique(
-      schemes
-        .filter((scheme) => sameYear(scheme, academicYear))
-        .filter((scheme) => sameSemester(scheme, semester))
-        .filter((scheme) => sameStage(scheme, stageName))
-        .filter((scheme) => sameGrade(scheme, gradeName))
-        .map((scheme) => scheme.track_name)
-    );
-  }, [schemes, academicYear, semester, stageName, gradeName]);
+  const trackOptions = useMemo(
+    () =>
+      toSelectOptions(
+        unique(
+          schemes
+            .filter((scheme) =>
+              sameYear(scheme, academicYear),
+            )
+            .filter((scheme) =>
+              sameSemester(scheme, semester),
+            )
+            .filter((scheme) =>
+              sameStage(scheme, stageName),
+            )
+            .filter((scheme) =>
+              sameGrade(scheme, gradeName),
+            )
+            .map((scheme) => scheme.track_name),
+        ),
+      ),
+    [
+      academicYear,
+      gradeName,
+      schemes,
+      semester,
+      stageName,
+    ],
+  );
 
-  const subjectOptions = useMemo(() => {
-    return unique(
-      schemes
-        .filter((scheme) => sameYear(scheme, academicYear))
-        .filter((scheme) => sameSemester(scheme, semester))
-        .filter((scheme) => sameStage(scheme, stageName))
-        .filter((scheme) => sameGrade(scheme, gradeName))
-        .filter((scheme) => sameTrack(scheme, trackName))
-        .map((scheme) => scheme.subject_name)
-    );
-  }, [schemes, academicYear, semester, stageName, gradeName, trackName]);
+  const subjectOptions = useMemo(
+    () =>
+      toSelectOptions(
+        unique(
+          schemes
+            .filter((scheme) =>
+              sameYear(scheme, academicYear),
+            )
+            .filter((scheme) =>
+              sameSemester(scheme, semester),
+            )
+            .filter((scheme) =>
+              sameStage(scheme, stageName),
+            )
+            .filter((scheme) =>
+              sameGrade(scheme, gradeName),
+            )
+            .filter((scheme) =>
+              sameTrack(scheme, trackName),
+            )
+            .map((scheme) => scheme.subject_name),
+        ),
+      ),
+    [
+      academicYear,
+      gradeName,
+      schemes,
+      semester,
+      stageName,
+      trackName,
+    ],
+  );
+
+  const classroomOptions = useMemo<SelectOption[]>(
+    () => [
+      {
+        label: "كل الفصول",
+        value: "all",
+      },
+      ...classrooms.map((classroom) => ({
+        label: classroom.classroom_name,
+        value: classroom.id,
+      })),
+    ],
+    [classrooms],
+  );
+
+  const activeDescription = useMemo(() => {
+    if (activeTab === "behavior") {
+      return "السلوك مستقل تمامًا عن درجات المواد.";
+    }
+
+    if (activeTab === "attendance") {
+      return "المواظبة مستقلة تمامًا عن درجات المواد.";
+    }
+
+    if (activeTab === "analytics") {
+      return "تحليلات موحدة للمواد والسلوك والمواظبة.";
+    }
+
+    if (activeTab === "history") {
+      return "السجل الكامل للعمليات والتعديلات.";
+    }
+
+    return "";
+  }, [activeTab]);
+
+  const canSearchScheme =
+    Boolean(academicYear) &&
+    Boolean(semester) &&
+    Boolean(stageName) &&
+    Boolean(gradeName) &&
+    Boolean(subjectName);
 
   function handleSearchScheme() {
-    const matched = schemes.find((scheme) => {
+    const matchedScheme = schemes.find((scheme) => {
       return (
         sameYear(scheme, academicYear) &&
         sameSemester(scheme, semester) &&
@@ -270,8 +516,8 @@ export default function GradesToolbar({
       );
     });
 
-    if (matched?.id) {
-      onSchemeChange(matched.id);
+    if (matchedScheme?.id) {
+      onSchemeChange(matchedScheme.id);
     }
   }
 
@@ -311,228 +557,302 @@ export default function GradesToolbar({
   }
 
   return (
-    <section className="rounded-[1.4rem] border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <TabButton active={activeTab === "subjects"} icon={BookOpen} label="درجات المواد" onClick={() => onTabChange("subjects")} />
-        <TabButton active={activeTab === "behavior"} icon={ShieldCheck} label="السلوك" onClick={() => onTabChange("behavior")} />
-        <TabButton active={activeTab === "attendance"} icon={Clock3} label="المواظبة" onClick={() => onTabChange("attendance")} />
-        <TabButton active={activeTab === "analytics"} icon={BarChart3} label="التحليلات" onClick={() => onTabChange("analytics")} />
-        <TabButton active={activeTab === "history"} icon={History} label="السجل" onClick={() => onTabChange("history")} />
-      </div>
+    <BaseCard
+      as="section"
+      padding="sm"
+      variant="elevated"
+      className="space-y-4"
+    >
+      <Tabs
+        tabs={tabs}
+        value={activeTab}
+        onChange={(value) =>
+          onTabChange(value as GradesTab)
+        }
+      />
 
-      <div className="mt-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-4">
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className="mb-3 flex w-full items-center justify-between text-sm font-black text-slate-800"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Filter className="h-4 w-4 text-[#0f1f3d]" />
-            التصفية
-          </span>
-
-          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-
-        {open && (
-          <>
-            {activeTab === "subjects" ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="السنة الدراسية" required>
-                  <Select value={academicYear} onChange={resetAfterYear} placeholder="-- اختر --" options={yearOptions} />
-                </Field>
-
-                <Field label="الفصل الدراسي" required>
-                  <Select value={semester} onChange={resetAfterSemester} placeholder="-- اختر --" options={semesterOptions} />
-                </Field>
-
-                <Field label="المرحلة" required>
-                  <Select value={stageName} onChange={resetAfterStage} placeholder="-- لا يوجد --" options={stageOptions} />
-                </Field>
-
-                <Field label="الصف" required>
-                  <Select value={gradeName} onChange={resetAfterGrade} placeholder="-- لا يوجد --" options={gradeOptions} />
-                </Field>
-
-                <Field label="المسار">
-                  <Select value={trackName} onChange={resetAfterTrack} placeholder="-- لا يوجد --" options={trackOptions} />
-                </Field>
-
-                <Field label="المادة" required>
-                  <Select value={subjectName} onChange={setSubjectName} placeholder="-- لا يوجد --" options={subjectOptions} />
-                </Field>
-
-                <Field label="الفصل">
-                  <select
-                    value={classroomId}
-                    onChange={(event) => onClassroomChange(event.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-[#d4af37]"
-                  >
-                    <option value="all">كل الفصول</option>
-
-                    {classrooms.map((classroom) => (
-                      <option key={classroom.id} value={classroom.id}>
-                        {classroom.classroom_name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={handleSearchScheme}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-emerald-800"
-                  >
-                    <Search className="h-4 w-4" />
-                    ابحث
-                  </button>
-                </div>
-              </div>
+      <TableFilters
+        title="التصفية"
+        actions={
+          <button
+            type="button"
+            onClick={() =>
+              setFiltersOpen((value) => !value)
+            }
+            aria-expanded={filtersOpen}
+            aria-controls="grades-toolbar-filters"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[var(--app-radius-md)] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-muted)] transition hover:bg-[var(--app-card-soft)] hover:text-[var(--app-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]"
+            title={
+              filtersOpen
+                ? "إخفاء الفلاتر"
+                : "إظهار الفلاتر"
+            }
+          >
+            {filtersOpen ? (
+              <ChevronUp
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-700">
-                {activeTab === "behavior" && "السلوك مستقل عن المواد"}
-                {activeTab === "attendance" && "المواظبة مستقلة عن المواد"}
-                {activeTab === "analytics" && "تحليلات جميع التقييمات"}
-                {activeTab === "history" && "سجل السلوك والمواظبة"}
-              </div>
+              <ChevronDown
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
             )}
+          </button>
+        }
+      >
+        <div
+          id="grades-toolbar-filters"
+          className={
+            filtersOpen
+              ? "contents"
+              : "hidden"
+          }
+        >
+          {activeTab === "subjects" ? (
+            <>
+              <Select
+                label="السنة الدراسية"
+                required
+                value={academicYear}
+                onChange={(event) =>
+                  resetAfterYear(event.target.value)
+                }
+                options={yearOptions}
+                placeholder="اختر السنة"
+              />
 
-            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
-              <div className="relative md:col-span-2">
-                <Search
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={17}
-                />
+              <Select
+                label="الفصل الدراسي"
+                required
+                value={semester}
+                onChange={(event) =>
+                  resetAfterSemester(
+                    event.target.value,
+                  )
+                }
+                options={semesterOptions}
+                placeholder="اختر الفصل"
+                disabled={!academicYear}
+              />
 
-                <input
-                  value={search}
-                  onChange={(event) => onSearchChange(event.target.value)}
-                  placeholder="بحث باسم الطالب أو الهوية أو الرقم الأكاديمي..."
-                  className="w-full rounded-2xl border border-slate-200 bg-white py-2.5 pr-10 pl-4 text-sm font-bold outline-none focus:border-[#d4af37]"
-                />
+              <Select
+                label="المرحلة"
+                required
+                value={stageName}
+                onChange={(event) =>
+                  resetAfterStage(event.target.value)
+                }
+                options={stageOptions}
+                placeholder="اختر المرحلة"
+                disabled={!semester}
+              />
+
+              <Select
+                label="الصف"
+                required
+                value={gradeName}
+                onChange={(event) =>
+                  resetAfterGrade(event.target.value)
+                }
+                options={gradeOptions}
+                placeholder="اختر الصف"
+                disabled={!stageName}
+              />
+
+              <Select
+                label="المسار"
+                value={trackName}
+                onChange={(event) =>
+                  resetAfterTrack(event.target.value)
+                }
+                options={trackOptions}
+                placeholder="جميع المسارات"
+                disabled={!gradeName}
+              />
+
+              <Select
+                label="المادة"
+                required
+                value={subjectName}
+                onChange={(event) =>
+                  setSubjectName(event.target.value)
+                }
+                options={subjectOptions}
+                placeholder="اختر المادة"
+                disabled={!gradeName}
+              />
+
+              <Select
+                label="الفصل"
+                value={classroomId}
+                onChange={(event) =>
+                  onClassroomChange(
+                    event.target.value,
+                  )
+                }
+                options={classroomOptions}
+                placeholder="كل الفصول"
+              />
+
+              <div className="flex items-end">
+                <PrimaryButton
+                  type="button"
+                  onClick={handleSearchScheme}
+                  disabled={!canSearchScheme}
+                  icon={
+                    <Search
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                    />
+                  }
+                  className="w-full"
+                >
+                  تطبيق التصفية
+                </PrimaryButton>
               </div>
+            </>
+          ) : (
+            <div className="md:col-span-2 xl:col-span-4">
+              <div className="flex min-h-11 items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text-muted)]">
+                <Filter
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0 text-[var(--app-primary)]"
+                />
 
-              <div className="flex flex-wrap gap-1.5">
-                <Tool icon={RefreshCcw} label="تحديث" onClick={onRefresh} />
-                <Tool icon={Upload} label="استيراد" onClick={onImport} />
-                <Tool icon={Download} label="Excel" onClick={onExportExcel} />
-                <Tool icon={Printer} label="PDF" onClick={onExportPDF} />
+                {activeDescription}
               </div>
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      </TableFilters>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          <Tool icon={ShieldCheck} label="اعتماد" onClick={onApprove} />
-          <Tool icon={Lock} label="إقفال" onClick={onLock} />
-          <Tool icon={Settings} label="التوزيع" onClick={onSettings} />
+      {filtersOpen && (
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <SearchInput
+            value={search}
+            onChange={onSearchChange}
+            placeholder="بحث باسم الطالب أو الهوية أو الرقم الأكاديمي..."
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SecondaryButton
+              type="button"
+              onClick={onRefresh}
+              disabled={!onRefresh}
+              icon={
+                <RefreshCcw
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                />
+              }
+            >
+              تحديث
+            </SecondaryButton>
+
+            <SecondaryButton
+              type="button"
+              onClick={onImport}
+              disabled={!onImport}
+              icon={
+                <Upload
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                />
+              }
+            >
+              استيراد
+            </SecondaryButton>
+
+            <ExportButton
+              type="button"
+              onClick={onExportExcel}
+              disabled={!onExportExcel}
+              icon={
+                <Download
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                />
+              }
+            >
+              Excel
+            </ExportButton>
+
+            <ExportButton
+              type="button"
+              onClick={onExportPDF}
+              disabled={!onExportPDF}
+              icon={
+                <Printer
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                />
+              }
+            >
+              PDF
+            </ExportButton>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3 border-t border-[var(--app-border)] pt-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <SecondaryButton
+            type="button"
+            onClick={onApprove}
+            disabled={!onApprove}
+            icon={
+              <ShieldCheck
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
+            }
+          >
+            اعتماد
+          </SecondaryButton>
+
+          <SecondaryButton
+            type="button"
+            onClick={onLock}
+            disabled={!onLock}
+            icon={
+              <Lock
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
+            }
+          >
+            إقفال
+          </SecondaryButton>
+
+          <SecondaryButton
+            type="button"
+            onClick={onSettings}
+            disabled={!onSettings}
+            icon={
+              <Settings
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
+            }
+          >
+            التوزيع
+          </SecondaryButton>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-black text-slate-500">
-          <FileText className="h-4 w-4 text-[#d4af37]" />
+        <StatusBadge
+          tone="primary"
+          icon={
+            <FileText
+              aria-hidden="true"
+              className="h-4 w-4"
+            />
+          }
+        >
           مركز التقييم الأكاديمي V2
-        </div>
+        </StatusBadge>
       </div>
-    </section>
-  );
-}
-
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <div className="mb-1 text-xs font-black text-slate-600">
-        {label}
-        {required && <span className="mr-1 text-red-500">*</span>}
-      </div>
-      {children}
-    </label>
-  );
-}
-
-function Select({
-  value,
-  onChange,
-  placeholder,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  options: string[];
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold outline-none focus:border-[#d4af37]"
-    >
-      <option value="">{placeholder}</option>
-
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function TabButton({
-  active,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-3 text-xs font-black transition ${
-        active
-          ? "bg-[#0f1f3d] text-white shadow-sm"
-          : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-      }`}
-    >
-      <Icon className={`h-4 w-4 ${active ? "text-[#d4af37]" : "text-slate-400"}`} />
-      {label}
-    </button>
-  );
-}
-
-function Tool({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </button>
+    </BaseCard>
   );
 }

@@ -24,11 +24,15 @@ export default function PageContainer({
   return (
     <div
       className={[
-        "w-full text-[var(--app-text)]",
+        "relative w-full",
+        "text-[var(--app-text)]",
+        "transition-colors duration-300",
         SIZE_CLASSES[size],
-        centered ? "mx-auto" : "",
+        centered && "mx-auto",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {children}
     </div>

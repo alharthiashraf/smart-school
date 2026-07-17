@@ -1,13 +1,15 @@
 "use client";
 
-import { SearchInput } from "@/components/ui/inputs";
+import type { ReactNode } from "react";
+
 import { EmptyState } from "@/components/ui/empty-state";
+import { SearchInput } from "@/components/ui/inputs";
 
 type SidebarSearchProps = {
   value: string;
   onChange: (value: string) => void;
   hasResults: boolean;
-  children?: React.ReactNode;
+  children?: ReactNode;
 };
 
 export default function SidebarSearch({
@@ -25,11 +27,19 @@ export default function SidebarSearch({
         onChange={onChange}
         placeholder="بحث في القائمة..."
         className="
-          [&_input]:border-[var(--sidebar-border)]
-          [&_input]:bg-[var(--sidebar-bg-soft)]
-          [&_input]:text-[var(--sidebar-text)]
-          [&_input]:placeholder:text-[var(--sidebar-muted)]
+          [&_input]:h-11
+          [&_input]:rounded-2xl
+          [&_input]:border
+          [&_input]:border-[var(--app-sidebar-border)]
+          [&_input]:bg-[var(--app-sidebar-hover)]
+          [&_input]:text-[var(--app-sidebar-text)]
+          [&_input]:placeholder:text-[var(--app-sidebar-muted)]
+          [&_input]:shadow-sm
+          [&_input]:transition-all
+          [&_input]:duration-200
           [&_input]:focus:border-[var(--app-accent)]
+          [&_input]:focus:bg-[var(--app-card)]
+          [&_input]:focus:ring-4
           [&_input]:focus:ring-[var(--app-accent-soft)]
         "
       />
@@ -38,7 +48,13 @@ export default function SidebarSearch({
         <EmptyState
           title="لا توجد نتائج"
           description="جرّب كلمة بحث مختلفة."
-          className="border-[var(--sidebar-border)] bg-[var(--sidebar-bg-soft)] text-[var(--sidebar-text)]"
+          className="
+            rounded-2xl
+            border
+            border-[var(--app-sidebar-border)]
+            bg-[var(--app-sidebar-hover)]
+            text-[var(--app-sidebar-text)]
+          "
         />
       ) : (
         children

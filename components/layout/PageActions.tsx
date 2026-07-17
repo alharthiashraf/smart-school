@@ -14,10 +14,24 @@ export default function PageActions({
   return (
     <div
       className={[
-        "mb-5 flex flex-col gap-3 rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] p-4 text-[var(--app-text)] shadow-sm",
+        `
+        mb-6
+        flex flex-col gap-4
+        rounded-2xl
+        border border-[var(--app-border)]
+        bg-[var(--app-card)]
+        p-5
+        text-[var(--app-text)]
+        shadow-[var(--app-shadow-sm)]
+        transition-all duration-300
+        `,
         "sm:flex-row sm:items-center sm:justify-between",
         sticky
-          ? "sticky top-20 z-20 backdrop-blur supports-[backdrop-filter]:bg-[var(--app-card)]/90"
+          ? `
+            sticky top-20 z-20
+            bg-[var(--app-card)]/95
+            backdrop-blur-xl
+            `
           : "",
         className,
       ].join(" ")}

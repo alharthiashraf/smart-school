@@ -1,17 +1,36 @@
-import { BrainCircuit } from "lucide-react";
+import { BrainCircuit, Loader2 } from "lucide-react";
 
-type AIThinkingProps = {
+export type AIThinkingProps = {
   text?: string;
+  className?: string;
 };
 
 export default function AIThinking({
   text = "يقوم الذكاء الاصطناعي بتحليل البيانات...",
+  className,
 }: AIThinkingProps) {
   return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white text-center shadow-sm">
-      <BrainCircuit className="h-10 w-10 animate-pulse text-emerald-600" />
+    <div
+      className={[
+        "flex min-h-[220px] flex-col items-center justify-center rounded-[var(--app-radius-xl)] border border-dashed border-[var(--app-border)] bg-[var(--app-card)] px-6 py-10 text-center shadow-sm",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div
+        className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--app-primary-soft)] text-[var(--app-primary)]"
+        aria-hidden="true"
+      >
+        <BrainCircuit className="h-8 w-8 animate-pulse" />
 
-      <p className="mt-5 text-sm font-black text-slate-600">
+        <Loader2 className="absolute -bottom-1 -left-1 h-5 w-5 animate-spin rounded-full bg-[var(--app-card)] p-0.5 text-[var(--app-accent)]" />
+      </div>
+
+      <p className="mt-5 max-w-md text-sm font-black leading-7 text-[var(--app-text-muted)]">
         {text}
       </p>
     </div>

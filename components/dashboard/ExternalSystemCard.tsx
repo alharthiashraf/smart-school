@@ -1,5 +1,7 @@
 import { ExternalLink } from "lucide-react";
 
+import { BaseCard } from "@/components/ui/cards";
+
 export type ExternalSystem = {
   title: string;
   description: string;
@@ -7,31 +9,42 @@ export type ExternalSystem = {
   tag: string;
 };
 
-type ExternalSystemCardProps = {
+export type ExternalSystemCardProps = {
   system: ExternalSystem;
+  className?: string;
 };
 
-export default function ExternalSystemCard({ system }: ExternalSystemCardProps) {
+export default function ExternalSystemCard({
+  system,
+  className = "",
+}: ExternalSystemCardProps) {
   return (
-    <a
+    <BaseCard
+      as="a"
       href={system.href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group block rounded-[24px] border border-[var(--app-border)] bg-[var(--app-card)] p-4 text-[var(--app-text)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--app-accent)] hover:bg-[var(--app-card-soft)] hover:shadow-md"
+      hoverable
+      className={className}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="rounded-2xl bg-[var(--app-accent-soft)] px-3 py-2 text-xs font-black text-[var(--app-text)] transition group-hover:bg-[var(--app-accent)] group-hover:text-slate-950">
+        <span className="rounded-[var(--app-radius-lg)] bg-[var(--app-accent-soft)] px-3 py-2 text-xs font-black text-[var(--app-text)] transition-colors group-hover:bg-[var(--app-accent)] group-hover:text-[var(--app-background)]">
           {system.tag}
-        </div>
+        </span>
 
-        <ExternalLink className="h-4 w-4 text-[var(--app-text-muted)] transition group-hover:text-[var(--app-teal)]" />
+        <ExternalLink
+          aria-hidden="true"
+          className="h-4 w-4 text-[var(--app-text-muted)] transition-colors group-hover:text-[var(--app-primary)]"
+        />
       </div>
 
-      <h3 className="font-black text-[var(--app-text)]">{system.title}</h3>
+      <h3 className="font-black text-[var(--app-text)]">
+        {system.title}
+      </h3>
 
       <p className="mt-1 text-sm leading-6 text-[var(--app-text-muted)]">
         {system.description}
       </p>
-    </a>
+    </BaseCard>
   );
 }

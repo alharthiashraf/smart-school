@@ -20,6 +20,9 @@ import { PageLoader } from "@/components/ui/loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
 import ErrorState from "@/components/ui/feedback/ErrorState";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import IconButton from "@/components/ui/buttons/IconButton";
 
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
@@ -49,7 +52,7 @@ import {
 
 type AnyRow = Record<string, unknown>;
 
-type QualityTone = "green" | "gold" | "red" | "blue" | "teal";
+type QualityTone = "green" | "gold" | "red" | "primary";
 
 type Toast = {
   type: "success" | "error";
@@ -132,11 +135,14 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: QualityTone) {
   const tones: Record<QualityTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
   };
 
   return tones[tone];
@@ -144,11 +150,10 @@ function insightTone(tone: QualityTone) {
 
 function progressTone(tone: QualityTone) {
   const tones: Record<QualityTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
   };
 
   return tones[tone];
@@ -157,19 +162,17 @@ function progressTone(tone: QualityTone) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`quality-center query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`quality-center query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -396,7 +399,7 @@ export default function QualityCenterPage() {
         title: "جاهزية الاختبارات منخفضة",
         description: `مؤشر الاختبارات ${metrics.testingReadiness}% ويحتاج رفع تغطية الاختبارات.`,
         tone: "red",
-        icon: <TestTube2 className="h-5 w-5" />,
+        icon: <TestTube2 className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -405,7 +408,7 @@ export default function QualityCenterPage() {
         title: "إمكانية الوصول تحتاج مراجعة",
         description: `مؤشر الوصول ${metrics.accessibilityQuality}%.`,
         tone: "gold",
-        icon: <Accessibility className="h-5 w-5" />,
+        icon: <Accessibility className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -413,8 +416,8 @@ export default function QualityCenterPage() {
       items.push({
         title: "جودة الأمان تحتاج تحسينًا",
         description: `مؤشر الأمان ${metrics.securityQuality}%.`,
-        tone: "blue",
-        icon: <ShieldCheck className="h-5 w-5" />,
+        tone: "primary",
+        icon: <ShieldCheck className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -422,8 +425,8 @@ export default function QualityCenterPage() {
       items.push({
         title: "جودة البيانات غير مكتملة",
         description: `تغطية البيانات الأساسية ${metrics.dataQuality}%.`,
-        tone: "teal",
-        icon: <Database className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Database className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -432,7 +435,7 @@ export default function QualityCenterPage() {
         title: "الجودة مستقرة",
         description: "لا توجد مؤشرات جودة حرجة في البيانات الحالية.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5"  aria-hidden="true" />,
       });
     }
 
@@ -447,7 +450,7 @@ export default function QualityCenterPage() {
         description: "اكتمال واتساق البيانات الأساسية للمدرسة.",
         score: metrics.dataQuality,
         tone: metrics.dataQuality >= 80 ? "green" : "gold",
-        icon: <Database className="h-6 w-6" />,
+        icon: <Database className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "راجع الحقول الناقصة والتكرارات والروابط بين الجداول.",
       },
       {
@@ -456,7 +459,7 @@ export default function QualityCenterPage() {
         description: "سلامة السجلات الأمنية والتدقيق والأخطاء.",
         score: metrics.securityQuality,
         tone: metrics.securityQuality >= 80 ? "green" : "gold",
-        icon: <ShieldCheck className="h-6 w-6" />,
+        icon: <ShieldCheck className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "راجع سياسات RLS وسجل التدقيق والحسابات الحساسة.",
       },
       {
@@ -465,7 +468,7 @@ export default function QualityCenterPage() {
         description: "جاهزية WCAG 2.2 ودعم لوحة المفاتيح والتباين.",
         score: metrics.accessibilityQuality,
         tone: metrics.accessibilityQuality >= 80 ? "green" : "gold",
-        icon: <Accessibility className="h-6 w-6" />,
+        icon: <Accessibility className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "نفذ تدقيقًا فعليًا عبر Lighthouse وaxe.",
       },
       {
@@ -474,7 +477,7 @@ export default function QualityCenterPage() {
         description: "جاهزية اختبارات الوحدة والتكامل وE2E.",
         score: metrics.testingReadiness,
         tone: metrics.testingReadiness >= 80 ? "green" : "red",
-        icon: <TestTube2 className="h-6 w-6" />,
+        icon: <TestTube2 className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "أضف اختبارات حرجة لتسجيل الدخول والحضور والدرجات.",
       },
       {
@@ -483,7 +486,7 @@ export default function QualityCenterPage() {
         description: "استقرار الأداء وعدد الأخطاء التشغيلية.",
         score: metrics.performanceQuality,
         tone: metrics.performanceQuality >= 80 ? "green" : "gold",
-        icon: <Zap className="h-6 w-6" />,
+        icon: <Zap className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "راجع أحجام الحزم والاستعلامات البطيئة والصور.",
       },
       {
@@ -492,7 +495,7 @@ export default function QualityCenterPage() {
         description: "اتساق الواجهة وسهولة الاستخدام والوضوح.",
         score: metrics.uxQuality,
         tone: "green",
-        icon: <Layers3 className="h-6 w-6" />,
+        icon: <Layers3 className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "راجع حالات الفراغ والتحميل ورسائل الخطأ.",
       },
       {
@@ -501,7 +504,7 @@ export default function QualityCenterPage() {
         description: "التنظيم وقابلية الصيانة وتقليل الديون التقنية.",
         score: metrics.codeQuality,
         tone: metrics.codeQuality >= 80 ? "green" : "gold",
-        icon: <Code2 className="h-6 w-6" />,
+        icon: <Code2 className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "نفذ lint وtype-check وتحليل الاعتماديات دوريًا.",
       },
       {
@@ -510,7 +513,7 @@ export default function QualityCenterPage() {
         description: "جودة العلاقات والفهارس والسياسات والتدقيق.",
         score: metrics.databaseQuality,
         tone: metrics.databaseQuality >= 80 ? "green" : "gold",
-        icon: <BarChart3 className="h-6 w-6" />,
+        icon: <BarChart3 className="h-6 w-6"  aria-hidden="true" />,
         recommendation: "راجع الفهارس والقيود وRLS والحقول المكررة.",
       },
     ],
@@ -626,9 +629,9 @@ export default function QualityCenterPage() {
           <PageHeader
             variant="hero"
             title="مركز الجودة"
-            description="مركز موحد لتقييم جودة البيانات، الكود، الأداء، إمكانية الوصول، الأمان، قاعدة البيانات، تجربة المستخدم، الاختبارات، وجاهزية الإطلاق."
+            description="تقييم موحد لجودة البيانات والأمان والأداء والاختبارات وجاهزية الإطلاق."
             badge="Quality Center Enterprise V3"
-            icon={<FileCheck2 size={18} />}
+            icon={<FileCheck2 size={18}  aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "مركز الجودة" },
@@ -655,7 +658,7 @@ export default function QualityCenterPage() {
               {
                 label: "Quality Score",
                 value: `${metrics.overallScore}%`,
-                icon: <Gauge size={20} />,
+                icon: <Gauge size={20}  aria-hidden="true" />,
                 tone:
                   metrics.overallScore >= 80
                     ? "green"
@@ -666,46 +669,42 @@ export default function QualityCenterPage() {
               {
                 label: "Data Quality",
                 value: `${metrics.dataQuality}%`,
-                icon: <Database size={20} />,
-                tone: "blue",
+                icon: <Database size={20}  aria-hidden="true" />,
+                tone: "primary",
               },
               {
                 label: "Testing",
                 value: `${metrics.testingReadiness}%`,
-                icon: <TestTube2 size={20} />,
+                icon: <TestTube2 size={20}  aria-hidden="true" />,
                 tone: metrics.testingReadiness >= 80 ? "green" : "gold",
               },
               {
                 label: "Launch",
                 value: `${metrics.launchReadiness}%`,
-                icon: <Target size={20} />,
+                icon: <Target size={20}  aria-hidden="true" />,
                 tone: metrics.launchReadiness >= 80 ? "green" : "gold",
               },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void loadQualityData()}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A]"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<WandSparkles size={17} aria-hidden="true" />}
                   onClick={() =>
                     showToast(
                       "success",
                       "تم تنفيذ فحص جودة محلي للبيانات المتاحة",
                     )
                   }
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white"
                 >
-                  <WandSparkles size={17} />
                   تشغيل الفحص
-                </button>
+                </PrimaryButton>
               </>
             }
           />
@@ -715,7 +714,7 @@ export default function QualityCenterPage() {
               title="Overall Quality"
               value={`${metrics.overallScore}%`}
               subtitle={`المستوى: ${metrics.level}`}
-              icon={<Gauge size={24} />}
+              icon={<Gauge size={24}  aria-hidden="true" />}
               tone={
                 metrics.overallScore >= 80
                   ? "green"
@@ -730,7 +729,7 @@ export default function QualityCenterPage() {
               title="Launch Readiness"
               value={`${metrics.launchReadiness}%`}
               subtitle="جاهزية الإطلاق المؤسسي"
-              icon={<Target size={24} />}
+              icon={<Target size={24}  aria-hidden="true" />}
               tone={metrics.launchReadiness >= 80 ? "green" : "gold"}
               progress={metrics.launchReadiness}
             />
@@ -739,7 +738,7 @@ export default function QualityCenterPage() {
               title="Testing Readiness"
               value={`${metrics.testingReadiness}%`}
               subtitle="الوحدة والتكامل وE2E"
-              icon={<TestTube2 size={24} />}
+              icon={<TestTube2 size={24}  aria-hidden="true" />}
               tone={metrics.testingReadiness >= 80 ? "green" : "red"}
               progress={metrics.testingReadiness}
             />
@@ -748,7 +747,7 @@ export default function QualityCenterPage() {
               title="Accessibility"
               value={`${metrics.accessibilityQuality}%`}
               subtitle="جاهزية WCAG 2.2"
-              icon={<Accessibility size={24} />}
+              icon={<Accessibility size={24}  aria-hidden="true" />}
               tone={metrics.accessibilityQuality >= 80 ? "green" : "gold"}
               progress={metrics.accessibilityQuality}
             />
@@ -771,7 +770,7 @@ export default function QualityCenterPage() {
               { label: "Performance", value: `${metrics.performanceQuality}%` },
               { label: "Testing", value: `${metrics.testingReadiness}%` },
             ]}
-            footer="المؤشرات الحالية مبنية على بيانات المشروع المتاحة. فحص Lighthouse وaxe وE2E الحقيقي يحتاج تشغيل أدوات الاختبار الفعلية."
+            footer="هذه المؤشرات تقديرية، ويظل الفحص الفعلي للأداء والوصول والاختبارات ضروريًا قبل الإطلاق."
           />
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -791,7 +790,7 @@ export default function QualityCenterPage() {
             <TechnicalDebtPanel metrics={metrics} issues={issues} />
           </section>
 
-          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -818,7 +817,7 @@ export default function QualityCenterPage() {
                 <EmptyState
                   title="لا توجد ملاحظات جودة"
                   description="لا توجد نتائج مطابقة للبحث أو الفلترة الحالية."
-                  icon={<Search className="h-8 w-8" />}
+                  icon={<Search className="h-8 w-8"  aria-hidden="true" />}
                 />
               ) : (
                 <div className="space-y-3">
@@ -826,11 +825,12 @@ export default function QualityCenterPage() {
                     <button
                       key={issue.id}
                       type="button"
+                      aria-label={`فتح تفاصيل الملاحظة: ${issue.title}`}
                       onClick={() => setSelectedIssue(issue)}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-right transition hover:-translate-y-0.5"
+                      className="flex w-full items-start gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-right transition hover:-translate-y-0.5"
                     >
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(
                           issue.severity === "high"
                             ? "red"
                             : issue.severity === "medium"
@@ -839,9 +839,9 @@ export default function QualityCenterPage() {
                         )}`}
                       >
                         {issue.severity === "high" ? (
-                          <TriangleAlert size={18} />
+                          <TriangleAlert size={18}  aria-hidden="true" />
                         ) : (
-                          <CheckCircle2 size={18} />
+                          <CheckCircle2 size={18}  aria-hidden="true" />
                         )}
                       </div>
                       <div className="flex-1">
@@ -882,7 +882,7 @@ function QualityExecutiveAnalytics({
   metrics: QualityMetric;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
         Quality Executive Analytics
       </h2>
@@ -891,10 +891,10 @@ function QualityExecutiveAnalytics({
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <QualityMetricCard label="Overall" value={`${metrics.overallScore}%`} icon={<Gauge size={18} />} tone={metrics.overallScore >= 80 ? "green" : metrics.overallScore >= 60 ? "gold" : "red"} />
-        <QualityMetricCard label="Launch" value={`${metrics.launchReadiness}%`} icon={<Target size={18} />} tone="blue" />
-        <QualityMetricCard label="Testing" value={`${metrics.testingReadiness}%`} icon={<TestTube2 size={18} />} tone="teal" />
-        <QualityMetricCard label="Accessibility" value={`${metrics.accessibilityQuality}%`} icon={<Accessibility size={18} />} tone="gold" />
+        <QualityMetricCard label="Overall" value={`${metrics.overallScore}%`} icon={<Gauge size={18}  aria-hidden="true" />} tone={metrics.overallScore >= 80 ? "green" : metrics.overallScore >= 60 ? "gold" : "red"} />
+        <QualityMetricCard label="Launch" value={`${metrics.launchReadiness}%`} icon={<Target size={18}  aria-hidden="true" />} tone="primary" />
+        <QualityMetricCard label="Testing" value={`${metrics.testingReadiness}%`} icon={<TestTube2 size={18}  aria-hidden="true" />} tone="primary" />
+        <QualityMetricCard label="Accessibility" value={`${metrics.accessibilityQuality}%`} icon={<Accessibility size={18}  aria-hidden="true" />} tone="gold" />
       </div>
     </section>
   );
@@ -906,9 +906,9 @@ function QualitySmartInsights({
   insights: QualityInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <BrainCircuit size={20} />
+        <BrainCircuit size={20}  aria-hidden="true" />
         AI Quality Insights
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -919,9 +919,9 @@ function QualitySmartInsights({
         {insights.map((insight) => (
           <div
             key={insight.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(insight.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(insight.tone)}`}>
               {insight.icon}
             </div>
             <div>
@@ -941,9 +941,9 @@ function QualitySmartInsights({
 
 function QualityAreaCard({ area }: { area: QualityArea }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="flex items-start justify-between gap-3">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${insightTone(area.tone)}`}>
+        <div className={`flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(area.tone)}`}>
           {area.icon}
         </div>
         <span className="text-2xl font-black text-[var(--app-text)]">
@@ -962,7 +962,7 @@ function QualityAreaCard({ area }: { area: QualityArea }) {
         <QualityProgress label="المؤشر" value={area.score} tone={area.tone} />
       </div>
 
-      <div className="mt-4 rounded-2xl bg-[var(--app-card-soft)] p-4 text-xs leading-6 text-[var(--app-text-muted)]">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-xs leading-6 text-[var(--app-text-muted)]">
         {area.recommendation}
       </div>
     </section>
@@ -975,17 +975,17 @@ function QualityHealthPanel({
   metrics: QualityMetric;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
         Quality Health
       </h2>
 
       <div className="mt-5 space-y-4">
-        <QualityProgress label="Data" value={metrics.dataQuality} tone="blue" />
+        <QualityProgress label="Data" value={metrics.dataQuality} tone="primary" />
         <QualityProgress label="Security" value={metrics.securityQuality} tone="green" />
-        <QualityProgress label="Performance" value={metrics.performanceQuality} tone="teal" />
+        <QualityProgress label="Performance" value={metrics.performanceQuality} tone="primary" />
         <QualityProgress label="UX" value={metrics.uxQuality} tone="gold" />
-        <QualityProgress label="Code" value={metrics.codeQuality} tone="blue" />
+        <QualityProgress label="Code" value={metrics.codeQuality} tone="primary" />
       </div>
     </section>
   );
@@ -997,13 +997,13 @@ function LaunchReadinessPanel({
   metrics: QualityMetric;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Target size={20} />
+        <Target size={20}  aria-hidden="true" />
         Launch Readiness
       </h2>
 
-      <div className="mt-5 rounded-3xl bg-[var(--app-card-soft)] p-5">
+      <div className="mt-5 rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-5">
         <p className="text-xs font-bold text-[var(--app-text-muted)]">
           الجاهزية الحالية
         </p>
@@ -1012,7 +1012,7 @@ function LaunchReadinessPanel({
         </p>
       </div>
 
-      <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-6 text-amber-800">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] p-4 text-xs leading-6 text-[var(--app-accent-foreground)]">
         الإطلاق النهائي يحتاج اختبارًا فعليًا للأداء، الأمان، E2E،
         وإمكانية الوصول، وليس الاعتماد على هذه المؤشرات وحدها.
       </div>
@@ -1028,18 +1028,22 @@ function TechnicalDebtPanel({
   issues: QualityIssue[];
 }) {
   const highIssues = issues.filter((item) => item.severity === "high").length;
-  const debtScore = Math.max(
-    0,
-    100 -
-      metrics.codeQuality -
-      metrics.testingReadiness / 2 -
-      highIssues * 10,
+  const debtScore = Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        (100 - metrics.codeQuality) * 0.45 +
+          (100 - metrics.testingReadiness) * 0.35 +
+          highIssues * 10,
+      ),
+    ),
   );
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Code2 size={20} />
+        <Code2 size={20}  aria-hidden="true" />
         Technical Debt
       </h2>
 
@@ -1061,19 +1065,22 @@ function QualityIssueDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-overlay)_72%,transparent)] backdrop-blur-sm print:hidden">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto border-r border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Quality Issue</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+            <p className="text-xs font-black text-[var(--app-accent)]">Quality Issue</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {issue.title}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
-            <X size={20} />
-          </button>
+          <IconButton
+            label="إغلاق لوحة الملاحظة"
+            title="إغلاق"
+            onClick={onClose}
+            icon={<X size={20} aria-hidden="true" />}
+          />
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -1113,8 +1120,8 @@ function QualityMetricCard({
   tone: QualityTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1140,6 +1147,11 @@ function QualityProgress({
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
         <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.max(0, Math.min(100, value))}
           className={`h-full rounded-full ${progressTone(tone)}`}
           style={{ width: `${Math.max(4, Math.min(100, value))}%` }}
         />
@@ -1156,7 +1168,7 @@ function QualityInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -1171,9 +1183,9 @@ function QualityDrawerMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-base font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1186,11 +1198,11 @@ function QualityDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">
             {item}
           </p>
         ))}

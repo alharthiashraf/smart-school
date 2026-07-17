@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
-import Breadcrumb from "@/components/layout/Breadcrumb";
-import PageContainer from "@/components/layout/PageContainer";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageLoader } from "@/components/ui/loading";
 
 import { supabase } from "@/lib/supabase";
+import type { SchoolRole } from "@/lib/permissions";
 import { useSchool } from "@/contexts/SchoolContext";
 import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
@@ -23,7 +27,6 @@ import {
   Clock3,
   FileSpreadsheet,
   FileText,
-  Loader2,
   RefreshCcw,
   ShieldCheck,
   UserRound,
@@ -61,7 +64,27 @@ type StatusKey =
   | "clinic"
   | "unknown";
 
-const PARENT_ROLES = ["super_admin", "school_admin", "parent"] as any;
+const PARENT_ROLES: SchoolRole[] = ["super_admin", "school_admin", "parent"];
+
+
+type AttendanceSessionRow = {
+  id: string;
+  attendance_date: string | null;
+  period_number?: number | null;
+  subject_name?: string | null;
+};
+
+type AttendanceRecordRow = {
+  id: string;
+  student_id: string;
+  session_id: string;
+  status?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+};
+
+type ExportCell = string | number | null | undefined;
+
 
 function getCurrentMonth() {
   const d = new Date();
@@ -70,28 +93,26 @@ function getCurrentMonth() {
 
 function getMonthRange(monthValue: string) {
   const [year, month] = monthValue.split("-").map(Number);
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0);
+  const endDay = new Date(year, month, 0).getDate();
 
   return {
-    startText: start.toISOString().slice(0, 10),
-    endText: end.toISOString().slice(0, 10),
+    startText: `${year}-${String(month).padStart(2, "0")}-01`,
+    endText: `${year}-${String(month).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`,
   };
 }
 
 function formatDate(date?: string | null) {
   if (!date) return "—";
 
-  try {
-    return new Intl.DateTimeFormat("ar-SA", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      weekday: "long",
-    }).format(new Date(date));
-  } catch {
-    return date;
-  }
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("ar-SA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(value);
 }
 
 function normalizeStatus(status?: string | null): StatusKey {
@@ -134,13 +155,13 @@ function statusLabel(status?: string | null) {
 function statusClass(status?: string | null) {
   const key = normalizeStatus(status);
 
-  if (key === "present") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (key === "absent") return "border-red-200 bg-red-50 text-red-700";
-  if (key === "late") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  if (key === "excused") return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (key === "clinic") return "border-purple-200 bg-purple-50 text-purple-700";
+  if (key === "present") return "border-[color-mix(in_srgb,var(--app-success)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  if (key === "absent") return "border-[color-mix(in_srgb,var(--app-danger)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  if (key === "late") return "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  if (key === "excused") return "border-[color-mix(in_srgb,var(--app-primary)_24%,transparent)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
+  if (key === "clinic") return "border-[color-mix(in_srgb,var(--app-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function percentage(value: number, total: number) {
@@ -149,13 +170,8 @@ function percentage(value: number, total: number) {
 }
 
 export default function ParentAttendancePage() {
-  const schoolContext = useSchool() as any;
-  const schoolId =
-    schoolContext?.currentSchool?.id ||
-    schoolContext?.schoolId ||
-    schoolContext?.school?.id ||
-    schoolContext?.selectedSchool?.id ||
-    null;
+  const { currentSchool } = useSchool();
+  const schoolId = currentSchool?.id ?? null;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -171,7 +187,7 @@ export default function ParentAttendancePage() {
 
   const [error, setError] = useState<string>("");
 
-  async function loadParentStudents(email: string) {
+  const loadParentStudents = useCallback(async (email: string) => {
     let query = supabase
       .from("students")
       .select("id, full_name, national_id, grade_name, classroom_name, guardian_email, status")
@@ -187,13 +203,13 @@ export default function ParentAttendancePage() {
     if (studentsError) throw new Error(studentsError.message);
 
     return (data || []) as Student[];
-  }
+  }, [schoolId]);
 
-  async function loadAttendanceFromSimpleTable(
+  const loadAttendanceFromSimpleTable = useCallback(async (
     studentIds: string[],
     startText: string,
     endText: string,
-  ) {
+  ) => {
     const { data, error: attendanceError } = await supabase
       .from("attendance")
       .select("id, student_id, attendance_date, status, notes, created_at, period_number, subject_name")
@@ -205,13 +221,13 @@ export default function ParentAttendancePage() {
     if (attendanceError) throw attendanceError;
 
     return (data || []) as AttendanceRow[];
-  }
+  }, []);
 
-  async function loadAttendanceFromSessionTables(
+  const loadAttendanceFromSessionTables = useCallback(async (
     studentIds: string[],
     startText: string,
     endText: string,
-  ) {
+  ) => {
     let sessionsQuery = supabase
       .from("student_attendance_sessions")
       .select("id, attendance_date, period_number, subject_name")
@@ -225,7 +241,7 @@ export default function ParentAttendancePage() {
     const { data: sessions, error: sessionsError } = await sessionsQuery;
     if (sessionsError) throw sessionsError;
 
-    const sessionList = (sessions || []) as any[];
+    const sessionList = (sessions || []) as AttendanceSessionRow[];
     if (!sessionList.length) return [];
 
     const sessionIds = sessionList.map((item) => item.id);
@@ -238,10 +254,10 @@ export default function ParentAttendancePage() {
 
     if (recordsError) throw recordsError;
 
-    const sessionMap = new Map<string, any>();
+    const sessionMap = new Map<string, AttendanceSessionRow>();
     sessionList.forEach((session) => sessionMap.set(session.id, session));
 
-    return ((records || []) as any[])
+    return ((records || []) as AttendanceRecordRow[])
       .map((record) => {
         const session = sessionMap.get(record.session_id);
 
@@ -258,9 +274,9 @@ export default function ParentAttendancePage() {
       })
       .filter((row) => row.attendance_date)
       .sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
-  }
+  }, [schoolId]);
 
-  async function loadData(isRefresh = false) {
+  const loadData = useCallback(async (isRefresh = false) => {
     try {
       setError("");
       if (isRefresh) setRefreshing(true);
@@ -303,20 +319,28 @@ export default function ParentAttendancePage() {
         const rows = await loadAttendanceFromSessionTables(studentIds, startText, endText);
         setAttendanceRows(rows);
       }
-    } catch (err: any) {
-      setError(err?.message || "حدث خطأ أثناء تحميل بيانات الحضور.");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "حدث خطأ أثناء تحميل بيانات الحضور.",
+      );
       setStudents([]);
       setAttendanceRows([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [
+    loadAttendanceFromSessionTables,
+    loadAttendanceFromSimpleTable,
+    loadParentStudents,
+    month,
+  ]);
 
   useEffect(() => {
     void loadData(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, month]);
+  }, [loadData]);
 
   const studentsMap = useMemo(() => {
     const map = new Map<string, Student>();
@@ -388,30 +412,31 @@ export default function ParentAttendancePage() {
   function handleExportPDF() {
     exportTableToPDF({
       title: "تقرير حضور أبناء ولي الأمر",
+      headers: Object.keys(exportRows[0] ?? {}),
+      rows: exportRows.map((row) => Object.values(row) as ExportCell[]),
       fileName: "parent-attendance-report.pdf",
-      rows: exportRows,
-    } as any);
+    });
   }
 
   function handleExportExcel() {
     exportTableToExcel({
+      title: "تقرير حضور أبناء ولي الأمر",
+      headers: Object.keys(exportRows[0] ?? {}),
+      rows: exportRows.map((row) => Object.values(row) as ExportCell[]),
       fileName: "parent-attendance-report.xlsx",
-      sheetName: "Attendance",
-      rows: exportRows,
-    } as any);
+    });
   }
 
   return (
     <RoleGuard allowedRoles={PARENT_ROLES}>
       <AppShell>
-        <PageContainer size="wide" className="space-y-5">
-          <Breadcrumb />
+        <main dir="rtl" className="space-y-5">
           <PageHeader
             variant="hero"
             title="متابعة حضور الأبناء"
-            description="تعرض هذه الصفحة سجل حضور وغياب الأبناء المرتبطين ببريد ولي الأمر المسجل في النظام، مع فلاتر شهرية وتصدير PDF وExcel."
+            description="سجل حضور وغياب الأبناء مع الفلاتر الشهرية."
             badge="بوابة ولي الأمر"
-            icon={<ShieldCheck size={18} />}
+            icon={<ShieldCheck size={18}  aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة ولي الأمر", href: "/parent-portal" },
@@ -424,42 +449,40 @@ export default function ParentAttendancePage() {
               { label: "النتائج المعروضة", value: filteredRows.length },
             ]}
             stats={[
-              { label: "السجلات", value: stats.total, icon: <CalendarDays size={20} />, tone: "blue" },
-              { label: "الحضور", value: stats.present, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "الغياب", value: stats.absent, icon: <XCircle size={20} />, tone: stats.absent > 0 ? "red" : "green" },
-              { label: "نسبة الحضور", value: `${stats.attendanceRate}%`, icon: <ShieldCheck size={20} />, tone: stats.attendanceRate >= 85 ? "green" : "gold" },
+              { label: "السجلات", value: stats.total, icon: <CalendarDays size={20}  aria-hidden="true" />, tone: "primary" },
+              { label: "الحضور", value: stats.present, icon: <CheckCircle2 size={20}  aria-hidden="true" />, tone: "green" },
+              { label: "الغياب", value: stats.absent, icon: <XCircle size={20}  aria-hidden="true" />, tone: stats.absent > 0 ? "red" : "green" },
+              { label: "نسبة الحضور", value: `${stats.attendanceRate}%`, icon: <ShieldCheck size={20}  aria-hidden="true" />, tone: stats.attendanceRate >= 85 ? "green" : "gold" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
                   onClick={() => void loadData(true)}
                   disabled={refreshing}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  aria-busy={refreshing}
                 >
-                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                  <RefreshCcw
+                    className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                    aria-hidden="true"
+                  />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
                   onClick={handleExportPDF}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                 >
-                  <FileText className="h-4 w-4" />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
                   onClick={handleExportExcel}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  icon={<FileSpreadsheet className="h-4 w-4" aria-hidden="true" />}
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
                   Excel
-                </button>
+                </ExportButton>
               </>
             }
           />
@@ -469,8 +492,8 @@ export default function ParentAttendancePage() {
               title="إجمالي السجلات"
               value={stats.total}
               subtitle="حسب الفلاتر الحالية"
-              icon={<CalendarDays size={22} />}
-              tone="blue"
+              icon={<CalendarDays size={22}  aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
@@ -478,7 +501,7 @@ export default function ParentAttendancePage() {
               title="حضور"
               value={stats.present}
               subtitle={`${stats.attendanceRate}% نسبة الحضور`}
-              icon={<CheckCircle2 size={22} />}
+              icon={<CheckCircle2 size={22}  aria-hidden="true" />}
               tone="green"
               progress={stats.attendanceRate}
             />
@@ -487,7 +510,7 @@ export default function ParentAttendancePage() {
               title="غياب"
               value={stats.absent}
               subtitle="سجلات الغياب"
-              icon={<XCircle size={22} />}
+              icon={<XCircle size={22}  aria-hidden="true" />}
               tone={stats.absent > 0 ? "red" : "green"}
               progress={stats.total ? percentage(stats.absent, stats.total) : 0}
             />
@@ -496,7 +519,7 @@ export default function ParentAttendancePage() {
               title="تأخر"
               value={stats.late}
               subtitle="سجلات التأخر"
-              icon={<Clock3 size={22} />}
+              icon={<Clock3 size={22}  aria-hidden="true" />}
               tone={stats.late > 0 ? "gold" : "green"}
               progress={stats.total ? percentage(stats.late, stats.total) : 0}
             />
@@ -505,8 +528,8 @@ export default function ParentAttendancePage() {
               title="بعذر"
               value={stats.excused}
               subtitle="غياب أو استئذان بعذر"
-              icon={<ShieldCheck size={22} />}
-              tone="teal"
+              icon={<ShieldCheck size={22}  aria-hidden="true" />}
+              tone="primary"
               progress={stats.total ? percentage(stats.excused, stats.total) : 0}
             />
 
@@ -514,15 +537,15 @@ export default function ParentAttendancePage() {
               title="تحويل صحي"
               value={stats.clinic}
               subtitle="تحويل للعيادة"
-              icon={<AlertTriangle size={22} />}
-              tone={stats.clinic > 0 ? "purple" : "green"}
+              icon={<AlertTriangle size={22}  aria-hidden="true" />}
+              tone={stats.clinic > 0 ? "gold" : "green"}
               progress={stats.total ? percentage(stats.clinic, stats.total) : 0}
             />
           </section>
 
           <SummaryCard
             title="ملخص حضور الأبناء"
-            description="قراءة سريعة لسجل الحضور حسب الشهر والفلاتر الحالية."
+            description="ملخص الحضور حسب الفلاتر الحالية."
             tone={stats.absent > 0 || stats.late > 0 ? "gold" : "green"}
             items={[
               { label: "الأبناء المرتبطون", value: students.length },
@@ -532,15 +555,15 @@ export default function ParentAttendancePage() {
               { label: "تأخر", value: stats.late },
               { label: "نسبة الحضور", value: `${stats.attendanceRate}%` },
             ]}
-            footer="يتم عرض البيانات حسب بريد ولي الأمر المخزن في عمود guardian_email داخل جدول الطلاب."
+            footer="تُعرض البيانات المرتبطة ببريد ولي الأمر."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
                 onChange: setSearch,
-                placeholder: "ابحث باسم الطالب، الهوية، المادة، أو الملاحظة...",
+                placeholder: "بحث بالطالب أو المادة أو الملاحظة...",
               }}
               filters={
                 <>
@@ -569,7 +592,7 @@ export default function ParentAttendancePage() {
                     type="month"
                     value={month}
                     onChange={(event) => setMonth(event.target.value)}
-                    className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
                 </>
               }
@@ -579,52 +602,44 @@ export default function ParentAttendancePage() {
             />
           </section>
 
-          {error && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-4 text-sm leading-7 text-red-700">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-1 h-5 w-5 shrink-0" />
-                <div>
-                  <p className="font-bold">تعذر تحميل البيانات</p>
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {error ? (
+            <ErrorState title="تعذر تحميل البيانات" description={error} />
+          ) : null}
 
           {loading ? (
-            <LoadingBox />
+            <PageLoader text="جاري تحميل سجل الحضور..." />
           ) : !students.length ? (
             <EmptyState
-              icon={<UsersRound className="h-9 w-9" />}
+              icon={<UsersRound className="h-9 w-9"  aria-hidden="true" />}
               title="لا يوجد أبناء مرتبطون بهذا الحساب"
-              description="تأكد أن بريد ولي الأمر محفوظ في عمود guardian_email داخل جدول students لنفس بريد الحساب الحالي."
+              description="تحقق من ربط بريد ولي الأمر بالطلاب."
             />
           ) : !filteredRows.length ? (
             <EmptyState
-              icon={<CalendarDays className="h-9 w-9" />}
+              icon={<CalendarDays className="h-9 w-9"  aria-hidden="true" />}
               title="لا توجد سجلات حضور مطابقة"
-              description="جرّب تغيير الشهر أو الفلاتر الحالية لعرض سجلات أخرى."
+              description="غيّر الشهر أو الفلاتر الحالية."
             />
           ) : (
-            <section className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <section className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
+              <div className="flex flex-col gap-2 border-b border-[var(--app-border)] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-[#15445A]">
+                  <h2 className="text-lg font-black text-[var(--app-text)]">
                     سجل الحضور
                   </h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عدد النتائج: {filteredRows.length}
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
-                  التصدير حسب النتائج المعروضة
+                <div className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2 text-sm font-bold text-[var(--app-text-muted)]">
+                  تصدير النتائج الحالية
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[980px] text-right text-sm">
-                  <thead className="bg-[#15445A] text-white">
+                  <thead className="bg-[var(--app-primary)] text-[var(--app-text-inverse)]">
                     <tr>
                       <th className="px-4 py-3 font-bold">الطالب</th>
                       <th className="px-4 py-3 font-bold">الصف / الفصل</th>
@@ -636,37 +651,37 @@ export default function ParentAttendancePage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--app-border)]">
                     {filteredRows.map((row) => {
                       const student = studentsMap.get(row.student_id);
 
                       return (
-                        <tr key={row.id} className="hover:bg-slate-50/80">
+                        <tr key={row.id} className="hover:bg-[var(--app-card-soft)]/80">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#15445A] text-white">
-                                <UserRound className="h-5 w-5" />
+                              <div className="flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-[var(--app-text-inverse)]">
+                                <UserRound className="h-5 w-5"  aria-hidden="true" />
                               </div>
 
                               <div>
-                                <p className="font-bold text-[#15445A]">
+                                <p className="font-bold text-[var(--app-text)]">
                                   {student?.full_name || "طالب غير محدد"}
                                 </p>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-[var(--app-text-muted)]">
                                   {student?.national_id || "لا يوجد رقم هوية"}
                                 </p>
                               </div>
                             </div>
                           </td>
 
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="px-4 py-3 text-[var(--app-text)]">
                             <p className="font-semibold">{student?.grade_name || "—"}</p>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-[var(--app-text-muted)]">
                               {student?.classroom_name || "—"}
                             </p>
                           </td>
 
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="px-4 py-3 text-[var(--app-text)]">
                             {formatDate(row.attendance_date)}
                           </td>
 
@@ -678,15 +693,15 @@ export default function ParentAttendancePage() {
                             </span>
                           </td>
 
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="px-4 py-3 text-[var(--app-text)]">
                             {row.period_number ? `الحصة ${row.period_number}` : "—"}
                           </td>
 
-                          <td className="px-4 py-3 text-slate-700">
+                          <td className="px-4 py-3 text-[var(--app-text)]">
                             {row.subject_name || "—"}
                           </td>
 
-                          <td className="max-w-[260px] px-4 py-3 text-slate-600">
+                          <td className="max-w-[260px] px-4 py-3 text-[var(--app-text-muted)]">
                             <p className="line-clamp-2">
                               {row.notes || "لا توجد ملاحظات"}
                             </p>
@@ -699,45 +714,9 @@ export default function ParentAttendancePage() {
               </div>
             </section>
           )}
-        </PageContainer>
+        </main>
       </AppShell>
     </RoleGuard>
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white">
-      <div className="flex flex-col items-center gap-3 text-slate-600">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-        <p className="text-sm font-bold">جاري تحميل سجل الحضور...</p>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white p-6 text-center shadow-sm">
-      <div className="mx-auto max-w-md">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          {icon}
-        </div>
-
-        <h2 className="mt-4 text-xl font-black text-[#15445A]">{title}</h2>
-
-        <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
-      </div>
-    </div>
-  );
-}

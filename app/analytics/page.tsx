@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import AppShell from "@/components/layout/AppShell";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
 import { PageLoader } from "@/components/ui/loading";
@@ -141,9 +143,9 @@ type QueryResult<T> = {
 
 type QueryLike<T> = PromiseLike<QueryResult<T>>;
 
-type Tone = "blue" | "green" | "amber" | "red" | "slate" | "purple";
+type Tone = "primary" | "green" | "amber" | "red" | "slate";
 
-type AnalyticsInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type AnalyticsInsightTone = "green" | "gold" | "red" | "primary" | "neutral";
 
 type AnalyticsInsight = {
   title: string;
@@ -350,19 +352,17 @@ function getErrorMessage(error: unknown, fallback: string) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`analytics query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`analytics query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -374,11 +374,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: AnalyticsInsightTone) {
   const tones: Record<AnalyticsInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -386,11 +391,11 @@ function insightTone(tone: AnalyticsInsightTone) {
 
 function progressTone(tone: AnalyticsInsightTone) {
   const tones: Record<AnalyticsInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -976,7 +981,7 @@ export default function AnalyticsPage() {
         items.push({
           title: "مادة تحتاج تدخلًا",
           description: `${weakest.subject} بمتوسط ${weakest.average}%.`,
-          tone: "blue",
+          tone: "primary",
           icon: <GraduationCap className="h-5 w-5" />,
         });
       }
@@ -986,7 +991,7 @@ export default function AnalyticsPage() {
       items.push({
         title: "طلاب معرضون للتعثر",
         description: `يوجد ${riskStudentsCount} طالب يحتاج متابعة.`,
-        tone: "teal",
+        tone: "primary",
         icon: <ShieldAlert className="h-5 w-5" />,
       });
     }
@@ -1168,8 +1173,8 @@ export default function AnalyticsPage() {
 
           <PageHeader
             variant="hero"
-            title="مركز التحليلات الذكية"
-            description="لوحة تنفيذية لتحليل الحضور والدرجات والفصول ومؤشرات التعثر مع توصيات تساعد الإدارة المدرسية على اتخاذ القرار اليومي."
+            title="مركز التحليلات"
+            description="تحليل الحضور والدرجات ومؤشرات التعثر."
             badge="منصة المدرسة الذكية"
             icon={<Brain size={18} />}
             breadcrumbs={[
@@ -1183,58 +1188,44 @@ export default function AnalyticsPage() {
               { label: "الفصل المحدد", value: selectedClass === "all" ? "كل الفصول" : selectedClass },
             ]}
             stats={[
-              { label: "الطلاب", value: filteredStudents.length, icon: <Users size={20} />, tone: "blue" },
+              { label: "الطلاب", value: filteredStudents.length, icon: <Users size={20} />, tone: "primary" },
               { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <CalendarCheck size={20} />, tone: colorForRate(attendanceRate) === "amber" ? "gold" : colorForRate(attendanceRate) },
-              { label: "متوسط الدرجات", value: averageGrade > 0 ? `${averageGrade}%` : "—", icon: <GraduationCap size={20} />, tone: gradeTone(averageGrade) === "amber" ? "gold" : gradeTone(averageGrade) === "purple" ? "primary" : gradeTone(averageGrade) },
+              { label: "متوسط الدرجات", value: averageGrade > 0 ? `${averageGrade}%` : "—", icon: <GraduationCap size={20} />, tone: gradeTone(averageGrade) === "amber" ? "gold" : gradeTone(averageGrade) === "primary" ? "primary" : gradeTone(averageGrade) },
               { label: "مؤشرات المتابعة", value: followUpTotal, icon: <ShieldAlert size={20} />, tone: followUpTotal > 0 ? "red" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
                   onClick={() => void loadAnalytics()}
                   disabled={loading}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
+                  <RefreshCcw
+                    size={17}
+                    className={loading ? "animate-spin" : ""}
+                    aria-hidden="true"
+                  />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
-                  onClick={printAnalytics}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <Printer size={17} />
+                <SecondaryButton onClick={printAnalytics}>
+                  <Printer size={17} aria-hidden="true" />
                   طباعة
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
-                  onClick={exportPDF}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <FileText size={17} />
+                <PrimaryButton onClick={exportPDF}>
+                  <FileText size={17} aria-hidden="true" />
                   PDF
-                </button>
+                </PrimaryButton>
 
-                <button
-                  type="button"
-                  onClick={exportExcel}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <FileSpreadsheet size={17} />
+                <PrimaryButton onClick={exportExcel}>
+                  <FileSpreadsheet size={17} aria-hidden="true" />
                   Excel
-                </button>
+                </PrimaryButton>
               </>
             }
           />
 
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
           <PageToolbar
             search={{
@@ -1257,7 +1248,7 @@ export default function AnalyticsPage() {
                   type="date"
                   value={selectedDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
-                  className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                  className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                 />
               </>
             }
@@ -1273,7 +1264,7 @@ export default function AnalyticsPage() {
               value={filteredStudents.length}
               subtitle="حسب الفلاتر الحالية"
               icon={<Users size={24} />}
-              tone="blue"
+              tone="primary"
               progress={filteredStudents.length > 0 ? 100 : 0}
             />
 
@@ -1316,7 +1307,7 @@ export default function AnalyticsPage() {
 
           <SummaryCard
             title="الملخص التنفيذي للتحليلات"
-            description="قراءة سريعة لأهم مؤشرات المدرسة حسب الفلاتر الحالية: الحضور، الدرجات، السلوك، الإحالات، ومؤشرات التعثر."
+            description="ملخص الحضور والدرجات والمتابعة."
             tone={followUpTotal > 0 ? "gold" : "green"}
             items={[
               { label: "الطلاب", value: filteredStudents.length },
@@ -1326,7 +1317,7 @@ export default function AnalyticsPage() {
               { label: "التأخر", value: attendanceStats.late },
               { label: "مؤشرات متابعة", value: followUpTotal },
             ]}
-            footer="تتأثر دقة التحليلات باكتمال رصد الحضور والدرجات والسلوك والإحالات داخل المنصة."
+            footer="تعتمد الدقة على اكتمال البيانات."
           />
 
 
@@ -1388,7 +1379,7 @@ export default function AnalyticsPage() {
             />
           </section>
 
-          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="mb-4">
               <h2 className="text-xl font-black text-[var(--app-text)]">
                 البحث الذكي والتحليل السريع
@@ -1404,7 +1395,7 @@ export default function AnalyticsPage() {
                   key={command}
                   type="button"
                   onClick={() => runSmartSearch(command)}
-                  className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-primary)] hover:text-[var(--app-primary)]"
                 >
                   {command}
                 </button>
@@ -1422,20 +1413,20 @@ export default function AnalyticsPage() {
               ) : (
                 <div className="space-y-3">
                   {weeklyAttendanceData.map((item) => (
-                    <div key={item.date} className="rounded-2xl bg-slate-50 p-4">
+                    <div key={item.date} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="font-black text-[#15445A]">
+                        <span className="font-black text-[var(--app-text)]">
                           {formatDate(item.date)}
                         </span>
-                        <span className="text-xs font-bold text-slate-500">
+                        <span className="text-xs font-bold text-[var(--app-text-muted)]">
                           حضور {item.present} / غياب {item.absent} / تأخر{" "}
                           {item.late}
                         </span>
                       </div>
 
-                      <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                      <div className="h-3 overflow-hidden rounded-full bg-[var(--app-border)]">
                         <div
-                          className="h-full rounded-full bg-[#0DA9A6]"
+                          className="h-full rounded-full bg-[var(--app-primary)]"
                           style={{
                             width: `${Math.min(
                               Math.round(
@@ -1485,9 +1476,9 @@ export default function AnalyticsPage() {
               </div>
             </Panel>
 
-            <section className="rounded-3xl bg-gradient-to-l from-[#15445A] via-[#15445A] to-[#0DA9A6] p-5 text-white shadow-sm">
+            <section className="rounded-[var(--app-radius-xl)] bg-gradient-to-l from-[var(--app-primary)] via-[var(--app-primary)] to-[var(--app-primary-hover)] p-5 text-[var(--app-text-inverse)] shadow-[var(--app-shadow-sm)]">
               <div className="mb-4 flex items-center gap-2">
-                <Brain className="text-[#C1B489]" />
+                <Brain className="text-[var(--app-accent)]" />
                 <h2 className="text-xl font-black">توصيات ذكية</h2>
               </div>
 
@@ -1495,7 +1486,7 @@ export default function AnalyticsPage() {
                 {aiInsights.map((item) => (
                   <div
                     key={item}
-                    className="rounded-2xl border border-white/10 bg-white/10 p-4 text-sm leading-7 text-slate-100"
+                    className="rounded-[var(--app-radius-lg)] border border-white/10 bg-[var(--app-card)]/10 p-4 text-sm leading-7 text-slate-100"
                   >
                     {item}
                   </div>
@@ -1504,17 +1495,17 @@ export default function AnalyticsPage() {
             </section>
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-black text-[#15445A]">
+                <h2 className="text-2xl font-black text-[var(--app-text)]">
                   أداء الفصول
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   مقارنة مبسطة بين الفصول حسب متوسط الدرجات والحضور.
                 </p>
               </div>
-              <Award className="text-[#15445A]" />
+              <Award className="text-[var(--app-text)]" />
             </div>
 
             {classPerformance.length === 0 ? (
@@ -1525,12 +1516,12 @@ export default function AnalyticsPage() {
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {classPerformance.slice(0, 8).map((item) => (
-                  <div key={item.className} className="rounded-2xl bg-slate-50 p-4">
+                  <div key={item.className} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <h3 className="font-black text-[#15445A]">
+                      <h3 className="font-black text-[var(--app-text)]">
                         {item.className}
                       </h3>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-500">
+                      <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
                         {item.studentsCount} طالب
                       </span>
                     </div>
@@ -1553,19 +1544,19 @@ export default function AnalyticsPage() {
             )}
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
             <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-2xl font-black text-[#15445A]">
+                <h2 className="text-2xl font-black text-[var(--app-text)]">
                   الطلاب الأعلى احتياجًا للمتابعة
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   يعتمد المؤشر على الغياب، التأخر، السلوك، الإحالات، وانخفاض الدرجات.
                 </p>
               </div>
 
-              <span className="w-fit rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+              <span className="w-fit rounded-full bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text-muted)]">
                 أعلى 10 طلاب
               </span>
             </div>
@@ -1579,7 +1570,7 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[950px] text-sm">
                   <thead>
-                    <tr className="bg-slate-50 text-right text-xs font-black text-slate-500">
+                    <tr className="bg-[var(--app-card-soft)] text-right text-xs font-black text-[var(--app-text-muted)]">
                       <th className="rounded-r-2xl px-4 py-3">الطالب</th>
                       <th className="px-4 py-3">الفصل</th>
                       <th className="px-4 py-3">ولي الأمر</th>
@@ -1593,52 +1584,52 @@ export default function AnalyticsPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--app-border)]">
                     {studentRiskList.map((student) => (
-                      <tr key={student.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-4 font-black text-[#15445A]">
+                      <tr key={student.id} className="hover:bg-[var(--app-card-soft)]">
+                        <td className="px-4 py-4 font-black text-[var(--app-text)]">
                           <div>{studentName(student)}</div>
-                          <div className="mt-1 text-xs font-bold text-slate-400">
+                          <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
                             {student.student_number || "—"}
                           </div>
                         </td>
 
-                        <td className="px-4 py-4 text-slate-600">
+                        <td className="px-4 py-4 text-[var(--app-text-muted)]">
                           {studentClassLabel(student)}
                         </td>
 
-                        <td className="px-4 py-4 text-slate-600">
+                        <td className="px-4 py-4 text-[var(--app-text-muted)]">
                           <div>{student.guardian_name || "—"}</div>
-                          <div className="mt-1 text-xs text-slate-400">
+                          <div className="mt-1 text-xs text-[var(--app-text-subtle)]">
                             {student.parent_phone ||
                               student.guardian_phone ||
                               "—"}
                           </div>
                         </td>
 
-                        <td className="px-4 py-4 font-black text-red-600">
+                        <td className="px-4 py-4 font-black text-[var(--app-danger)]">
                           {student.absent}
                         </td>
 
-                        <td className="px-4 py-4 font-black text-amber-600">
+                        <td className="px-4 py-4 font-black text-[var(--app-warning-foreground)]">
                           {student.late}
                         </td>
 
-                        <td className="px-4 py-4 font-black text-slate-700">
+                        <td className="px-4 py-4 font-black text-[var(--app-text)]">
                           {student.behaviorCount}
                         </td>
 
-                        <td className="px-4 py-4 font-black text-slate-700">
+                        <td className="px-4 py-4 font-black text-[var(--app-text)]">
                           {student.openReferrals}
                         </td>
 
-                        <td className="px-4 py-4 font-black text-blue-700">
+                        <td className="px-4 py-4 font-black text-[var(--app-primary)]">
                           {student.gradeAverage > 0
                             ? `${student.gradeAverage}%`
                             : "—"}
                         </td>
 
-                        <td className="px-4 py-4 font-black text-[#15445A]">
+                        <td className="px-4 py-4 font-black text-[var(--app-text)]">
                           {student.riskScore}
                         </td>
 
@@ -1646,12 +1637,12 @@ export default function AnalyticsPage() {
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-black ${
                               student.riskLabel === "مرتفع"
-                                ? "bg-red-50 text-red-700"
+                                ? "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
                                 : student.riskLabel === "متوسط"
-                                  ? "bg-[#C1B489]/20 text-[#15445A]"
+                                  ? "bg-[color-mix(in_srgb,var(--app-accent)_20%,transparent)] text-[var(--app-text)]"
                                   : student.riskLabel === "منخفض"
-                                    ? "bg-[#3D7EB9]/10 text-[#3D7EB9]"
-                                    : "bg-[#07A869]/10 text-[#07A869]"
+                                    ? "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]"
+                                    : "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
                             }`}
                           >
                             {student.riskLabel}
@@ -1688,13 +1679,13 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
           {icon}
         </div>
 
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
 
       {children}
@@ -1714,17 +1705,17 @@ function ProgressRow({
   const percent = total > 0 ? Math.round((value / total) * 100) : 0;
 
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="font-black text-[#15445A]">{label}</span>
-        <span className="text-xs font-bold text-slate-500">
+        <span className="font-black text-[var(--app-text)]">{label}</span>
+        <span className="text-xs font-bold text-[var(--app-text-muted)]">
           {value} — {percent}%
         </span>
       </div>
 
-      <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+      <div className="h-3 overflow-hidden rounded-full bg-[var(--app-border)]">
         <div
-          className="h-full rounded-full bg-[#0DA9A6]"
+          className="h-full rounded-full bg-[var(--app-primary)]"
           style={{ width: `${Math.min(percent, 100)}%` }}
         />
       </div>
@@ -1748,21 +1739,21 @@ function AnalyticsExecutiveCenter({
   riskStudentsCount: number;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
-          Executive Analytics Center
+          التحليلات التنفيذية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          لوحة قيادة موحدة لصحة المدرسة والأداء الأكاديمي والتشغيلي.
+          ملخص صحة المدرسة والأداء.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AnalyticsMetric label="School Health" value={`${health.overall}%`} icon={<Gauge size={18} />} tone={health.level === "ممتاز" || health.level === "جيد" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
-        <AnalyticsMetric label="Academic Health" value={`${averageGrade}%`} icon={<GraduationCap size={18} />} tone="blue" />
-        <AnalyticsMetric label="Attendance Health" value={`${attendanceRate}%`} icon={<CalendarCheck size={18} />} tone="teal" />
-        <AnalyticsMetric label="Risk Students" value={riskStudentsCount} icon={<ShieldAlert size={18} />} tone={riskStudentsCount > 0 ? "red" : "green"} />
+        <AnalyticsMetric label="صحة المدرسة" value={`${health.overall}%`} icon={<Gauge size={18} />} tone={health.level === "ممتاز" || health.level === "جيد" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <AnalyticsMetric label="الصحة الأكاديمية" value={`${averageGrade}%`} icon={<GraduationCap size={18} />} tone="primary" />
+        <AnalyticsMetric label="صحة الحضور" value={`${attendanceRate}%`} icon={<CalendarCheck size={18} />} tone="primary" />
+        <AnalyticsMetric label="طلاب المخاطر" value={riskStudentsCount} icon={<ShieldAlert size={18} />} tone={riskStudentsCount > 0 ? "red" : "green"} />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1781,14 +1772,14 @@ function AnalyticsSmartInsights({
   insights: AnalyticsInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
           <BrainCircuit size={20} />
-          AI Analytics Insights
+          الرؤى الذكية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          توصيات آلية مبنية على المؤشرات الحالية.
+          توصيات مبنية على المؤشرات.
         </p>
       </div>
 
@@ -1796,9 +1787,9 @@ function AnalyticsSmartInsights({
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1820,18 +1811,18 @@ function SchoolHealthPanel({
   health: SchoolHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">School Health Index</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">صحة المدرسة Index</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشر مركب لصحة المدرسة.
       </p>
 
       <div className="mt-5 space-y-4">
-        <AnalyticsProgress label="الأكاديمي" value={health.academic} total={100} tone="blue" suffix="%" />
+        <AnalyticsProgress label="الأكاديمي" value={health.academic} total={100} tone="primary" suffix="%" />
         <AnalyticsProgress label="الحضور" value={health.attendance} total={100} tone="green" suffix="%" />
-        <AnalyticsProgress label="السلوك" value={health.behavior} total={100} tone="teal" suffix="%" />
+        <AnalyticsProgress label="السلوك" value={health.behavior} total={100} tone="primary" suffix="%" />
         <AnalyticsProgress label="المشاركة" value={health.engagement} total={100} tone="gold" suffix="%" />
-        <AnalyticsProgress label="جودة البيانات" value={health.dataQuality} total={100} tone="blue" suffix="%" />
+        <AnalyticsProgress label="جودة البيانات" value={health.dataQuality} total={100} tone="primary" suffix="%" />
       </div>
     </section>
   );
@@ -1845,10 +1836,10 @@ function SubjectAnalyticsPanel({
   onDrilldown: (item: SubjectPerformance) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
         <BarChart3 size={20} />
-        Subject Analytics
+        تحليل المواد
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         أفضل وأضعف المواد حسب المتوسط.
@@ -1860,14 +1851,14 @@ function SubjectAnalyticsPanel({
             key={item.subject}
             type="button"
             onClick={() => onDrilldown(item)}
-            className="w-full rounded-2xl bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+            className="w-full rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
           >
             <div className="flex items-center justify-between gap-3">
               <span className="font-black text-[var(--app-text)]">{item.subject}</span>
-              <span className="text-sm font-black text-[var(--app-teal)]">{item.average}%</span>
+              <span className="text-sm font-black text-[var(--app-primary)]">{item.average}%</span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--app-card)]">
-              <div className="h-full rounded-full bg-[var(--app-teal)]" style={{ width: `${item.average}%` }} />
+              <div className="h-full rounded-full bg-[var(--app-primary)]" style={{ width: `${item.average}%` }} />
             </div>
           </button>
         ))}
@@ -1888,13 +1879,13 @@ function StageAnalyticsPanel({
   onDrilldown: (item: StagePerformance) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
         <ChartNoAxesCombined size={20} />
-        Stage Analytics
+        تحليل المراحل
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        مقارنة المراحل حسب التحصيل والحضور.
+        مقارنة التحصيل والحضور.
       </p>
 
       <div className="mt-5 space-y-3">
@@ -1903,7 +1894,7 @@ function StageAnalyticsPanel({
             key={item.stage}
             type="button"
             onClick={() => onDrilldown(item)}
-            className="w-full rounded-2xl bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+            className="w-full rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
           >
             <div className="flex items-center justify-between gap-3">
               <span className="font-black text-[var(--app-text)]">{item.stage}</span>
@@ -1929,20 +1920,20 @@ function MonthlyTrendPanel({
   items: Array<{ label: string; present: number; absent: number; late: number }>;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
         <TrendingUp size={20} />
-        Monthly Trend Analysis
+        الاتجاه الشهري
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        اتجاه الحضور والغياب والتأخر خلال الأشهر الأخيرة.
+        اتجاه الحضور خلال الأشهر الأخيرة.
       </p>
 
       <div className="mt-5 space-y-3">
         {items.map((item) => {
           const total = item.present + item.absent + item.late;
           return (
-            <div key={item.label} className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+            <div key={item.label} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-black text-[var(--app-text)]">{item.label}</span>
                 <span className="text-xs text-[var(--app-text-muted)]">
@@ -1974,10 +1965,10 @@ function PredictiveAnalyticsPanel({
   const low = students.filter((item) => item.riskLabel === "منخفض").length;
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
         <Brain size={20} />
-        Predictive Analytics
+        التحليل التنبؤي
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         قراءة تنبؤية مبنية على المؤشرات المتاحة.
@@ -1986,10 +1977,10 @@ function PredictiveAnalyticsPanel({
       <div className="mt-5 space-y-4">
         <AnalyticsProgress label="خطر مرتفع" value={high} total={Math.max(1, students.length)} tone="red" />
         <AnalyticsProgress label="خطر متوسط" value={medium} total={Math.max(1, students.length)} tone="gold" />
-        <AnalyticsProgress label="خطر منخفض" value={low} total={Math.max(1, students.length)} tone="blue" />
+        <AnalyticsProgress label="خطر منخفض" value={low} total={Math.max(1, students.length)} tone="primary" />
       </div>
 
-      <div className="mt-5 rounded-2xl bg-[var(--app-card-soft)] p-4">
+      <div className="mt-5 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
         <p className="text-xs font-bold text-[var(--app-text-muted)]">توقع الأداء القادم</p>
         <p className="mt-1 text-2xl font-black text-[var(--app-text)]">
           {schoolHealth.overall >= 80 ? "اتجاه مستقر" : schoolHealth.overall >= 60 ? "تحسن مشروط" : "يحتاج تدخل"}
@@ -2007,23 +1998,23 @@ function AnalyticsDrilldownDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-text)_40%,transparent)] backdrop-blur-sm print:hidden" role="dialog" aria-modal="true" aria-label={data.title}>
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Analytics Drill-down</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{data.title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{data.subtitle}</p>
+            <p className="text-xs font-black text-[var(--app-accent)]">تفاصيل التحليل</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">{data.title}</h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">{data.subtitle}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
+          <button type="button" onClick={onClose} className="rounded-xl bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]">
             ×
           </button>
         </div>
 
         <div className="space-y-3">
           {data.items.map((item) => (
-            <div key={item} className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+            <div key={item} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-sm leading-7 text-[var(--app-text-muted)]">
               {item}
             </div>
           ))}
@@ -2045,8 +2036,8 @@ function AnalyticsMetric({
   tone: AnalyticsInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -2063,7 +2054,7 @@ function AnalyticsInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>

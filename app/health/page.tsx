@@ -3,11 +3,18 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
-import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryInsightCard from "@/components/ui/cards/SummaryCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -20,9 +27,7 @@ import {
   Activity,
   CheckCircle2,
   ClipboardList,
-  Download,
   HeartPulse,
-  Loader2,
   PlusCircle,
   Printer,
   RefreshCcw,
@@ -31,7 +36,6 @@ import {
   ShieldAlert,
   Stethoscope,
   Trash2,
-  XCircle,
 } from "lucide-react";
 
 type HealthReferral = {
@@ -145,22 +149,22 @@ const HEALTH_TABS: { key: HealthTab; title: string; icon: ReactNode }[] = [
   {
     key: "dashboard",
     title: "المؤشرات",
-    icon: <HeartPulse size={16} />,
+    icon: <HeartPulse size={16} aria-hidden="true" />,
   },
   {
     key: "referrals",
     title: "التحويلات الصحية",
-    icon: <ClipboardList size={16} />,
+    icon: <ClipboardList size={16} aria-hidden="true" />,
   },
   {
     key: "visits",
     title: "الزيارات الصحية",
-    icon: <Stethoscope size={16} />,
+    icon: <Stethoscope size={16} aria-hidden="true" />,
   },
   {
     key: "cases",
     title: "الحالات المزمنة",
-    icon: <ShieldAlert size={16} />,
+    icon: <ShieldAlert size={16} aria-hidden="true" />,
   },
 ];
 
@@ -197,16 +201,24 @@ const CASE_TYPES = [
 const SEVERITY_OPTIONS = ["منخفضة", "متوسطة", "عالية", "حرجة"];
 
 function getTodayDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offset * 60 * 1000);
+
+  return localDate.toISOString().slice(0, 10);
 }
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
 
-  return new Date(value).toLocaleString("ar-SA", {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("ar-SA", {
     dateStyle: "medium",
     timeStyle: "short",
-  });
+  }).format(date);
 }
 
 function getElapsedLabel(value?: string | null) {
@@ -243,19 +255,29 @@ function isHealthReferralStatus(status?: string | null) {
 }
 
 function getStatusStyle(status: string) {
-  if (["عاد للفصل", "مغلق", "مغلقة صحياً", "مكتملة", "مستقرة"].includes(status)) {
-    return "bg-[#07A869]/10 text-[#07A869]";
+  if (
+    ["عاد للفصل", "مغلق", "مغلقة صحياً", "مكتملة", "مستقرة"].includes(
+      status,
+    )
+  ) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
 
-  if (["تحت المتابعة", "يحتاج متابعة", "تحت المتابعة الصحية", "حرجة"].includes(status)) {
-    return "bg-red-50 text-red-700";
+  if (
+    ["تحت المتابعة", "يحتاج متابعة", "تحت المتابعة الصحية", "حرجة"].includes(
+      status,
+    )
+  ) {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
   }
 
-  if (["تحويل لولي الأمر", "تحويل لمركز صحي", "تم الكشف"].includes(status)) {
-    return "bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (
+    ["تحويل لولي الأمر", "تحويل لمركز صحي", "تم الكشف"].includes(status)
+  ) {
+    return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
   }
 
-  return "bg-[#C1B489]/20 text-[#15445A]";
+  return "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
 }
 export default function HealthPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
@@ -304,13 +326,23 @@ export default function HealthPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+
+      window.setTimeout(() => {
+        setToast(null);
+      }, 3000);
+    },
+    [],
+  );
 
   const fetchData = useCallback(async () => {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) {
+      setLoading(false);
+      setErrorMsg("لا توجد مدرسة مرتبطة بالحساب.");
+      return;
+    }
 
     setLoading(true);
     setErrorMsg("");
@@ -407,8 +439,10 @@ export default function HealthPage() {
   }, [currentSchool?.id]);
 
   useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-  }, [currentSchool?.id, fetchData]);
+    if (schoolLoading) return;
+
+    void fetchData();
+  }, [fetchData, schoolLoading]);
 
   const studentMap = useMemo(() => {
     return new Map(students.map((student) => [student.id, student]));
@@ -1082,7 +1116,7 @@ export default function HealthPage() {
 
   function exportHealthPDF() {
     exportTableToPDF({
-      title: "تقرير بوابة الموجه الصحي",
+      title: "تقرير الصحة المدرسية",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: `تقرير صحي شامل ${getTodayDate()}`,
       headers: ["المؤشر", "القيمة"],
@@ -1150,7 +1184,7 @@ export default function HealthPage() {
     ];
 
     await exportTableToExcel({
-      title: "تقرير بوابة الموجه الصحي",
+      title: "تقرير الصحة المدرسية",
       schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
       subtitle: "السجلات الصحية الشاملة",
       headers: [
@@ -1185,16 +1219,14 @@ export default function HealthPage() {
     <RoleGuard allowedRoles={STAFF_ROLES}>
       <AppShell>
         <PageContainer size="wide" className="space-y-5">
-          <Breadcrumb />
-
           {toast && <ToastBox toast={toast} />}
 
           <PageHeader
             variant="hero"
-            title="بوابة الموجه الصحي"
-            description={`${currentSchool?.school_name || "منصة المدرسة الذكية"} — إدارة التحويلات الصحية، الزيارات اليومية، الحالات المزمنة، التنبيهات، السجل الزمني، والتقارير الصحية PDF و Excel.`}
+            title="الصحة المدرسية"
+            description={`${currentSchool?.school_name || "منصة المدرسة الذكية"} — التحويلات والزيارات والحالات الصحية.`}
             badge="الصحة المدرسية"
-            icon={<HeartPulse size={18} />}
+            icon={<HeartPulse size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الصحة المدرسية" },
@@ -1206,58 +1238,46 @@ export default function HealthPage() {
               { label: "تحت المتابعة", value: followUpCount },
             ]}
             stats={[
-              { label: "زيارات اليوم", value: todayVisitsCount, icon: <Stethoscope size={20} />, tone: "blue" },
-              { label: "الحالات النشطة", value: activeCasesCount, icon: <ShieldAlert size={20} />, tone: activeCasesCount > 0 ? "red" : "green" },
-              { label: "تحويلات مفتوحة", value: openReferralsCount, icon: <AlertCircle size={20} />, tone: openReferralsCount > 0 ? "gold" : "green" },
-              { label: "إجمالي السجلات", value: totalHealthRecords, icon: <HeartPulse size={20} />, tone: "teal" },
+              { label: "زيارات اليوم", value: todayVisitsCount, icon: <Stethoscope size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "الحالات النشطة", value: activeCasesCount, icon: <ShieldAlert size={20} aria-hidden="true" />, tone: activeCasesCount > 0 ? "red" : "green" },
+              { label: "تحويلات مفتوحة", value: openReferralsCount, icon: <AlertCircle size={20} aria-hidden="true" />, tone: openReferralsCount > 0 ? "gold" : "green" },
+              { label: "إجمالي السجلات", value: totalHealthRecords, icon: <HeartPulse size={20} aria-hidden="true" />, tone: "primary" },
             ]}
             actions={
               <>
-                <button
-                  onClick={() => void exportHealthExcel()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
+                <ExportButton onClick={() => void exportHealthExcel()}>
                   Excel
-                  <Download size={17} />
-                </button>
+                </ExportButton>
 
-                <button
+                <ExportButton
                   onClick={exportHealthPDF}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  icon={<Printer size={17} aria-hidden="true" />}
                 >
                   PDF
-                  <Printer size={17} />
-                </button>
+                </ExportButton>
 
-                <button
-                  onClick={() => void fetchData()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
+                <SecondaryButton onClick={() => void fetchData()}>
+                  <RefreshCcw size={17} aria-hidden="true" />
                   تحديث
-                  <RefreshCcw size={17} />
-                </button>
+                </SecondaryButton>
               </>
             }
           />
 
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg ? <ErrorState description={errorMsg} /> : null}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-            <ExecutiveCard title="زيارات اليوم" value={todayVisitsCount} subtitle="زيارات العيادة اليوم" icon={<Stethoscope size={22} />} tone="blue" progress={todayVisitsCount > 0 ? 100 : 0} />
-            <ExecutiveCard title="الحالات النشطة" value={activeCasesCount} subtitle="حالات صحية تحتاج متابعة" icon={<ShieldAlert size={22} />} tone={activeCasesCount > 0 ? "red" : "green"} progress={activeCasesCount > 0 ? 100 : 0} />
-            <ExecutiveCard title="تحويلات مفتوحة" value={openReferralsCount} subtitle="تحويلات لم تغلق بعد" icon={<AlertCircle size={22} />} tone={openReferralsCount > 0 ? "gold" : "green"} progress={openReferralsCount > 0 ? 100 : 0} />
-            <ExecutiveCard title="تحويلات مغلقة" value={closedReferralsCount} subtitle="تمت معالجتها" icon={<CheckCircle2 size={22} />} tone="green" />
-            <ExecutiveCard title="تحت المتابعة" value={followUpCount} subtitle="طلاب وحالات تحتاج متابعة" icon={<Activity size={22} />} tone={followUpCount > 0 ? "gold" : "green"} progress={followUpCount > 0 ? 100 : 0} />
-            <ExecutiveCard title="إجمالي السجلات" value={totalHealthRecords} subtitle="تحويلات وزيارات وحالات" icon={<HeartPulse size={22} />} tone="teal" />
+            <ExecutiveCard title="زيارات اليوم" value={todayVisitsCount} subtitle="زيارات العيادة اليوم" icon={<Stethoscope size={22} aria-hidden="true" />} tone="primary" progress={todayVisitsCount > 0 ? 100 : 0} />
+            <ExecutiveCard title="الحالات النشطة" value={activeCasesCount} subtitle="حالات صحية تحتاج متابعة" icon={<ShieldAlert size={22} aria-hidden="true" />} tone={activeCasesCount > 0 ? "red" : "green"} progress={activeCasesCount > 0 ? 100 : 0} />
+            <ExecutiveCard title="تحويلات مفتوحة" value={openReferralsCount} subtitle="تحويلات لم تغلق بعد" icon={<AlertCircle size={22} aria-hidden="true" />} tone={openReferralsCount > 0 ? "gold" : "green"} progress={openReferralsCount > 0 ? 100 : 0} />
+            <ExecutiveCard title="تحويلات مغلقة" value={closedReferralsCount} subtitle="تمت معالجتها" icon={<CheckCircle2 size={22} aria-hidden="true" />} tone="green" />
+            <ExecutiveCard title="تحت المتابعة" value={followUpCount} subtitle="طلاب وحالات تحتاج متابعة" icon={<Activity size={22} aria-hidden="true" />} tone={followUpCount > 0 ? "gold" : "green"} progress={followUpCount > 0 ? 100 : 0} />
+            <ExecutiveCard title="إجمالي السجلات" value={totalHealthRecords} subtitle="تحويلات وزيارات وحالات" icon={<HeartPulse size={22} aria-hidden="true" />} tone="primary" />
           </section>
 
           <SummaryInsightCard
-            title="الملخص التنفيذي للصحة المدرسية"
-            description="قراءة سريعة لحالة العيادة المدرسية والتحويلات والزيارات والحالات المزمنة."
+            title="الملخص التنفيذي"
+            description="ملخص التحويلات والزيارات والحالات."
             tone={followUpCount > 0 || openReferralsCount > 0 ? "gold" : "green"}
             items={[
               { label: "زيارات اليوم", value: todayVisitsCount },
@@ -1267,19 +1287,21 @@ export default function HealthPage() {
               { label: "تحت المتابعة", value: followUpCount },
               { label: "إجمالي السجلات", value: totalHealthRecords },
             ]}
-            footer="ترتبط هذه الصفحة بالحضور والتحويلات الصحية والتنبيهات والسجل الزمني للطالب."
+            footer="مرتبطة بالحضور والتنبيهات والسجل الزمني."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-2 shadow-[var(--app-shadow-sm)]">
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
               {HEALTH_TABS.map((tab) => (
                 <button
                   key={tab.key}
+                  type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${
+                  aria-pressed={activeTab === tab.key}
+                  className={`flex items-center justify-center gap-2 rounded-[var(--app-radius-lg)] px-4 py-3 text-sm font-black transition ${
                     activeTab === tab.key
-                      ? "bg-[#15445A] text-white"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                      ? "bg-[var(--app-primary)] text-[var(--app-text-inverse)]"
+                      : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:bg-[var(--app-card)]"
                   }`}
                 >
                   {tab.icon}
@@ -1289,17 +1311,17 @@ export default function HealthPage() {
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
             <div className="relative">
               <Search
                 size={18}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-subtle)]"
+              aria-hidden="true" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="بحث باسم الطالب أو الفصل أو التشخيص أو الملاحظة..."
-                className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm outline-none focus:border-[#0DA9A6]"
+                className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] py-3 pr-10 pl-4 text-sm outline-none focus:border-[var(--app-primary)]"
               />
             </div>
           </section>
@@ -1309,35 +1331,35 @@ export default function HealthPage() {
                 title="ملخص التحويلات"
                 value={unifiedReferrals.length}
                 description="إجمالي التحويلات الصحية المباشرة والمحولة من الوكيل/المرشد."
-                icon={<ClipboardList size={22} />}
+                icon={<ClipboardList size={22} aria-hidden="true" />}
               />
               <DashboardInfoCard
                 title="ملخص الزيارات"
                 value={healthVisits.length}
                 description="إجمالي زيارات العيادة الصحية المسجلة."
-                icon={<Stethoscope size={22} />}
+                icon={<Stethoscope size={22} aria-hidden="true" />}
               />
               <DashboardInfoCard
                 title="ملخص الحالات المزمنة"
                 value={healthCases.length}
                 description="إجمالي الحالات الصحية المزمنة أو المهمة."
-                icon={<ShieldAlert size={22} />}
+                icon={<ShieldAlert size={22} aria-hidden="true" />}
               />
             </section>
           )}
 
           {activeTab === "referrals" && (
             <>
-              <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-                <h2 className="mb-5 text-2xl font-black text-[#15445A]">
-                  إضافة تحويل صحي يدوي
+              <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
+                <h2 className="mb-5 text-2xl font-black text-[var(--app-text)]">
+                  إضافة تحويل صحي
                 </h2>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                   <select
                     value={newStudentId}
                     onChange={(event) => setNewStudentId(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {students.map((student) => (
                       <option key={student.id} value={student.id}>
@@ -1350,21 +1372,21 @@ export default function HealthPage() {
                     value={newReason}
                     onChange={(event) => setNewReason(event.target.value)}
                     placeholder="سبب التحويل"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newNotes}
                     onChange={(event) => setNewNotes(event.target.value)}
                     placeholder="ملاحظات أولية"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newReferralType}
                     onChange={(event) => setNewReferralType(event.target.value)}
                     placeholder="نوع التحويل"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
@@ -1373,26 +1395,25 @@ export default function HealthPage() {
                       setNewReferralDestination(event.target.value)
                     }
                     placeholder="جهة التحويل"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
-                  <button
+                  <PrimaryButton
                     onClick={() => void createReferral()}
-                    disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+                    loading={saving}
                   >
-                    <PlusCircle size={17} />
-                    {saving ? "جاري..." : "إضافة التحويل"}
-                  </button>
+                    <PlusCircle size={17} aria-hidden="true" />
+                    إضافة التحويل
+                  </PrimaryButton>
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+              <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
                 <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <select
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     <option value="all">كل الحالات</option>
                     {HEALTH_STATUS_OPTIONS.map((status) => (
@@ -1405,7 +1426,7 @@ export default function HealthPage() {
                   <select
                     value={sourceFilter}
                     onChange={(event) => setSourceFilter(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     <option value="all">كل المصادر</option>
                     <option value="health_referrals">تحويل صحي مباشر</option>
@@ -1423,9 +1444,9 @@ export default function HealthPage() {
                       return (
                         <div
                           key={key}
-                          className="rounded-3xl border border-slate-100 bg-slate-50 p-5"
+                          className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5"
                         >
-                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
+                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-subtle)]">
                             <span>
                               {item.source === "health_referrals"
                                 ? "تحويل صحي مباشر"
@@ -1444,29 +1465,29 @@ export default function HealthPage() {
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div className="flex-1">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-black text-[#15445A]">
+                                <h3 className="text-lg font-black text-[var(--app-text)]">
                                   {item.student_name}
                                 </h3>
                                 <StatusBadge status={item.status || "جديد"} />
                               </div>
 
-                              <p className="text-sm text-slate-600">
+                              <p className="text-sm text-[var(--app-text-muted)]">
                                 الفصل: {item.class_name || "-"}
                                 {item.section ? ` - ${item.section}` : ""}
                               </p>
 
-                              <p className="mt-2 text-sm leading-7 text-slate-600">
+                              <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
                                 السبب: {item.reason || "تحويل إلى العيادة الصحية"}
                               </p>
 
                               {item.referral_destination && (
-                                <p className="mt-1 text-xs font-bold text-slate-500">
+                                <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
                                   جهة التحويل: {item.referral_destination}
                                 </p>
                               )}
 
                               {item.source_teacher_name && (
-                                <p className="mt-1 text-xs text-slate-400">
+                                <p className="mt-1 text-xs text-[var(--app-text-subtle)]">
                                   من: {item.source_teacher_name} | المادة:{" "}
                                   {item.source_subject || "—"} | الحصة:{" "}
                                   {item.source_period_number || "—"}
@@ -1482,29 +1503,29 @@ export default function HealthPage() {
                                   }))
                                 }
                                 placeholder="اكتب الملاحظات الصحية أو الإجراء المتخذ..."
-                                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                                className="mt-3 min-h-24 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)]"
                               />
 
                               <div className="mt-2 flex flex-wrap gap-2">
-                                <button
+                                <PrimaryButton
+                                  size="sm"
                                   onClick={() => void updateReferralNotes(item)}
                                   disabled={updatingId === key}
-                                  className="inline-flex items-center gap-1 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
                                 >
-                                  <Save size={14} />
+                                  <Save size={14} aria-hidden="true" />
                                   حفظ الملاحظات
-                                </button>
+                                </PrimaryButton>
 
-                                <button
+                                <DangerButton
+                                  size="sm"
                                   onClick={() =>
                                     void deleteRecord(item.source, item.id)
                                   }
                                   disabled={updatingId === `delete-${item.id}`}
-                                  className="inline-flex items-center gap-1 rounded-2xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
+                                  icon={<Trash2 size={14} aria-hidden="true" />}
                                 >
-                                  <Trash2 size={14} />
                                   حذف
-                                </button>
+                                </DangerButton>
                               </div>
                             </div>
 
@@ -1515,7 +1536,7 @@ export default function HealthPage() {
                                   void updateReferralStatus(item, event.target.value)
                                 }
                                 disabled={updatingId === key}
-                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                                className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold outline-none focus:border-[var(--app-primary)]"
                               >
                                 {HEALTH_STATUS_OPTIONS.map((status) => (
                                   <option key={status} value={status}>
@@ -1536,8 +1557,8 @@ export default function HealthPage() {
 
           {activeTab === "visits" && (
             <>
-              <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-                <h2 className="mb-5 text-2xl font-black text-[#15445A]">
+              <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
+                <h2 className="mb-5 text-2xl font-black text-[var(--app-text)]">
                   تسجيل زيارة صحية
                 </h2>
 
@@ -1545,7 +1566,7 @@ export default function HealthPage() {
                   <select
                     value={newVisitStudentId}
                     onChange={(event) => setNewVisitStudentId(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {students.map((student) => (
                       <option key={student.id} value={student.id}>
@@ -1558,14 +1579,14 @@ export default function HealthPage() {
                     value={newVisitSymptoms}
                     onChange={(event) => setNewVisitSymptoms(event.target.value)}
                     placeholder="الأعراض"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newVisitDiagnosis}
                     onChange={(event) => setNewVisitDiagnosis(event.target.value)}
                     placeholder="التشخيص"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
@@ -1574,7 +1595,7 @@ export default function HealthPage() {
                       setNewVisitTemperature(event.target.value)
                     }
                     placeholder="الحرارة"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
@@ -1583,27 +1604,27 @@ export default function HealthPage() {
                       setNewVisitBloodPressure(event.target.value)
                     }
                     placeholder="ضغط الدم"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newVisitTreatment}
                     onChange={(event) => setNewVisitTreatment(event.target.value)}
                     placeholder="العلاج / الإجراء"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newVisitNotes}
                     onChange={(event) => setNewVisitNotes(event.target.value)}
                     placeholder="ملاحظات"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <select
                     value={newVisitStatus}
                     onChange={(event) => setNewVisitStatus(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {VISIT_STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
@@ -1612,17 +1633,16 @@ export default function HealthPage() {
                     ))}
                   </select>
 
-                  <button
+                  <PrimaryButton
                     onClick={() => void createHealthVisit()}
-                    disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+                    loading={saving}
                   >
-                    <PlusCircle size={17} />
+                    <PlusCircle size={17} aria-hidden="true" />
                     تسجيل الزيارة
-                  </button>
+                  </PrimaryButton>
                 </div>
               </section>
-                            <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+                            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
                 {filteredVisits.length === 0 ? (
                   <EmptyBox text="لا توجد زيارات صحية حالياً." />
                 ) : (
@@ -1634,9 +1654,9 @@ export default function HealthPage() {
                       return (
                         <div
                           key={item.id}
-                          className="rounded-3xl border border-slate-100 bg-slate-50 p-5"
+                          className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5"
                         >
-                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
+                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-subtle)]">
                             <span>زيارة صحية</span>
                             <span>•</span>
                             <span>{formatDate(item.created_at || item.visit_date)}</span>
@@ -1647,13 +1667,13 @@ export default function HealthPage() {
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div className="flex-1">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-black text-[#15445A]">
+                                <h3 className="text-lg font-black text-[var(--app-text)]">
                                   {student?.full_name || "طالب غير معروف"}
                                 </h3>
                                 <StatusBadge status={item.visit_status || "مكتملة"} />
                               </div>
 
-                              <p className="text-sm text-slate-600">
+                              <p className="text-sm text-[var(--app-text-muted)]">
                                 الفصل: {student?.classroom || "-"}
                                 {student?.section ? ` - ${student.section}` : ""}
                               </p>
@@ -1679,29 +1699,29 @@ export default function HealthPage() {
                                   }))
                                 }
                                 placeholder="ملاحظات الزيارة..."
-                                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                                className="mt-3 min-h-24 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)]"
                               />
 
                               <div className="mt-2 flex flex-wrap gap-2">
-                                <button
+                                <PrimaryButton
+                                  size="sm"
                                   onClick={() => void updateVisitNotes(item)}
                                   disabled={updatingId === key}
-                                  className="inline-flex items-center gap-1 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
                                 >
-                                  <Save size={14} />
+                                  <Save size={14} aria-hidden="true" />
                                   حفظ الملاحظات
-                                </button>
+                                </PrimaryButton>
 
-                                <button
+                                <DangerButton
+                                  size="sm"
                                   onClick={() =>
                                     void deleteRecord("health_visits", item.id)
                                   }
                                   disabled={updatingId === `delete-${item.id}`}
-                                  className="inline-flex items-center gap-1 rounded-2xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
+                                  icon={<Trash2 size={14} aria-hidden="true" />}
                                 >
-                                  <Trash2 size={14} />
                                   حذف
-                                </button>
+                                </DangerButton>
                               </div>
                             </div>
 
@@ -1712,7 +1732,7 @@ export default function HealthPage() {
                                   void updateVisitStatus(item, event.target.value)
                                 }
                                 disabled={updatingId === key}
-                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                                className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold outline-none focus:border-[var(--app-primary)]"
                               >
                                 {VISIT_STATUS_OPTIONS.map((status) => (
                                   <option key={status} value={status}>
@@ -1733,16 +1753,16 @@ export default function HealthPage() {
 
           {activeTab === "cases" && (
             <>
-              <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-                <h2 className="mb-5 text-2xl font-black text-[#15445A]">
-                  تسجيل حالة صحية مزمنة
+              <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
+                <h2 className="mb-5 text-2xl font-black text-[var(--app-text)]">
+                  تسجيل حالة صحية
                 </h2>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
                   <select
                     value={newCaseStudentId}
                     onChange={(event) => setNewCaseStudentId(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {students.map((student) => (
                       <option key={student.id} value={student.id}>
@@ -1754,7 +1774,7 @@ export default function HealthPage() {
                   <select
                     value={newCaseType}
                     onChange={(event) => setNewCaseType(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {CASE_TYPES.map((type) => (
                       <option key={type} value={type}>
@@ -1766,7 +1786,7 @@ export default function HealthPage() {
                   <select
                     value={newCaseSeverity}
                     onChange={(event) => setNewCaseSeverity(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {SEVERITY_OPTIONS.map((severity) => (
                       <option key={severity} value={severity}>
@@ -1779,14 +1799,14 @@ export default function HealthPage() {
                     value={newCaseDiagnosis}
                     onChange={(event) => setNewCaseDiagnosis(event.target.value)}
                     placeholder="التشخيص"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newCaseMedications}
                     onChange={(event) => setNewCaseMedications(event.target.value)}
                     placeholder="الأدوية"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
@@ -1795,20 +1815,20 @@ export default function HealthPage() {
                       setNewCaseEmergencyContact(event.target.value)
                     }
                     placeholder="رقم الطوارئ"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <input
                     value={newCaseActionPlan}
                     onChange={(event) => setNewCaseActionPlan(event.target.value)}
                     placeholder="خطة التعامل"
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   />
 
                   <select
                     value={newCaseStatus}
                     onChange={(event) => setNewCaseStatus(event.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)]"
                   >
                     {CASE_STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
@@ -1817,18 +1837,17 @@ export default function HealthPage() {
                     ))}
                   </select>
 
-                  <button
+                  <PrimaryButton
                     onClick={() => void createHealthCase()}
-                    disabled={saving}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+                    loading={saving}
                   >
-                    <PlusCircle size={17} />
+                    <PlusCircle size={17} aria-hidden="true" />
                     تسجيل الحالة
-                  </button>
+                  </PrimaryButton>
                 </div>
               </section>
 
-              <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+              <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
                 {filteredHealthCases.length === 0 ? (
                   <EmptyBox text="لا توجد حالات صحية مزمنة حالياً." />
                 ) : (
@@ -1840,9 +1859,9 @@ export default function HealthPage() {
                       return (
                         <div
                           key={item.id}
-                          className="rounded-3xl border border-slate-100 bg-slate-50 p-5"
+                          className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5"
                         >
-                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-400">
+                          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-subtle)]">
                             <span>حالة صحية مزمنة</span>
                             <span>•</span>
                             <span>{formatDate(item.created_at)}</span>
@@ -1853,14 +1872,14 @@ export default function HealthPage() {
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div className="flex-1">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <h3 className="text-lg font-black text-[#15445A]">
+                                <h3 className="text-lg font-black text-[var(--app-text)]">
                                   {student?.full_name || "طالب غير معروف"}
                                 </h3>
                                 <StatusBadge status={item.case_status || "نشطة"} />
                                 <StatusBadge status={item.severity || "متوسطة"} />
                               </div>
 
-                              <p className="text-sm text-slate-600">
+                              <p className="text-sm text-[var(--app-text-muted)]">
                                 الفصل: {student?.classroom || "-"}
                                 {student?.section ? ` - ${student.section}` : ""}
                               </p>
@@ -1884,29 +1903,29 @@ export default function HealthPage() {
                                   }))
                                 }
                                 placeholder="خطة التعامل الصحي..."
-                                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                                className="mt-3 min-h-24 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)]"
                               />
 
                               <div className="mt-2 flex flex-wrap gap-2">
-                                <button
+                                <PrimaryButton
+                                  size="sm"
                                   onClick={() => void updateCaseActionPlan(item)}
                                   disabled={updatingId === key}
-                                  className="inline-flex items-center gap-1 rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
                                 >
-                                  <Save size={14} />
+                                  <Save size={14} aria-hidden="true" />
                                   حفظ الخطة
-                                </button>
+                                </PrimaryButton>
 
-                                <button
+                                <DangerButton
+                                  size="sm"
                                   onClick={() =>
                                     void deleteRecord("health_cases", item.id)
                                   }
                                   disabled={updatingId === `delete-${item.id}`}
-                                  className="inline-flex items-center gap-1 rounded-2xl bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
+                                  icon={<Trash2 size={14} aria-hidden="true" />}
                                 >
-                                  <Trash2 size={14} />
                                   حذف
-                                </button>
+                                </DangerButton>
                               </div>
                             </div>
 
@@ -1917,7 +1936,7 @@ export default function HealthPage() {
                                   void updateCaseStatus(item, event.target.value)
                                 }
                                 disabled={updatingId === key}
-                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                                className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold outline-none focus:border-[var(--app-primary)]"
                               >
                                 {CASE_STATUS_OPTIONS.map((status) => (
                                   <option key={status} value={status}>
@@ -1953,13 +1972,13 @@ function DashboardInfoCard({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3D7EB9]/10 text-[#3D7EB9]">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
         {icon}
       </div>
-      <p className="text-sm font-bold text-slate-500">{title}</p>
-      <h2 className="mt-2 text-4xl font-black text-[#15445A]">{value}</h2>
-      <p className="mt-3 text-sm leading-7 text-slate-500">{description}</p>
+      <p className="text-sm font-bold text-[var(--app-text-muted)]">{title}</p>
+      <h2 className="mt-2 text-4xl font-black text-[var(--app-text)]">{value}</h2>
+      <p className="mt-3 text-sm leading-7 text-[var(--app-text-muted)]">{description}</p>
     </div>
   );
 }
@@ -1972,9 +1991,9 @@ function MiniInfo({
   value?: string | number | null;
 }) {
   return (
-    <div className="rounded-2xl bg-white px-4 py-3 text-sm">
-      <p className="mb-1 text-xs font-bold text-slate-400">{label}</p>
-      <p className="font-bold text-slate-700">{value || "—"}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3 text-sm">
+      <p className="mb-1 text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="font-bold text-[var(--app-text)]">{value || "—"}</p>
     </div>
   );
 }
@@ -1993,36 +2012,26 @@ function StatusBadge({ status }: { status: string }) {
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-500">
-      {text}
-    </div>
+    <EmptyState
+      title="لا توجد نتائج"
+      description={text}
+      icon={<Search size={28} aria-hidden="true" />}
+    />
   );
 }
 
 function ToastBox({ toast }: { toast: Toast }) {
   return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-lg ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
+    <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))]">
       {toast.type === "success" ? (
-        <CheckCircle2 size={18} />
+        <SuccessBanner description={toast.message} />
       ) : (
-        <XCircle size={18} />
+        <ErrorState description={toast.message} />
       )}
-      {toast.message}
     </div>
   );
 }
 
 function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-[#15445A]" />
-        جاري تحميل العيادة الصحية...
-      </div>
-    </div>
-  );
+  return <PageLoader text="جاري تحميل العيادة الصحية..." />;
 }

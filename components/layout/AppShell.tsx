@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
+
 import AppHeader from "./AppHeader";
 import AppSidebar from "./AppSidebar";
 import Breadcrumb from "./Breadcrumb";
@@ -21,13 +22,20 @@ export default function AppShell({
 }: AppShellProps) {
   const alreadyInsideShell = useContext(AppShellContext);
 
-  if (alreadyInsideShell) return <>{children}</>;
+  if (alreadyInsideShell) {
+    return <>{children}</>;
+  }
 
   return (
-    <AppShellContext.Provider value={true}>
+    <AppShellContext.Provider value>
       <main
         dir="rtl"
-        className="min-h-screen overflow-x-hidden bg-[#F6F8FB] text-slate-950"
+        className="
+          min-h-screen overflow-x-hidden
+          bg-[var(--app-background)]
+          text-[var(--app-text)]
+          transition-colors duration-300
+        "
       >
         <div className="flex min-h-screen w-full overflow-x-hidden">
           <AppSidebar />
@@ -38,6 +46,7 @@ export default function AppShell({
             <div className="w-full px-3 py-4 sm:px-4 lg:px-6">
               <PageContainer>
                 {showBreadcrumb && <Breadcrumb />}
+
                 <div className="min-w-0">{children}</div>
               </PageContainer>
             </div>

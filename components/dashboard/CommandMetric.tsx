@@ -1,10 +1,53 @@
 import type { ReactNode } from "react";
 
-type CommandMetricProps = {
+import { StatusBadge } from "@/components/ui/badges";
+import { BaseCard } from "@/components/ui/cards";
+
+export type CommandMetricTone =
+  | "primary"
+  | "success"
+  | "warning"
+  | "danger"
+  | "info";
+
+export type CommandMetricProps = {
   icon: ReactNode;
   label: string;
   value: string | number;
   badge: string;
+  tone?: CommandMetricTone;
+  className?: string;
+};
+
+const badgeTones: Record<
+  CommandMetricTone,
+  "primary" | "success" | "warning" | "danger" | "info"
+> = {
+  primary: "primary",
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+};
+
+const iconStyles: Record<
+  CommandMetricTone,
+  string
+> = {
+  primary:
+    "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+
+  success:
+    "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+
+  warning:
+    "bg-[var(--app-warning-soft)] text-[var(--app-warning)]",
+
+  danger:
+    "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+
+  info:
+    "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
 };
 
 export default function CommandMetric({
@@ -12,10 +55,21 @@ export default function CommandMetric({
   label,
   value,
   badge,
+  tone = "primary",
+  className = "",
 }: CommandMetricProps) {
   return (
-    <div className="rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--app-primary-soft)] text-[var(--app-primary)]">
+    <BaseCard
+      as="article"
+      hoverable
+      className={className}
+    >
+      <div
+        className={[
+          "mb-3 flex h-11 w-11 items-center justify-center rounded-[var(--app-radius-lg)]",
+          iconStyles[tone],
+        ].join(" ")}
+      >
         {icon}
       </div>
 
@@ -27,9 +81,11 @@ export default function CommandMetric({
         {value}
       </p>
 
-      <span className="mt-2 inline-flex rounded-full bg-[var(--app-green-soft)] px-2.5 py-0.5 text-[11px] font-black text-[var(--app-green)]">
-        {badge}
-      </span>
-    </div>
+      <div className="mt-3">
+        <StatusBadge tone={badgeTones[tone]}>
+          {badge}
+        </StatusBadge>
+      </div>
+    </BaseCard>
   );
 }

@@ -31,10 +31,18 @@ import {
 } from "lucide-react";
 
 import AuthGuard from "@/components/auth/AuthGuard";
-import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import DangerButton from "@/components/ui/buttons/DangerButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import { PageLoader } from "@/components/ui/loading";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
@@ -88,7 +96,7 @@ type ClassroomAnalytics = {
 type ClassroomInsight = {
   title: string;
   description: string;
-  tone: "green" | "gold" | "red" | "blue" | "teal";
+  tone: "green" | "gold" | "red" | "primary" | "neutral";
   icon: ReactNode;
 };
 
@@ -179,27 +187,34 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: ClassroomInsight["tone"]) {
   const tones: Record<ClassroomInsight["tone"], string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
+
   return tones[tone];
 }
 
 function chartTone(tone: ClassroomInsight["tone"]) {
   const tones: Record<ClassroomInsight["tone"], string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
+
   return tones[tone];
 }
 
-function buildClassroomTimeline(classroom: ClassroomView | null) {
+function buildClassroomالسجل(classroom: ClassroomView | null) {
   if (!classroom) return [];
   return [
     `تاريخ الإضافة: ${formatDate(classroom.created_at)}`,
@@ -459,8 +474,8 @@ export default function ClassroomsPage() {
     const items: ClassroomInsight[] = [];
     if (stats.inactive > 0) items.push({ title: "فصول غير نشطة", description: `يوجد ${stats.inactive} فصل غير نشط ويحتاج إلى مراجعة.`, tone: "red", icon: <XCircle className="h-5 w-5" /> });
     if (analytics.withoutStage > 0) items.push({ title: "فصول بدون مرحلة", description: `${analytics.withoutStage} فصل غير مرتبط بمرحلة دراسية.`, tone: "gold", icon: <AlertTriangle className="h-5 w-5" /> });
-    if (analytics.withoutSection > 0) items.push({ title: "شعب غير مكتملة", description: `${analytics.withoutSection} فصل لا يحتوي على شعبة واضحة.`, tone: "blue", icon: <Building2 className="h-5 w-5" /> });
-    if (analytics.highCapacity > 0) items.push({ title: "سعة مرتفعة", description: `${analytics.highCapacity} فصل سعته 40 طالبًا أو أكثر.`, tone: "teal", icon: <UsersRound className="h-5 w-5" /> });
+    if (analytics.withoutSection > 0) items.push({ title: "شعب غير مكتملة", description: `${analytics.withoutSection} فصل لا يحتوي على شعبة واضحة.`, tone: "primary", icon: <Building2 className="h-5 w-5" /> });
+    if (analytics.highCapacity > 0) items.push({ title: "سعة مرتفعة", description: `${analytics.highCapacity} فصل سعته 40 طالبًا أو أكثر.`, tone: "primary", icon: <UsersRound className="h-5 w-5" /> });
     if (items.length === 0) items.push({ title: "حالة الفصول مستقرة", description: "لا توجد مؤشرات حرجة في الربط أو السعة أو الحالة.", tone: "green", icon: <CheckCircle2 className="h-5 w-5" /> });
     return items.slice(0, 4);
   }, [analytics, stats.inactive]);
@@ -692,12 +707,11 @@ export default function ClassroomsPage() {
   return (
     <AuthGuard>
       <PageContainer size="wide" className="space-y-5">
-        <Breadcrumb />
         {toast && <ToastBox toast={toast} />}
         <PageHeader
           variant="hero"
           title="الفصول الدراسية"
-          description={`${currentSchool.school_name} — إدارة الفصول وربطها بالمراحل والصفوف والمسارات، لتكون قاعدة للجداول والحضور والدرجات.`}
+          description={`${currentSchool.school_name} — إدارة الفصول والربط الأكاديمي.`}
           badge="الإدارة الأكاديمية"
           icon={<Building2 size={18} />}
           breadcrumbs={[
@@ -711,51 +725,42 @@ export default function ClassroomsPage() {
             { label: "إجمالي السعة", value: stats.totalCapacity },
           ]}
           stats={[
-            { label: "إجمالي الفصول", value: stats.total, icon: <Building2 size={20} />, tone: "blue" },
+            { label: "إجمالي الفصول", value: stats.total, icon: <Building2 size={20} />, tone: "primary" },
             { label: "فصول نشطة", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
             { label: "غير نشطة", value: stats.inactive, icon: <XCircle size={20} />, tone: stats.inactive > 0 ? "red" : "green" },
             { label: "إجمالي السعة", value: stats.totalCapacity, icon: <UsersRound size={20} />, tone: "gold" },
           ]}
           actions={
             <>
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={openCreateForm}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <Plus size={17} />
-                  إضافة فصل
-                </button>
-              )}
+              {canManage ? (
+                <PrimaryButton onClick={openCreateForm}>
+                  <Plus size={17} aria-hidden="true" />
+                  إضافة
+                </PrimaryButton>
+              ) : null}
 
-              <button
-                type="button"
-                onClick={exportExcel}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Download size={17} />
+              <ExportButton onClick={exportExcel}>
                 Excel
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <ExportButton
                 onClick={exportPDF}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                icon={<Printer size={17} aria-hidden="true" />}
               >
-                <Printer size={17} />
                 PDF
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <SecondaryButton
                 onClick={() => void loadData()}
                 disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
               >
-                <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
+                <RefreshCcw
+                  size={17}
+                  className={loading ? "animate-spin" : ""}
+                  aria-hidden="true"
+                />
                 تحديث
-              </button>
+              </SecondaryButton>
             </>
           }
         />
@@ -766,7 +771,7 @@ export default function ClassroomsPage() {
             value={stats.total}
             subtitle="كل الفصول المسجلة"
             icon={<Building2 size={22} />}
-            tone="blue"
+            tone="primary"
             progress={stats.total > 0 ? 100 : 0}
           />
           <ExecutiveCard
@@ -804,7 +809,7 @@ export default function ClassroomsPage() {
 
         <SummaryCard
           title="الملخص التنفيذي للفصول"
-          description="قراءة سريعة لحالة الفصول الدراسية وربطها بالمراحل والصفوف والمسارات والسعة التشغيلية."
+          description="ملخص الفصول والربط والسعة."
           tone={stats.inactive > 0 ? "gold" : "green"}
           items={[
             { label: "إجمالي الفصول", value: stats.total },
@@ -814,7 +819,7 @@ export default function ClassroomsPage() {
             { label: "المراحل المرتبطة", value: stats.stages },
             { label: "إجمالي السعة", value: stats.totalCapacity },
           ]}
-          footer="تستخدم الفصول في توزيع الطلاب والجداول والحضور والدرجات؛ لذلك يفضل ضبط المرحلة والصف والشعبة قبل اعتمادها."
+          footer="تحقق من المرحلة والصف والشعبة قبل الاعتماد."
         />
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -823,19 +828,19 @@ export default function ClassroomsPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <ClassroomChartsPanel total={stats.total} active={stats.active} inactive={stats.inactive} averageCapacity={analytics.averageCapacity} lowCapacity={analytics.lowCapacity} highCapacity={analytics.highCapacity} />
+          <ClassroomالمؤشراتPanel total={stats.total} active={stats.active} inactive={stats.inactive} averageCapacity={analytics.averageCapacity} lowCapacity={analytics.lowCapacity} highCapacity={analytics.highCapacity} />
           <ClassroomHealthPanel total={stats.total} withStage={stats.total - analytics.withoutStage} withGrade={stats.total - analytics.withoutGrade} withSection={stats.total - analytics.withoutSection} active={stats.active} />
           <ClassroomImportPanel />
         </section>
 
-        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+        <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden" aria-label="نموذج الفصل">
           <div className="mb-4">
             <h2 className="text-xl font-black text-[var(--app-text)]">البحث الذكي</h2>
             <p className="mt-1 text-sm text-[var(--app-text-muted)]">جرّب: فصول الأول الثانوي، فصول غير نشطة، فصول ممتلئة، فصول بدون مرحلة.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {["فصول الأول الثانوي", "فصول غير نشطة", "فصول ممتلئة", "فصول بدون مرحلة"].map((command) => (
-              <button key={command} type="button" onClick={() => runSmartSearch(command)} className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]">
+              <button key={command} type="button" onClick={() => runSmartSearch(command)} className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-primary)] hover:text-[var(--app-primary)]">
                 {command}
               </button>
             ))}
@@ -843,27 +848,23 @@ export default function ClassroomsPage() {
         </section>
 
         {formOpen && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden" aria-label="نموذج الفصل">
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {editingClassroom ? (
-                  <Edit3 className="text-[#C1B489]" />
+                  <Edit3 className="text-[var(--app-accent)]" />
                 ) : (
-                  <Plus className="text-[#C1B489]" />
+                  <Plus className="text-[var(--app-accent)]" />
                 )}
 
-                <h2 className="text-xl font-black text-[#15445A]">
+                <h2 className="text-xl font-black text-[var(--app-text)]">
                   {editingClassroom ? "تعديل فصل" : "إضافة فصل"}
                 </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold"
-              >
+              <SecondaryButton size="sm" onClick={closeForm}>
                 إغلاق
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -875,7 +876,7 @@ export default function ClassroomsPage() {
                     stage_id: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+                className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               >
                 <option value="">بدون مرحلة</option>
                 {activeStages.map((stage) => (
@@ -929,7 +930,7 @@ export default function ClassroomsPage() {
                 }
               />
 
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+              <label className="flex items-center gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-black text-[var(--app-text)]">
                 <input
                   type="checkbox"
                   checked={form.is_active}
@@ -945,28 +946,27 @@ export default function ClassroomsPage() {
               </label>
             </div>
 
-            <button
-              type="button"
+            <PrimaryButton
+              className="mt-5"
               onClick={() => void submitForm()}
-              disabled={saving}
-              className="mt-5 flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              loading={saving}
             >
-              <Save size={16} />
-              {saving ? "جاري الحفظ..." : "حفظ"}
-            </button>
+              <Save size={16} aria-hidden="true" />
+              حفظ
+            </PrimaryButton>
           </section>
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
             <div className="mb-5 flex flex-col gap-4 print:hidden">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">
+                  <h2 className="text-2xl font-black text-[var(--app-text)]">
                     قائمة الفصول
                   </h2>
 
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                     عرض {pagedRows.length} من {filteredRows.length} فصل
                   </p>
                 </div>
@@ -975,7 +975,7 @@ export default function ClassroomsPage() {
               <div className="grid w-full gap-3 lg:grid-cols-5">
                 <div className="relative lg:col-span-2">
                   <Search
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--app-text-subtle)]"
                     size={18}
                   />
 
@@ -983,14 +983,14 @@ export default function ClassroomsPage() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="ابحث باسم الفصل أو الصف أو المرحلة..."
-                    className="w-full rounded-2xl border border-slate-200 py-3 pl-4 pr-10 outline-none focus:border-[#0DA9A6]"
+                    className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] py-3 pl-4 pr-10 outline-none focus:border-[var(--app-primary)]"
                   />
                 </div>
 
                 <select
                   value={stageFilter}
                   onChange={(event) => setStageFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)]"
                 >
                   <option value="all">كل المراحل</option>
                   {activeStages.map((stage) => (
@@ -1003,7 +1003,7 @@ export default function ClassroomsPage() {
                 <select
                   value={gradeFilter}
                   onChange={(event) => setGradeFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)]"
                 >
                   <option value="all">كل الصفوف</option>
                   {grades.map((grade) => (
@@ -1020,7 +1020,7 @@ export default function ClassroomsPage() {
                       event.target.value as "all" | "active" | "inactive",
                     )
                   }
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)]"
                 >
                   <option value="all">كل الحالات</option>
                   <option value="active">نشط</option>
@@ -1031,7 +1031,7 @@ export default function ClassroomsPage() {
                   <select
                     value={trackFilter}
                     onChange={(event) => setTrackFilter(event.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6] lg:col-span-2"
+                    className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3 text-sm outline-none focus:border-[var(--app-primary)] lg:col-span-2"
                   >
                     <option value="all">كل المسارات</option>
                     {tracks.map((track) => (
@@ -1047,7 +1047,7 @@ export default function ClassroomsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1050px]">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+                  <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)] text-right text-sm text-[var(--app-text-muted)]">
                     <th className="rounded-r-2xl px-4 py-3">الفصل</th>
                     <th className="px-4 py-3">المرحلة</th>
                     <th className="px-4 py-3">الصف</th>
@@ -1066,13 +1066,13 @@ export default function ClassroomsPage() {
                     pagedRows.map((classroom) => (
                       <tr
                         key={classroom.id}
-                        className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
+                        className="border-b border-[var(--app-border)] text-sm transition hover:bg-[var(--app-card-soft)]"
                       >
                         <td className="px-4 py-3">
-                          <div className="font-black text-[#15445A]">
+                          <div className="font-black text-[var(--app-text)]">
                             {classroom.displayName}
                           </div>
-                          <div className="mt-1 text-xs font-bold text-slate-400">
+                          <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
                             رقم السجل: {classroom.id.slice(0, 8)}
                           </div>
                         </td>
@@ -1083,7 +1083,7 @@ export default function ClassroomsPage() {
                         <td className="px-4 py-3">{classroom.displaySection}</td>
 
                         <td className="px-4 py-3">
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                          <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
                             {classroom.displayCapacity}
                           </span>
                         </td>
@@ -1096,47 +1096,38 @@ export default function ClassroomsPage() {
 
                         <td className="px-4 py-3 print:hidden">
                           <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
+                            <IconButton
+                              icon={<Eye size={16} aria-hidden="true" />}
+                              label="عرض التفاصيل"
                               onClick={() => setSelectedClassroom(classroom)}
-                              className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
-                              title="عرض مختصر"
-                            >
-                              <Eye size={16} />
-                            </button>
+                            />
 
                             {canManage && (
                               <>
-                                <button
-                                  type="button"
+                                <IconButton
+                                  icon={<Edit3 size={16} aria-hidden="true" />}
+                                  label="تعديل"
+                                  tone="primary"
                                   onClick={() => openEditForm(classroom)}
-                                  className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/20"
-                                  title="تعديل"
-                                >
-                                  <Edit3 size={16} />
-                                </button>
+                                />
 
-                                <button
-                                  type="button"
-                                  onClick={() => void toggleActive(classroom)}
-                                  className="rounded-xl bg-[#C1B489]/20 p-2 text-[#15445A] hover:bg-[#C1B489]/30"
-                                  title={
+                                <IconButton
+                                  icon={<Power size={16} aria-hidden="true" />}
+                                  label={
                                     classroom.is_active === false
                                       ? "تفعيل"
                                       : "تعطيل"
                                   }
-                                >
-                                  <Power size={16} />
-                                </button>
+                                  tone="warning"
+                                  onClick={() => void toggleActive(classroom)}
+                                />
 
-                                <button
-                                  type="button"
+                                <DangerButton
+                                  size="icon"
+                                  aria-label="حذف الفصل"
                                   onClick={() => void removeClassroom(classroom)}
-                                  className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
-                                  title="حذف"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                  icon={<Trash2 size={16} aria-hidden="true" />}
+                                />
                               </>
                             )}
                           </div>
@@ -1147,21 +1138,23 @@ export default function ClassroomsPage() {
               </table>
 
               {loading && (
-                <div className="py-10 text-center text-slate-500">
+                <div className="py-10 text-center text-[var(--app-text-muted)]">
                   جاري تحميل الفصول الدراسية...
                 </div>
               )}
 
-              {!loading && filteredRows.length === 0 && (
-                <div className="py-10 text-center text-slate-500">
-                  لا توجد فصول مطابقة للبحث
-                </div>
-              )}
+              {!loading && filteredRows.length === 0 ? (
+                <EmptyState
+                  title="لا توجد نتائج"
+                  description="غيّر البحث أو الفلاتر."
+                  icon={<Search size={28} aria-hidden="true" />}
+                />
+              ) : null}
             </div>
 
             {!loading && filteredRows.length > 0 && (
               <div className="mt-5 flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[var(--app-text-muted)]">
                   عرض {pagedRows.length} من {filteredRows.length}
                 </p>
 
@@ -1170,12 +1163,12 @@ export default function ClassroomsPage() {
                     type="button"
                     onClick={() => setPage((value) => Math.max(1, value - 1))}
                     disabled={page === 1}
-                    className="rounded-xl border p-2 disabled:opacity-40"
+                    className="rounded-[var(--app-radius-md)] border p-2 disabled:opacity-40"
                   >
-                    <ChevronRight size={18} />
+                    <ChevronRight size={18} aria-hidden="true" />
                   </button>
 
-                  <span className="text-sm font-bold text-slate-700">
+                  <span className="text-sm font-bold text-[var(--app-text)]">
                     {page} / {totalPages}
                   </span>
 
@@ -1185,9 +1178,9 @@ export default function ClassroomsPage() {
                       setPage((value) => Math.min(totalPages, value + 1))
                     }
                     disabled={page === totalPages}
-                    className="rounded-xl border p-2 disabled:opacity-40"
+                    className="rounded-[var(--app-radius-md)] border p-2 disabled:opacity-40"
                   >
-                    <ChevronLeft size={18} />
+                    <ChevronLeft size={18} aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -1206,12 +1199,12 @@ export default function ClassroomsPage() {
 
 function ToastBox({ toast }: { toast: Toast }) {
   return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      <span>{toast.message}</span>
+    <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+      {toast.type === "success" ? (
+        <SuccessBanner description={toast.message} />
+      ) : (
+        <ErrorState description={toast.message} />
+      )}
     </div>
   );
 }
@@ -1233,7 +1226,7 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+      className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     />
   );
 }
@@ -1242,7 +1235,7 @@ function ClassroomStatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-black ${
-        active ? "bg-[#07A869]/10 text-[#07A869]" : "bg-red-50 text-red-700"
+        active ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]" : "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
       }`}
     >
       {active ? "نشط" : "غير نشط"}
@@ -1259,14 +1252,14 @@ function ClassroomSideCard({
 }) {
   if (!selectedClassroom) {
     return (
-      <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
+        <div className="flex min-h-[350px] items-center justify-center rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] text-center">
           <div>
-            <Building2 size={42} className="mx-auto text-[#C1B489]" />
-            <h3 className="mt-4 text-xl font-black text-[#15445A]">
+            <Building2 size={42} className="mx-auto text-[var(--app-accent)]" />
+            <h3 className="mt-4 text-xl font-black text-[var(--app-text)]">
               اختر فصلًا
             </h3>
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-[var(--app-text-muted)]">
               اضغط على أيقونة العين لعرض تفاصيل الفصل
             </p>
           </div>
@@ -1276,33 +1269,33 @@ function ClassroomSideCard({
   }
 
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-2xl font-black text-[#15445A]">
+        <h2 className="text-2xl font-black text-[var(--app-text)]">
           تفاصيل الفصل
         </h2>
 
         <button
           type="button"
           onClick={() => setSelectedClassroom(null)}
-          className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
+          className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)] hover:bg-[var(--app-border)]"
         >
           <X size={18} />
         </button>
       </div>
 
-      <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
+      <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-text)] p-5 text-[var(--app-text-inverse)]">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#C1B489] text-[#15445A]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] text-[var(--app-text)]">
             <Building2 size={28} />
           </div>
 
           <div>
-            <h3 className="text-2xl font-black text-[#C1B489]">
+            <h3 className="text-2xl font-black text-[var(--app-accent)]">
               {selectedClassroom.displayName}
             </h3>
 
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-[color-mix(in_srgb,var(--app-text-inverse)_70%,transparent)]">
               {selectedClassroom.displayGrade} — {selectedClassroom.displaySection}
             </p>
           </div>
@@ -1321,25 +1314,24 @@ function ClassroomSideCard({
         </div>
       </div>
 
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-500">ملاحظة تشغيلية</p>
-        <p className="mt-2 text-sm leading-7 text-slate-600">
-          هذا الفصل يستخدم في توزيع الطلاب، الجداول، الحضور، الدرجات، وإسناد
-          المعلمين. تأكد من صحة المرحلة والصف والشعبة قبل بناء الجداول.
+      <div className="mt-5 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+        <p className="text-sm font-bold text-[var(--app-text-muted)]">ملاحظة تشغيلية</p>
+        <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
+          تحقق من المرحلة والصف والشعبة قبل بناء الجداول.
         </p>
       </div>
 
       <div className="mt-5 space-y-3">
-        <ClassroomDrawerSection title="Overview" items={[`المرحلة: ${selectedClassroom.displayStage}`, `الصف: ${selectedClassroom.displayGrade}`, `المسار: ${selectedClassroom.displayTrack}`, `الشعبة: ${selectedClassroom.displaySection}`]} />
-        <ClassroomDrawerSection title="Students & Capacity" items={[`السعة المحددة: ${selectedClassroom.displayCapacity}`, "عدد الطلاب الفعلي: جاهز للربط من جدول الطلاب.", selectedClassroom.displayCapacity >= 40 ? "توصية: راجع كثافة الفصل." : "السعة ضمن النطاق التشغيلي المعتاد."]} />
-        <ClassroomDrawerSection title="Schedule & Teachers" items={["الجداول: جاهزة للربط من جدول الجداول.", "المعلمون: جاهزون للربط من إسناد المواد.", "الحضور والدرجات: يعتمدان على صحة ربط الفصل."]} />
-        <ClassroomDrawerSection title="Timeline" items={buildClassroomTimeline(selectedClassroom)} />
-        <ClassroomDrawerSection title="AI Recommendations" items={[!selectedClassroom.stage_id ? "اربط الفصل بمرحلة دراسية." : "ربط المرحلة مكتمل.", selectedClassroom.displaySection === "-" ? "أضف اسم الشعبة." : "بيانات الشعبة مكتملة.", selectedClassroom.is_active === false ? "راجع سبب تعطيل الفصل." : "الفصل نشط وجاهز للتشغيل."]} />
+        <ClassroomDrawerSection title="الملخص" items={[`المرحلة: ${selectedClassroom.displayStage}`, `الصف: ${selectedClassroom.displayGrade}`, `المسار: ${selectedClassroom.displayTrack}`, `الشعبة: ${selectedClassroom.displaySection}`]} />
+        <ClassroomDrawerSection title="الطلاب والسعة" items={[`السعة المحددة: ${selectedClassroom.displayCapacity}`, "عدد الطلاب الفعلي: جاهز للربط من جدول الطلاب.", selectedClassroom.displayCapacity >= 40 ? "توصية: راجع كثافة الفصل." : "السعة ضمن النطاق التشغيلي المعتاد."]} />
+        <ClassroomDrawerSection title="الجداول والمعلمون" items={["الجداول: جاهزة للربط من جدول الجداول.", "المعلمون: جاهزون للربط من إسناد المواد.", "الحضور والدرجات: يعتمدان على صحة ربط الفصل."]} />
+        <ClassroomDrawerSection title="السجل" items={buildClassroomالسجل(selectedClassroom)} />
+        <ClassroomDrawerSection title="التوصيات" items={[!selectedClassroom.stage_id ? "اربط الفصل بمرحلة دراسية." : "ربط المرحلة مكتمل.", selectedClassroom.displaySection === "-" ? "أضف اسم الشعبة." : "بيانات الشعبة مكتملة.", selectedClassroom.is_active === false ? "راجع سبب تعطيل الفصل." : "الفصل نشط وجاهز للتشغيل."]} />
       </div>
 
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
-        <p className="text-xs font-black text-slate-400">تاريخ الإضافة</p>
-        <p className="mt-2 font-black text-[#15445A]">
+      <div className="mt-5 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4">
+        <p className="text-xs font-black text-[var(--app-text-subtle)]">تاريخ الإضافة</p>
+        <p className="mt-2 font-black text-[var(--app-text)]">
           {formatDate(selectedClassroom.created_at)}
         </p>
       </div>
@@ -1349,32 +1341,27 @@ function ClassroomSideCard({
 
 function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
-      <p className="mt-1 truncate font-black text-white">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-card)_10%,transparent)] p-3">
+      <p className="text-xs text-[color-mix(in_srgb,var(--app-text-inverse)_70%,transparent)]">{title}</p>
+      <p className="mt-1 truncate font-black text-[var(--app-text-inverse)]">{value}</p>
     </div>
   );
 }
 
 function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
+  return <PageLoader text={text} />;
 }
 
 
 function ClassroomAnalyticsPanel({ analytics, totalClassrooms, totalCapacity, activeClassrooms }: { analytics: ClassroomAnalytics; totalClassrooms: number; totalCapacity: number; activeClassrooms: number; }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Classroom Analytics</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">تحليل توزيع المراحل والصفوف والمسارات والسعة.</p></div>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">تحليل الفصول</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">تحليل توزيع المراحل والصفوف والمسارات والسعة.</p></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ClassroomMetric label="إجمالي الفصول" value={totalClassrooms} icon={<Building2 size={18} />} tone="blue" />
+        <ClassroomMetric label="إجمالي الفصول" value={totalClassrooms} icon={<Building2 size={18} />} tone="primary" />
         <ClassroomMetric label="الفصول النشطة" value={activeClassrooms} icon={<CheckCircle2 size={18} />} tone="green" />
         <ClassroomMetric label="متوسط السعة" value={analytics.averageCapacity} icon={<UsersRound size={18} />} tone="gold" />
-        <ClassroomMetric label="إجمالي السعة" value={totalCapacity} icon={<BarChart3 size={18} />} tone="teal" />
+        <ClassroomMetric label="إجمالي السعة" value={totalCapacity} icon={<BarChart3 size={18} />} tone="primary" />
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
         <ClassroomMiniList title="توزيع المراحل" items={analytics.stageDistribution.slice(0,6).map((item)=>`${item.name} — ${item.count}`)} />
@@ -1386,23 +1373,23 @@ function ClassroomAnalyticsPanel({ analytics, totalClassrooms, totalCapacity, ac
 }
 
 function ClassroomInsightsPanel({ insights }: { insights: ClassroomInsight[] }) {
-  return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Smart Insights</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">توصيات تشغيلية مرتبطة بالسعة والربط والحالة.</p></div><div className="space-y-3">{insights.map((item)=><div key={item.title} className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>{item.icon}</div><div><p className="text-sm font-black text-[var(--app-text)]">{item.title}</p><p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p></div></div>)}</div></section>;
+  return <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">الرؤى الذكية</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">توصيات تشغيلية مرتبطة بالسعة والربط والحالة.</p></div><div className="space-y-3">{insights.map((item)=><div key={item.title} className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>{item.icon}</div><div><p className="text-sm font-black text-[var(--app-text)]">{item.title}</p><p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">{item.description}</p></div></div>)}</div></section>;
 }
 
-function ClassroomChartsPanel({ total, active, inactive, averageCapacity, lowCapacity, highCapacity }: { total:number; active:number; inactive:number; averageCapacity:number; lowCapacity:number; highCapacity:number; }) {
-  return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Charts</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">قراءة بصرية سريعة لحالة الفصول والسعة.</p></div><div className="space-y-4"><ClassroomProgress label="نشطة" value={active} total={Math.max(1,total)} tone="green"/><ClassroomProgress label="غير نشطة" value={inactive} total={Math.max(1,total)} tone="red"/><ClassroomProgress label="سعة منخفضة" value={lowCapacity} total={Math.max(1,total)} tone="gold"/><ClassroomProgress label="سعة مرتفعة" value={highCapacity} total={Math.max(1,total)} tone="blue"/><div className="rounded-2xl bg-[var(--app-card-soft)] p-3"><div className="mb-2 flex justify-between text-xs font-bold text-[var(--app-text-muted)]"><span>متوسط السعة</span><span>{averageCapacity}</span></div><div className="h-3 overflow-hidden rounded-full bg-[var(--app-card)]"><div className="h-full rounded-full bg-[var(--app-teal)]" style={{width:`${Math.min(100,Math.max(4,percentage(averageCapacity,40)))}%`}}/></div></div></div></section>;
+function ClassroomالمؤشراتPanel({ total, active, inactive, averageCapacity, lowCapacity, highCapacity }: { total:number; active:number; inactive:number; averageCapacity:number; lowCapacity:number; highCapacity:number; }) {
+  return <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">المؤشرات</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">قراءة بصرية سريعة لحالة الفصول والسعة.</p></div><div className="space-y-4"><ClassroomProgress label="نشطة" value={active} total={Math.max(1,total)} tone="green"/><ClassroomProgress label="غير نشطة" value={inactive} total={Math.max(1,total)} tone="red"/><ClassroomProgress label="سعة منخفضة" value={lowCapacity} total={Math.max(1,total)} tone="gold"/><ClassroomProgress label="سعة مرتفعة" value={highCapacity} total={Math.max(1,total)} tone="primary"/><div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3"><div className="mb-2 flex justify-between text-xs font-bold text-[var(--app-text-muted)]"><span>متوسط السعة</span><span>{averageCapacity}</span></div><div className="h-3 overflow-hidden rounded-full bg-[var(--app-card)]"><div className="h-full rounded-full bg-[var(--app-primary)]" style={{width:`${Math.min(100,Math.max(4,percentage(averageCapacity,40)))}%`}}/></div></div></div></section>;
 }
 
 function ClassroomHealthPanel({ total, withStage, withGrade, withSection, active }: { total:number; withStage:number; withGrade:number; withSection:number; active:number; }) {
-  return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Classroom Health</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">نسبة اكتمال البيانات والجاهزية التشغيلية.</p></div><div className="space-y-4"><ClassroomProgress label="ربط المرحلة" value={withStage} total={Math.max(1,total)} tone="green"/><ClassroomProgress label="اكتمال الصف" value={withGrade} total={Math.max(1,total)} tone="blue"/><ClassroomProgress label="اكتمال الشعبة" value={withSection} total={Math.max(1,total)} tone="teal"/><ClassroomProgress label="جاهزية التشغيل" value={active} total={Math.max(1,total)} tone="gold"/></div></section>;
+  return <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">صحة الفصول</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">نسبة اكتمال البيانات والجاهزية التشغيلية.</p></div><div className="space-y-4"><ClassroomProgress label="ربط المرحلة" value={withStage} total={Math.max(1,total)} tone="green"/><ClassroomProgress label="اكتمال الصف" value={withGrade} total={Math.max(1,total)} tone="primary"/><ClassroomProgress label="اكتمال الشعبة" value={withSection} total={Math.max(1,total)} tone="primary"/><ClassroomProgress label="جاهزية التشغيل" value={active} total={Math.max(1,total)} tone="gold"/></div></section>;
 }
 
-function ClassroomImportPanel(){ return <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">Import Classrooms</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">مساحة جاهزة لاستيراد الفصول من Excel أو نور أو CSV.</p></div><div className="rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 text-center"><Download className="mx-auto h-8 w-8 text-[var(--app-teal)]"/><p className="mt-3 text-sm font-black text-[var(--app-text)]">جاهز للربط مع مستورد الفصول</p><p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">يمكن ربط هذه البطاقة لاحقًا بمستورد بيانات نور أو ملف Excel.</p></div></section>; }
+function ClassroomImportPanel(){ return <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden" aria-label="نموذج الفصل"><div className="mb-4"><h2 className="text-xl font-black text-[var(--app-text)]">استيراد الفصول</h2><p className="mt-1 text-sm text-[var(--app-text-muted)]">مساحة جاهزة لاستيراد الفصول من Excel أو نور أو CSV.</p></div><div className="rounded-[var(--app-radius-xl)] border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 text-center"><Download className="mx-auto h-8 w-8 text-[var(--app-primary)]"/><p className="mt-3 text-sm font-black text-[var(--app-text)]">جاهز للربط مع مستورد الفصول</p><p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">يمكن ربط هذه البطاقة لاحقًا بمستورد بيانات نور أو ملف Excel.</p></div></section>; }
 
-function ClassroomMetric({label,value,icon,tone}:{label:string;value:string|number;icon:ReactNode;tone:ClassroomInsight["tone"]}){ return <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4"><div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>{icon}</div><p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p><p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p></div>; }
+function ClassroomMetric({label,value,icon,tone}:{label:string;value:string|number;icon:ReactNode;tone:ClassroomInsight["tone"]}){ return <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4"><div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>{icon}</div><p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p><p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p></div>; }
 
-function ClassroomMiniList({title,items}:{title:string;items:string[]}){ return <div className="rounded-3xl bg-[var(--app-card-soft)] p-4"><h3 className="mb-3 text-sm font-black text-[var(--app-text)]">{title}</h3><div className="space-y-2">{items.length===0?<p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات كافية.</p>:items.map((item)=><div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">{item}</div>)}</div></div>; }
+function ClassroomMiniList({title,items}:{title:string;items:string[]}){ return <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-4"><h3 className="mb-3 text-sm font-black text-[var(--app-text)]">{title}</h3><div className="space-y-2">{items.length===0?<p className="text-sm text-[var(--app-text-muted)]">لا توجد بيانات كافية.</p>:items.map((item)=><div key={item} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">{item}</div>)}</div></div>; }
 
 function ClassroomProgress({label,value,total,tone}:{label:string;value:number;total:number;tone:ClassroomInsight["tone"]}){ const width=Math.max(4,Math.round((value/total)*100)); return <div><div className="mb-1 flex justify-between text-xs font-bold text-[var(--app-text-muted)]"><span>{label}</span><span>{value}</span></div><div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]"><div className={`h-full rounded-full ${chartTone(tone)}`} style={{width:`${width}%`}}/></div></div>; }
 
-function ClassroomDrawerSection({title,items}:{title:string;items:string[]}){ return <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><p className="mb-2 text-sm font-black text-[#15445A]">{title}</p><div className="space-y-1">{items.map((item)=><p key={item} className="text-xs leading-6 text-slate-500">{item}</p>)}</div></div>; }
+function ClassroomDrawerSection({title,items}:{title:string;items:string[]}){ return <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4"><p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p><div className="space-y-1">{items.map((item)=><p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">{item}</p>)}</div></div>; }

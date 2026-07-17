@@ -20,39 +20,81 @@ export default function SidebarSection({
   onToggle,
   children,
 }: SidebarSectionProps) {
+  if (!expanded) {
+    return (
+      <div
+        className="
+          mx-auto my-2 h-px w-8
+          bg-gradient-to-l
+          from-transparent
+          via-[var(--app-sidebar-border)]
+          to-transparent
+        "
+      />
+    );
+  }
+
   return (
-    <div className="space-y-1">
-      {expanded ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex w-full items-center justify-between gap-2 rounded-2xl px-2.5 py-2 text-[11px] font-black text-[var(--sidebar-muted)] transition-all duration-200 hover:bg-[var(--sidebar-bg-soft)] hover:text-[var(--sidebar-text)]"
-        >
-          <span className="flex items-center gap-2">
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={opened}
+        className={[
+          "group flex w-full items-center justify-between gap-2",
+          "rounded-2xl px-3 py-2.5",
+          "text-[11px] font-black",
+          "transition-all duration-200",
+          opened
+            ? "bg-[var(--app-sidebar-active)] text-[var(--app-accent)]"
+            : "text-[var(--app-sidebar-muted)] hover:bg-[var(--app-sidebar-hover)] hover:text-[var(--app-sidebar-text)]",
+        ].join(" ")}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className={[
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-xl",
+              "border transition-colors duration-200",
+              opened
+                ? "border-[var(--app-accent-border)] bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
+                : "border-[var(--app-sidebar-border)] bg-white/5 text-[var(--app-sidebar-muted)] group-hover:text-[var(--app-sidebar-text)]",
+            ].join(" ")}
+          >
             <Icon size={14} />
-            {title}
           </span>
 
-          <span className="flex items-center gap-2">
-            {typeof count === "number" && (
-              <span className="rounded-full bg-[var(--sidebar-bg-soft)] px-2 py-0.5 text-[10px] text-[var(--sidebar-muted)]">
-                {count}
-              </span>
-            )}
+          <span className="truncate">{title}</span>
+        </span>
 
-            <ChevronDown
-              size={14}
-              className={`transition-transform duration-200 ${
-                opened ? "rotate-180" : ""
-              }`}
-            />
-          </span>
-        </button>
-      ) : (
-        <div className="mx-auto mb-2 h-px w-8 bg-gradient-to-l from-transparent via-[var(--sidebar-border)] to-transparent" />
+        <span className="flex shrink-0 items-center gap-2">
+          {typeof count === "number" && (
+            <span
+              className={[
+                "min-w-6 rounded-full px-2 py-0.5 text-center text-[10px]",
+                opened
+                  ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
+                  : "bg-white/5 text-[var(--app-sidebar-muted)]",
+              ].join(" ")}
+            >
+              {count}
+            </span>
+          )}
+
+          <ChevronDown
+            size={14}
+            className={[
+              "transition-transform duration-200",
+              opened ? "rotate-180 text-[var(--app-accent)]" : "",
+            ].join(" ")}
+          />
+        </span>
+      </button>
+
+      {opened && (
+        <div className="space-y-1 border-r border-[var(--app-sidebar-border)] pr-2">
+          {children}
+        </div>
       )}
-
-      {opened && <div className="space-y-1">{children}</div>}
     </div>
   );
 }

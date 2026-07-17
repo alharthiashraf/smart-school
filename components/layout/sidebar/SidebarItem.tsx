@@ -35,28 +35,62 @@ export default function SidebarItem({
   return (
     <div className="group/item relative flex items-center gap-1">
       {active && expanded && (
-        <span className="absolute -right-2 top-1/2 h-8 w-1 -translate-y-1/2 rounded-l-full bg-[var(--app-accent)] shadow-[0_0_18px_rgba(193,180,137,0.45)]" />
+        <span
+          className="
+            absolute -right-2 top-1/2
+            h-8 w-1
+            -translate-y-1/2
+            rounded-l-full
+            bg-[var(--app-accent)]
+            shadow-[0_0_18px_rgba(212,175,55,0.35)]
+          "
+        />
       )}
 
       <Link
         href={item.href}
         onClick={onNavigate}
         title={!expanded ? item.label : undefined}
+        aria-current={active ? "page" : undefined}
         className={[
-          "flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl transition-all duration-200 ease-out",
+          "flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl",
+          "transition-all duration-200 ease-out",
           expanded ? "px-2.5 py-2" : "justify-center px-2 py-2.5",
           active
-            ? "bg-[var(--app-accent)] text-slate-950 shadow-lg shadow-black/10"
-            : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-bg-soft)] hover:text-[var(--sidebar-text)]",
+            ? [
+                "border border-[var(--app-accent-border)]",
+                "bg-[var(--app-sidebar-active)]",
+                "text-[var(--app-accent)]",
+                "shadow-[var(--app-shadow-sm)]",
+              ].join(" ")
+            : [
+                "border border-transparent",
+                "text-[var(--app-sidebar-muted)]",
+                "hover:border-[var(--app-sidebar-border)]",
+                "hover:bg-[var(--app-sidebar-hover)]",
+                "hover:text-[var(--app-sidebar-text)]",
+              ].join(" "),
           compact ? "py-2" : "",
         ].join(" ")}
       >
         <span
           className={[
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+            "border transition-all duration-200",
             active
-              ? "bg-black/10 text-slate-950"
-              : "bg-[var(--sidebar-bg-soft)] text-current group-hover/item:bg-[var(--app-accent-soft)] group-hover/item:text-[var(--app-accent)]",
+              ? [
+                  "border-[var(--app-accent-border)]",
+                  "bg-[var(--app-accent-soft)]",
+                  "text-[var(--app-accent)]",
+                ].join(" ")
+              : [
+                  "border-[var(--app-sidebar-border)]",
+                  "bg-white/5",
+                  "text-current",
+                  "group-hover/item:border-[var(--app-accent-border)]",
+                  "group-hover/item:bg-[var(--app-accent-soft)]",
+                  "group-hover/item:text-[var(--app-accent)]",
+                ].join(" "),
           ].join(" ")}
         >
           <Icon size={18} className="shrink-0" />
@@ -70,7 +104,16 @@ export default function SidebarItem({
 
         {expanded && item.badge && (
           <span className="mr-auto">
-            <StatusBadge tone="primary" className="px-2 py-0.5 text-[10px]">
+            <StatusBadge
+              tone="primary"
+              className="
+                border border-[var(--app-accent-border)]
+                bg-[var(--app-accent-soft)]
+                px-2 py-0.5
+                text-[10px]
+                text-[var(--app-accent)]
+              "
+            >
               {item.badge}
             </StatusBadge>
           </span>
@@ -82,13 +125,25 @@ export default function SidebarItem({
           type="button"
           onClick={() => onToggleFavorite(item.href)}
           className={[
-            "hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all duration-200 group-hover/item:flex",
+            "hidden h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+            "border transition-all duration-200 group-hover/item:flex",
             favorite
-              ? "bg-[var(--app-accent-soft)] text-[var(--app-accent)]"
-              : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-bg-soft)] hover:text-[var(--sidebar-text)]",
+              ? [
+                  "border-[var(--app-accent-border)]",
+                  "bg-[var(--app-accent-soft)]",
+                  "text-[var(--app-accent)]",
+                ].join(" ")
+              : [
+                  "border-transparent",
+                  "text-[var(--app-sidebar-muted)]",
+                  "hover:border-[var(--app-sidebar-border)]",
+                  "hover:bg-[var(--app-sidebar-hover)]",
+                  "hover:text-[var(--app-sidebar-text)]",
+                ].join(" "),
           ].join(" ")}
           title={favorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
           aria-label={favorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+          aria-pressed={favorite}
         >
           {favorite ? <PinOff size={14} /> : <Pin size={14} />}
         </button>

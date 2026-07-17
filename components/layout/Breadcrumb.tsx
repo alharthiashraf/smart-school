@@ -47,16 +47,28 @@ export default function Breadcrumb() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
 
-  if (segments.length === 0 || pathname === "/dashboard") return null;
+  if (segments.length === 0 || pathname === "/dashboard") {
+    return null;
+  }
 
   return (
     <nav
-      className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-muted)]"
+      className="mb-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)]"
       aria-label="مسار الصفحة"
     >
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-1 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-[var(--app-text)] shadow-sm transition hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+        className="
+          inline-flex items-center gap-2
+          rounded-xl
+          border border-[var(--app-border)]
+          bg-[var(--app-card)]
+          px-4 py-2
+          shadow-sm
+          transition-all duration-200
+          hover:border-[var(--app-gold)]
+          hover:text-[var(--app-gold)]
+        "
       >
         <Home className="h-4 w-4" />
         الرئيسية
@@ -68,16 +80,32 @@ export default function Breadcrumb() {
 
         return (
           <span key={href} className="inline-flex items-center gap-2">
-            <ChevronLeft className="h-3.5 w-3.5 text-[var(--app-text-muted)]" />
+            <ChevronLeft className="h-4 w-4 text-[var(--app-text-muted)]" />
 
             {isLast ? (
-              <span className="rounded-2xl bg-[var(--app-teal-soft)] px-3 py-2 text-[var(--app-teal)]">
+              <span
+                className="
+                  rounded-xl
+                  bg-[var(--app-gold-soft)]
+                  px-4 py-2
+                  font-bold
+                  text-[var(--app-gold)]
+                "
+              >
                 {getPageName(segment)}
               </span>
             ) : (
               <Link
                 href={href}
-                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-[var(--app-text)] shadow-sm transition hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                className="
+                  rounded-xl
+                  border border-[var(--app-border)]
+                  bg-[var(--app-card)]
+                  px-4 py-2
+                  transition-all duration-200
+                  hover:border-[var(--app-gold)]
+                  hover:text-[var(--app-gold)]
+                "
               >
                 {getPageName(segment)}
               </Link>

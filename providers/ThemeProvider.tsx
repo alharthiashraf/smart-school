@@ -3,17 +3,19 @@
 import { ThemeProvider as NextThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 
+type ThemeProviderProps = {
+  children: ReactNode;
+};
+
 export default function ThemeProvider({
   children,
-}: {
-  children: ReactNode;
-}) {
+}: ThemeProviderProps) {
   return (
     <NextThemeProvider
-      attribute="data-theme"
-      defaultTheme="smart-light"
+      attribute="class"
+      defaultTheme="light"
       enableSystem={false}
-      themes={["smart-light", "smart-dark"]}
+      themes={["light", "dark"]}
       storageKey="smart-school-theme"
       disableTransitionOnChange
     >

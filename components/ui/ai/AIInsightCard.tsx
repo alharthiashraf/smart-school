@@ -7,7 +7,7 @@ export type AIInsightTone =
   | "warning"
   | "danger";
 
-type AIInsightCardProps = {
+export type AIInsightCardProps = {
   title?: string;
   description: string;
   icon?: ReactNode;
@@ -17,28 +17,47 @@ type AIInsightCardProps = {
   className?: string;
 };
 
-const styles: Record<
-  AIInsightTone,
-  {
-    container: string;
-    badge: string;
-  }
-> = {
+type AIInsightStyle = {
+  container: string;
+  icon: string;
+  badge: string;
+};
+
+const styles: Record<AIInsightTone, AIInsightStyle> = {
   info: {
-    container: "border-cyan-100 bg-cyan-50 text-cyan-900",
-    badge: "bg-cyan-100 text-cyan-800",
+    container:
+      "border-[var(--app-blue)]/20 bg-[var(--app-blue-soft)]",
+    icon:
+      "bg-[var(--app-card)] text-[var(--app-blue)]",
+    badge:
+      "bg-[var(--app-card)] text-[var(--app-blue)]",
   },
+
   success: {
-    container: "border-emerald-100 bg-emerald-50 text-emerald-900",
-    badge: "bg-emerald-100 text-emerald-800",
+    container:
+      "border-[var(--app-green)]/20 bg-[var(--app-green-soft)]",
+    icon:
+      "bg-[var(--app-card)] text-[var(--app-green)]",
+    badge:
+      "bg-[var(--app-card)] text-[var(--app-green)]",
   },
+
   warning: {
-    container: "border-amber-100 bg-amber-50 text-amber-900",
-    badge: "bg-amber-100 text-amber-800",
+    container:
+      "border-[var(--app-accent)]/25 bg-[var(--app-accent-soft)]",
+    icon:
+      "bg-[var(--app-card)] text-[var(--app-accent)]",
+    badge:
+      "bg-[var(--app-card)] text-[var(--app-accent)]",
   },
+
   danger: {
-    container: "border-rose-100 bg-rose-50 text-rose-900",
-    badge: "bg-rose-100 text-rose-800",
+    container:
+      "border-[var(--app-destructive)]/20 bg-[var(--app-destructive-soft)]",
+    icon:
+      "bg-[var(--app-card)] text-[var(--app-destructive)]",
+    badge:
+      "bg-[var(--app-card)] text-[var(--app-destructive)]",
   },
 };
 
@@ -49,35 +68,64 @@ export default function AIInsightCard({
   tone = "info",
   confidence,
   action,
-  className = "",
+  className,
 }: AIInsightCardProps) {
+  const normalizedConfidence =
+    typeof confidence === "number"
+      ? Math.max(0, Math.min(confidence, 100))
+      : null;
+
   return (
     <section
-      className={`rounded-3xl border p-5 shadow-sm ${styles[tone].container} ${className}`}
+      className={[
+        "rounded-[var(--app-radius-xl)] border p-5 text-[var(--app-text)] shadow-sm",
+        styles[tone].container,
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white">
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className={[
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] shadow-sm",
+              styles[tone].icon,
+            ].join(" ")}
+            aria-hidden="true"
+          >
             {icon ?? <Sparkles className="h-5 w-5" />}
           </div>
 
-          <div>
-            <h3 className="font-black">{title}</h3>
+          <div className="min-w-0">
+            <h3 className="font-black text-[var(--app-text)]">
+              {title}
+            </h3>
 
-            {confidence !== undefined && (
+            {normalizedConfidence !== null && (
               <span
-                className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${styles[tone].badge}`}
+                className={[
+                  "mt-1 inline-flex rounded-full border border-[var(--app-border)] px-2.5 py-1 text-[11px] font-black",
+                  styles[tone].badge,
+                ].join(" ")}
               >
-                درجة الثقة {confidence}%
+                درجة الثقة{" "}
+                <span className="mr-1" dir="ltr">
+                  {normalizedConfidence}%
+                </span>
               </span>
             )}
           </div>
         </div>
 
-        {action}
+        {action && (
+          <div className="shrink-0">
+            {action}
+          </div>
+        )}
       </div>
 
-      <p className="mt-4 text-sm leading-7 opacity-90">
+      <p className="mt-4 text-sm leading-7 text-[var(--app-text-muted)]">
         {description}
       </p>
     </section>

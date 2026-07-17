@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Download,
   History,
   ListChecks,
   Lock,
@@ -33,6 +32,9 @@ import {
 import * as XLSX from "xlsx";
 
 import AuthGuard from "@/components/auth/AuthGuard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
 import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import Section from "@/components/ui/page/PageSection";
@@ -100,7 +102,7 @@ type Toast = {
   message: string;
 };
 
-type GradeInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type GradeInsightTone = "primary" | "green" | "gold" | "red" | "neutral";
 
 type GradeSmartInsight = {
   title: string;
@@ -116,7 +118,6 @@ type GradeQuality = {
   dirtyEntries: number;
   approvedRate: number;
 };
-
 
 function normalizeText(value: unknown) {
   return String(value || "")
@@ -136,7 +137,11 @@ function getTeacherName(item: TeacherSubjectForGrades | null) {
 }
 
 function getSubjectName(item: TeacherSubjectForGrades | null) {
-  return item?.subjects?.subject_name || item?.subjects?.subject_code || "مادة غير محددة";
+  return (
+    item?.subjects?.subject_name ||
+    item?.subjects?.subject_code ||
+    "مادة غير محددة"
+  );
 }
 
 function getClassroomName(item: TeacherSubjectForGrades | null) {
@@ -148,7 +153,12 @@ function teacherSubjectLabel(item: TeacherSubjectForGrades) {
 }
 
 function studentName(student: StudentForGrades) {
-  return student.full_name || student.national_id || student.student_number || "طالب بدون اسم";
+  return (
+    student.full_name ||
+    student.national_id ||
+    student.student_number ||
+    "طالب بدون اسم"
+  );
 }
 
 function statusLabel(status?: GradeBookStatus | null) {
@@ -159,7 +169,7 @@ function statusLabel(status?: GradeBookStatus | null) {
     locked: "مقفل",
     reopened: "معاد فتحه",
   };
-  return status ? labels[status] ?? "غير مهيأ" : "غير مهيأ";
+  return status ? (labels[status] ?? "غير مهيأ") : "غير مهيأ";
 }
 
 function safeComponents(book: GradeBook | null) {
@@ -198,7 +208,11 @@ function calculateGrade(components: GradeComponent[], values: GradeValueMap) {
     maxTotal,
     percentage,
     grade_label: gradeLabel,
-    result_status: hasMissingRequired ? "غير مكتمل" : percentage >= 60 ? "ناجح" : "راسب",
+    result_status: hasMissingRequired
+      ? "غير مكتمل"
+      : percentage >= 60
+        ? "ناجح"
+        : "راسب",
   };
 }
 
@@ -224,23 +238,27 @@ function errorMessage(error: unknown, fallback: string) {
 
 function insightTone(tone: GradeInsightTone) {
   const tones: Record<GradeInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold: "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red: "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    neutral: "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
+
   return tones[tone];
 }
 
 function progressTone(tone: GradeInsightTone) {
   const tones: Record<GradeInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    primary: "bg-[var(--app-primary)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
+
   return tones[tone];
 }
 
@@ -248,9 +266,13 @@ function buildStudentRecommendations(entry: EditableEntry) {
   const recommendations: string[] = [];
 
   if (entry.percentage < 60) {
-    recommendations.push("إعداد خطة علاجية قصيرة ومراجعة عناصر التقييم منخفضة الأداء.");
+    recommendations.push(
+      "إعداد خطة علاجية قصيرة ومراجعة عناصر التقييم منخفضة الأداء.",
+    );
   } else if (entry.percentage < 75) {
-    recommendations.push("متابعة الطالب أسبوعيًا ورفع مستوى المشاركة والواجبات.");
+    recommendations.push(
+      "متابعة الطالب أسبوعيًا ورفع مستوى المشاركة والواجبات.",
+    );
   } else if (entry.percentage >= 90) {
     recommendations.push("ترشيح الطالب لبرامج الإثراء والتحفيز.");
   }
@@ -267,7 +289,6 @@ function buildStudentRecommendations(entry: EditableEntry) {
     ? recommendations
     : ["لا توجد توصيات حرجة حاليًا، استمر في المتابعة الدورية."];
 }
-
 
 export default function GradesPage() {
   const {
@@ -304,7 +325,9 @@ export default function GradesPage() {
     currentRole === "school_admin";
 
   const [activeTab, setActiveTab] = useState<GradeTab>("subjects");
-  const [teacherSubjects, setTeacherSubjects] = useState<TeacherSubjectForGrades[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<
+    TeacherSubjectForGrades[]
+  >([]);
   const [selectedTeacherSubjectId, setSelectedTeacherSubjectId] = useState("");
   const [gradeBook, setGradeBook] = useState<GradeBook | null>(null);
   const [students, setStudents] = useState<StudentForGrades[]>([]);
@@ -318,21 +341,32 @@ export default function GradesPage() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<Toast | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState("");
-  const [selectedEntry, setSelectedEntry] = useState<EditableEntry | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<EditableEntry | null>(
+    null,
+  );
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selectedTeacherSubject = useMemo(
-    () => teacherSubjects.find((item) => item.id === selectedTeacherSubjectId) || null,
+    () =>
+      teacherSubjects.find((item) => item.id === selectedTeacherSubjectId) ||
+      null,
     [teacherSubjects, selectedTeacherSubjectId],
   );
 
   const components = useMemo(() => safeComponents(gradeBook), [gradeBook]);
   const activeAcademicYear =
-    gradeBook?.academic_year || selectedTeacherSubject?.academic_year || academicYear || "1447";
+    gradeBook?.academic_year ||
+    selectedTeacherSubject?.academic_year ||
+    academicYear ||
+    "1447";
   const activeSemester =
-    gradeBook?.semester || selectedTeacherSubject?.semester || semester || "الفصل الدراسي الأول";
-  const isLocked = gradeBook?.status === "locked" || gradeBook?.status === "approved";
+    gradeBook?.semester ||
+    selectedTeacherSubject?.semester ||
+    semester ||
+    "الفصل الدراسي الأول";
+  const isLocked =
+    gradeBook?.status === "locked" || gradeBook?.status === "approved";
   const editEnabled = canManage && !!gradeBook && !isLocked;
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
@@ -369,7 +403,8 @@ export default function GradesPage() {
     setSelectedTeacherSubjectId((current) => {
       if (current && list.some((item) => item.id === current)) return current;
       const preferred = list.find(
-        (item) => item.academic_year === academicYear && item.semester === semester,
+        (item) =>
+          item.academic_year === academicYear && item.semester === semester,
       );
       return preferred?.id || list[0]?.id || "";
     });
@@ -377,8 +412,14 @@ export default function GradesPage() {
   }, [academicYear, canView, currentSchool?.id, semester, showToast]);
 
   const buildEntries = useCallback(
-    (studentList: StudentForGrades[], book: GradeBook, savedEntries: GradeEntry[]) => {
-      const entryMap = new Map(savedEntries.map((entry) => [entry.student_id, entry]));
+    (
+      studentList: StudentForGrades[],
+      book: GradeBook,
+      savedEntries: GradeEntry[],
+    ) => {
+      const entryMap = new Map(
+        savedEntries.map((entry) => [entry.student_id, entry]),
+      );
       const bookComponents = safeComponents(book);
 
       return studentList.map((student) => {
@@ -419,36 +460,42 @@ export default function GradesPage() {
     setLoading(true);
 
     try {
-      const year = selectedTeacherSubject.academic_year || academicYear || "1447";
-      const sem = selectedTeacherSubject.semester || semester || "الفصل الدراسي الأول";
+      const year =
+        selectedTeacherSubject.academic_year || academicYear || "1447";
+      const sem =
+        selectedTeacherSubject.semester || semester || "الفصل الدراسي الأول";
 
-      const [studentsResult, bookResult, conductScoresResult, conductEventsResult] =
-        await Promise.all([
-          GradesService.getStudents({
-            schoolId: currentSchool.id,
-            classroomId: selectedTeacherSubject.classroom_id,
-          }),
-          GradesService.ensureGradeBook({
-            school_id: currentSchool.id,
-            teacher_subject_id: selectedTeacherSubject.id,
-            teacher_id: selectedTeacherSubject.teacher_id,
-            subject_id: selectedTeacherSubject.subject_id,
-            classroom_id: selectedTeacherSubject.classroom_id,
-            academic_year: year,
-            semester: sem,
-            components: DEFAULT_COMPONENTS,
-          }),
-          GradesService.getConductScores({
-            schoolId: currentSchool.id,
-            academicYear: year,
-            semester: sem,
-          }),
-          GradesService.getConductEvents({
-            schoolId: currentSchool.id,
-            academicYear: year,
-            semester: sem,
-          }),
-        ]);
+      const [
+        studentsResult,
+        bookResult,
+        conductScoresResult,
+        conductEventsResult,
+      ] = await Promise.all([
+        GradesService.getStudents({
+          schoolId: currentSchool.id,
+          classroomId: selectedTeacherSubject.classroom_id,
+        }),
+        GradesService.ensureGradeBook({
+          school_id: currentSchool.id,
+          teacher_subject_id: selectedTeacherSubject.id,
+          teacher_id: selectedTeacherSubject.teacher_id,
+          subject_id: selectedTeacherSubject.subject_id,
+          classroom_id: selectedTeacherSubject.classroom_id,
+          academic_year: year,
+          semester: sem,
+          components: DEFAULT_COMPONENTS,
+        }),
+        GradesService.getConductScores({
+          schoolId: currentSchool.id,
+          academicYear: year,
+          semester: sem,
+        }),
+        GradesService.getConductEvents({
+          schoolId: currentSchool.id,
+          academicYear: year,
+          semester: sem,
+        }),
+      ]);
 
       if (studentsResult.error) throw new Error(studentsResult.error);
       if (bookResult.error) throw new Error(bookResult.error);
@@ -492,6 +539,14 @@ export default function GradesPage() {
   }, [schoolLoading, selectedTeacherSubjectId, loadGradeBook]);
 
   useEffect(() => {
+    return () => {
+      if (autosaveTimer.current) {
+        clearTimeout(autosaveTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     setPage(1);
   }, [activeTab, search, statusFilter]);
 
@@ -523,7 +578,9 @@ export default function GradesPage() {
       return;
     }
 
-    setEntries((current) => current.map((entry) => ({ ...entry, dirty: false })));
+    setEntries((current) =>
+      current.map((entry) => ({ ...entry, dirty: false })),
+    );
     setLastSavedAt(new Date().toLocaleTimeString("ar-SA"));
     showToast("success", "تم حفظ الدرجات بنجاح.");
     setSaving(false);
@@ -531,17 +588,27 @@ export default function GradesPage() {
 
   function scheduleAutosave(nextEntries: EditableEntry[]) {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => void saveDirtyEntries(nextEntries), 900);
+    autosaveTimer.current = setTimeout(
+      () => void saveDirtyEntries(nextEntries),
+      900,
+    );
   }
 
-  function updateScore(studentId: string, component: GradeComponent, rawValue: string) {
+  function updateScore(
+    studentId: string,
+    component: GradeComponent,
+    rawValue: string,
+  ) {
     if (!editEnabled) return;
 
     const nextEntries = entries.map((entry) => {
       if (entry.student.id !== studentId) return entry;
 
       const numericValue = rawValue === "" ? null : Number(rawValue);
-      const cleanValue = numericValue === null || Number.isFinite(numericValue) ? numericValue : null;
+      const cleanValue =
+        numericValue === null || Number.isFinite(numericValue)
+          ? numericValue
+          : null;
 
       const values: GradeValueMap = {
         ...entry.values,
@@ -573,7 +640,10 @@ export default function GradesPage() {
 
     setSaving(true);
     await saveDirtyEntries();
-    const result = await GradesService.updateStatus({ gradeBookId: gradeBook.id, status: nextStatus });
+    const result = await GradesService.updateStatus({
+      gradeBookId: gradeBook.id,
+      status: nextStatus,
+    });
     setSaving(false);
 
     if (result.error) {
@@ -592,7 +662,9 @@ export default function GradesPage() {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+        defval: "",
+      });
       const importedRows = normalizeImportedRows({ rows: rawRows, components });
 
       const nextEntries = entries.map((entry) => {
@@ -601,7 +673,8 @@ export default function GradesPage() {
           const nationalId = normalizeText(row.national_id);
           return (
             (name && name === normalizeText(studentName(entry.student))) ||
-            (nationalId && nationalId === normalizeText(entry.student.national_id))
+            (nationalId &&
+              nationalId === normalizeText(entry.student.national_id))
           );
         });
 
@@ -613,7 +686,9 @@ export default function GradesPage() {
           const imported = match.values?.[component.key];
 
           values[component.key] =
-            imported === undefined ? entry.values[component.key] ?? null : imported;
+            imported === undefined
+              ? (entry.values[component.key] ?? null)
+              : imported;
         }
 
         const calculation = calculateGrade(components, values);
@@ -668,7 +743,11 @@ export default function GradesPage() {
 
     const notes = window.prompt(
       "سبب العملية",
-      action === "increase" ? "تعزيز" : action === "decrease" ? "ملاحظة" : "تعديل يدوي",
+      action === "increase"
+        ? "تعزيز"
+        : action === "decrease"
+          ? "ملاحظة"
+          : "تعديل يدوي",
     );
     if (!notes?.trim()) {
       showToast("error", "سبب العملية مطلوب.");
@@ -684,7 +763,8 @@ export default function GradesPage() {
           : clamp(currentScore - points);
 
     const existing = conductScores.find(
-      (score) => score.student_id === student.id && score.score_type === scoreType,
+      (score) =>
+        score.student_id === student.id && score.score_type === scoreType,
     );
 
     setSaving(true);
@@ -701,7 +781,10 @@ export default function GradesPage() {
     });
 
     if (scoreResult.error || !scoreResult.data) {
-      showToast("error", scoreResult.error || "تعذر حفظ درجة السلوك أو المواظبة.");
+      showToast(
+        "error",
+        scoreResult.error || "تعذر حفظ درجة السلوك أو المواظبة.",
+      );
       setSaving(false);
       return;
     }
@@ -727,10 +810,15 @@ export default function GradesPage() {
     setConductScores((current) => [
       savedScore,
       ...current.filter(
-        (score) => !(score.student_id === savedScore.student_id && score.score_type === savedScore.score_type),
+        (score) =>
+          !(
+            score.student_id === savedScore.student_id &&
+            score.score_type === savedScore.score_type
+          ),
       ),
     ]);
-    if (eventResult.data) setConductEvents((current) => [eventResult.data!, ...current]);
+    if (eventResult.data)
+      setConductEvents((current) => [eventResult.data!, ...current]);
     setLastSavedAt(new Date().toLocaleTimeString("ar-SA"));
     showToast("success", "تم حفظ العملية بنجاح.");
     setSaving(false);
@@ -744,7 +832,8 @@ export default function GradesPage() {
         normalizeText(studentName(entry.student)).includes(text) ||
         normalizeText(entry.student.national_id).includes(text) ||
         normalizeText(entry.student.student_number).includes(text);
-      const matchesStatus = statusFilter === "all" || entry.result_status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || entry.result_status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [entries, search, statusFilter]);
@@ -764,21 +853,27 @@ export default function GradesPage() {
     [entries],
   );
 
-
   const quality = useMemo<GradeQuality>(() => {
     const total = Math.max(1, entries.length);
     const completed = entries.filter(
-      (entry) => entry.result_status !== "غير مكتمل" && entry.issues.length === 0,
+      (entry) =>
+        entry.result_status !== "غير مكتمل" && entry.issues.length === 0,
     ).length;
     const ungradedStudents = entries.filter(
-      (entry) => entry.total_score === 0 && Object.values(entry.values).every((value) => value === null || value === undefined),
+      (entry) =>
+        entry.total_score === 0 &&
+        Object.values(entry.values).every(
+          (value) => value === null || value === undefined,
+        ),
     ).length;
     const missingRequired = entries.filter(
       (entry) => entry.result_status === "غير مكتمل",
     ).length;
     const dirtyEntries = entries.filter((entry) => entry.dirty).length;
     const approvedRate =
-      gradeBook?.status === "approved" || gradeBook?.status === "locked" ? 100 : 0;
+      gradeBook?.status === "approved" || gradeBook?.status === "locked"
+        ? 100
+        : 0;
 
     return {
       completionRate: Math.round((completed / total) * 100),
@@ -797,7 +892,7 @@ export default function GradesPage() {
         title: "طلاب معرضون للتعثر",
         description: `يوجد ${analytics.weak} طالب في نطاق الخطر ويحتاجون إلى تدخل أكاديمي.`,
         tone: "red",
-        icon: <AlertTriangle className="h-5 w-5" />,
+        icon: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -806,7 +901,7 @@ export default function GradesPage() {
         title: "رصد غير مكتمل",
         description: `${quality.missingRequired} طالب لديهم عناصر تقييم إلزامية غير مكتملة.`,
         tone: "gold",
-        icon: <ListChecks className="h-5 w-5" />,
+        icon: <ListChecks className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -814,8 +909,8 @@ export default function GradesPage() {
       items.push({
         title: "نسبة النجاح تحتاج متابعة",
         description: `نسبة النجاح الحالية ${Math.round(analytics.passRate)}% وهي أقل من المستوى المستهدف.`,
-        tone: "blue",
-        icon: <BarChart3 className="h-5 w-5" />,
+        tone: "primary",
+        icon: <BarChart3 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -823,8 +918,8 @@ export default function GradesPage() {
       items.push({
         title: "تعديلات غير محفوظة",
         description: `يوجد ${quality.dirtyEntries} سجلًا بانتظار الحفظ أو الحفظ التلقائي.`,
-        tone: "teal",
-        icon: <Save className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Save className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -833,7 +928,7 @@ export default function GradesPage() {
         title: "الرصد مستقر",
         description: "لا توجد مؤشرات حرجة في الرصد الحالي.",
         tone: "green",
-        icon: <CheckCircle2 className="h-5 w-5" />,
+        icon: <CheckCircle2 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -841,22 +936,37 @@ export default function GradesPage() {
   }, [analytics.passRate, analytics.weak, entries.length, quality]);
 
   const behaviorRows = useMemo(
-    () => students.map((student) => {
-      const score = getConductScore(student.id, "behavior");
-      return { student, score, label: conductLabel(score), status: score >= 75 ? "مستقر" : "يحتاج متابعة" };
-    }),
+    () =>
+      students.map((student) => {
+        const score = getConductScore(student.id, "behavior");
+        return {
+          student,
+          score,
+          label: conductLabel(score),
+          status: score >= 75 ? "مستقر" : "يحتاج متابعة",
+        };
+      }),
     [getConductScore, students],
   );
 
   const attendanceRows = useMemo(
-    () => students.map((student) => {
-      const score = getConductScore(student.id, "attendance");
-      return { student, score, label: conductLabel(score), status: score >= 75 ? "منتظم" : "ضعيف المواظبة" };
-    }),
+    () =>
+      students.map((student) => {
+        const score = getConductScore(student.id, "attendance");
+        return {
+          student,
+          score,
+          label: conductLabel(score),
+          status: score >= 75 ? "منتظم" : "ضعيف المواظبة",
+        };
+      }),
     [getConductScore, students],
   );
 
-  const pagedEntries = filteredEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pagedEntries = filteredEntries.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE));
 
   function exportRows() {
@@ -871,26 +981,36 @@ export default function GradesPage() {
       }));
     }
 
-    return (activeTab === "behavior" ? behaviorRows : attendanceRows).map((row) => ({
-      student_name: studentName(row.student),
-      total_score: row.score,
-      max_score: 100,
-      percentage: row.score,
-      grade_label: row.label,
-      result_status: row.status,
-    }));
+    return (activeTab === "behavior" ? behaviorRows : attendanceRows).map(
+      (row) => ({
+        student_name: studentName(row.student),
+        total_score: row.score,
+        max_score: 100,
+        percentage: row.score,
+        grade_label: row.label,
+        result_status: row.status,
+      }),
+    );
   }
 
   function exportExcel() {
     GradingExport.excel(
-      activeTab === "behavior" ? "السلوك" : activeTab === "attendance" ? "المواظبة" : "رصد-الدرجات",
+      activeTab === "behavior"
+        ? "السلوك"
+        : activeTab === "attendance"
+          ? "المواظبة"
+          : "رصد-الدرجات",
       exportRows(),
     );
   }
 
   function exportPDF() {
     GradingExport.pdf(
-      activeTab === "behavior" ? "السلوك" : activeTab === "attendance" ? "المواظبة" : "رصد الدرجات",
+      activeTab === "behavior"
+        ? "السلوك"
+        : activeTab === "attendance"
+          ? "المواظبة"
+          : "رصد الدرجات",
       exportRows(),
     );
   }
@@ -898,7 +1018,11 @@ export default function GradesPage() {
   if (!canView) {
     return (
       <AuthGuard>
-        <EmptyState icon={<BookOpen size={28} />} title="لا تملك صلاحية الوصول" description="لا تملك صلاحية الوصول إلى الدرجات." />
+        <EmptyState
+          icon={<BookOpen size={28} aria-hidden="true" />}
+          title="لا تملك صلاحية الوصول"
+          description="لا تملك صلاحية الوصول إلى الدرجات."
+        />
       </AuthGuard>
     );
   }
@@ -914,7 +1038,10 @@ export default function GradesPage() {
   if (!currentSchool) {
     return (
       <AuthGuard>
-        <EmptyState title="لا توجد مدرسة مرتبطة" description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
+        <EmptyState
+          title="لا توجد مدرسة مرتبطة"
+          description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
+        />
       </AuthGuard>
     );
   }
@@ -934,71 +1061,85 @@ export default function GradesPage() {
 
         <PageHeader
           variant="hero"
-          title="الدرجات والسلوك والمواظبة"
-          description={`${currentSchool.school_name} — رصد درجات المواد والسلوك والمواظبة مع الحفظ التلقائي والاعتماد والتحليل والتصدير.`}
-          badge="نظام الدرجات النهائي"
-          icon={<BookOpen size={18} />}
+          title="مركز التقييم الأكاديمي"
+          description={`${currentSchool.school_name} — إدارة الدرجات والسلوك والمواظبة.`}
+          badge="التقييم الأكاديمي"
+          icon={<BookOpen size={18} aria-hidden="true" />}
           breadcrumbs={[
             { label: "لوحة التحكم", href: "/dashboard" },
             { label: "الدرجات" },
           ]}
-          lastUpdated={lastSavedAt ? `آخر حفظ ${lastSavedAt}` : "لم يتم الحفظ بعد"}
+          lastUpdated={
+            lastSavedAt ? `آخر حفظ ${lastSavedAt}` : "لم يتم الحفظ بعد"
+          }
           meta={[
             { label: "المدرسة", value: currentSchool.school_name },
             { label: "المادة", value: getSubjectName(selectedTeacherSubject) },
             { label: "الفصل", value: getClassroomName(selectedTeacherSubject) },
-            { label: "السنة والفصل", value: `${activeAcademicYear} · ${activeSemester}` },
+            {
+              label: "السنة والفصل",
+              value: `${activeAcademicYear} · ${activeSemester}`,
+            },
           ]}
           stats={[
-            { label: "الطلاب", value: students.length || entries.length, icon: <UsersRound size={20} />, tone: "blue" },
-            { label: "متوسط الدرجات", value: `${Math.round(analytics.averagePercentage)}%`, icon: <BarChart3 size={20} />, tone: "teal" },
-            { label: "نسبة النجاح", value: `${Math.round(analytics.passRate)}%`, icon: <CheckCircle2 size={20} />, tone: analytics.passRate >= 80 ? "green" : "gold" },
-            { label: "حالة الرصد", value: statusLabel(gradeBook?.status), icon: <Lock size={20} />, tone: isLocked ? "red" : "slate" },
+            {
+              label: "الطلاب",
+              value: students.length || entries.length,
+              icon: <UsersRound size={20} aria-hidden="true" />,
+              tone: "primary",
+            },
+            {
+              label: "متوسط الدرجات",
+              value: `${Math.round(analytics.averagePercentage)}%`,
+              icon: <BarChart3 size={20} aria-hidden="true" />,
+              tone: "primary",
+            },
+            {
+              label: "نسبة النجاح",
+              value: `${Math.round(analytics.passRate)}%`,
+              icon: <CheckCircle2 size={20} aria-hidden="true" />,
+              tone: analytics.passRate >= 80 ? "green" : "gold",
+            },
+            {
+              label: "حالة الرصد",
+              value: statusLabel(gradeBook?.status),
+              icon: <Lock size={20} aria-hidden="true" />,
+              tone: isLocked ? "red" : "slate",
+            },
           ]}
           actions={
             <>
-              <button
-                type="button"
-                onClick={() => void loadGradeBook()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <RefreshCcw size={17} />
+              <SecondaryButton onClick={() => void loadGradeBook()}>
+                <RefreshCcw size={17} aria-hidden="true" />
                 تحديث
-              </button>
+              </SecondaryButton>
 
-              {editEnabled && activeTab === "subjects" && (
-                <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                  <Upload size={17} />
+              {editEnabled && activeTab === "subjects" ? (
+                <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-bold text-[var(--app-text)] shadow-[var(--app-shadow-[var(--app-shadow-sm)])] transition hover:border-[var(--app-accent-border)] hover:bg-[var(--app-card-soft)] focus-within:ring-2 focus-within:ring-[var(--app-primary)]">
+                  <Upload size={17} aria-hidden="true" />
                   استيراد
                   <input
                     type="file"
                     accept=".xlsx,.xls,.csv"
-                    className="hidden"
+                    className="sr-only"
                     onChange={(event) => {
                       void importGrades(event.target.files?.[0] || null);
                       event.currentTarget.value = "";
                     }}
                   />
                 </label>
-              )}
+              ) : null}
 
-              <button
-                type="button"
-                onClick={exportExcel}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <Download size={17} />
-                Excel
-              </button>
+              <ExportButton onClick={exportExcel}>Excel</ExportButton>
 
-              <button
-                type="button"
+              <ExportButton
                 onClick={exportPDF}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0DA9A6] hover:shadow-md"
+                icon={
+                  <Printer size={17} aria-hidden="true" />
+                }
               >
-                <Printer size={17} />
                 PDF
-              </button>
+              </ExportButton>
             </>
           }
         />
@@ -1008,23 +1149,23 @@ export default function GradesPage() {
             title="الطلاب"
             value={students.length || entries.length}
             subtitle="إجمالي الطلاب في هذا الرصد"
-            icon={<UsersRound size={22} />}
-            tone="blue"
+            icon={<UsersRound size={22} aria-hidden="true" />}
+            tone="primary"
             progress={students.length || entries.length ? 100 : 0}
           />
           <ExecutiveCard
             title="المتوسط"
             value={`${Math.round(analytics.averagePercentage)}%`}
             subtitle="متوسط نسب الطلاب"
-            icon={<BarChart3 size={22} />}
-            tone="teal"
+            icon={<BarChart3 size={22} aria-hidden="true" />}
+            tone="primary"
             progress={Math.round(analytics.averagePercentage)}
           />
           <ExecutiveCard
             title="نسبة النجاح"
             value={`${Math.round(analytics.passRate)}%`}
             subtitle={`${analytics.passed} ناجح · ${analytics.failed} راسب`}
-            icon={<CheckCircle2 size={22} />}
+            icon={<CheckCircle2 size={22} aria-hidden="true" />}
             tone={analytics.passRate >= 80 ? "green" : "gold"}
             progress={Math.round(analytics.passRate)}
           />
@@ -1032,39 +1173,56 @@ export default function GradesPage() {
             title="المتفوقون"
             value={analytics.excellent}
             subtitle="طلاب بمستوى ممتاز"
-            icon={<ShieldCheck size={22} />}
+            icon={<ShieldCheck size={22} aria-hidden="true" />}
             tone="green"
           />
           <ExecutiveCard
             title="يحتاجون متابعة"
             value={analytics.weak}
             subtitle="طلاب في نطاق الخطر"
-            icon={<XCircle size={22} />}
+            icon={<XCircle size={22} aria-hidden="true" />}
             tone={analytics.weak > 0 ? "red" : "green"}
           />
           <ExecutiveCard
             title="حالة الرصد"
             value={statusLabel(gradeBook?.status)}
-            subtitle={isLocked ? "الرصد مغلق أو معتمد" : "يمكن التعديل حسب الصلاحية"}
-            icon={<Lock size={22} />}
+            subtitle={
+              isLocked ? "الرصد مغلق أو معتمد" : "يمكن التعديل حسب الصلاحية"
+            }
+            icon={<Lock size={22} aria-hidden="true" />}
             tone={isLocked ? "red" : "primary"}
           />
         </section>
 
         <SummaryCard
           title="الملخص التنفيذي للرصد"
-          description="قراءة سريعة تساعد المعلم وقائد المدرسة على متابعة اكتمال الرصد وجودة النتائج قبل الاعتماد."
-          tone={analytics.passRate >= 80 ? "green" : analytics.passRate >= 60 ? "gold" : "red"}
+          description="ملخص الاكتمال والنتائج قبل الاعتماد."
+          tone={
+            analytics.passRate >= 80
+              ? "green"
+              : analytics.passRate >= 60
+                ? "gold"
+                : "red"
+          }
           items={[
-            { label: "إجمالي الطلاب", value: students.length || entries.length },
-            { label: "نسبة النجاح", value: `${Math.round(analytics.passRate)}%` },
+            {
+              label: "إجمالي الطلاب",
+              value: students.length || entries.length,
+            },
+            {
+              label: "نسبة النجاح",
+              value: `${Math.round(analytics.passRate)}%`,
+            },
             { label: "المتفوقون", value: analytics.excellent },
             { label: "يحتاجون متابعة", value: analytics.weak },
             { label: "حالة الرصد", value: statusLabel(gradeBook?.status) },
           ]}
-          footer={lastSavedAt ? `آخر عملية حفظ: ${lastSavedAt}` : "لم يتم تنفيذ حفظ يدوي بعد. الحفظ التلقائي يعمل عند تعديل الدرجات."}
+          footer={
+            lastSavedAt
+              ? `آخر عملية حفظ: ${lastSavedAt}`
+              : "الحفظ التلقائي يعمل عند التعديل."
+          }
         />
-
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <GradeExecutiveAnalytics
@@ -1086,20 +1244,28 @@ export default function GradesPage() {
 
         <Section
           title="اختيار المادة والفصل"
-          description="حدد إسناد المعلم والمادة قبل بدء الرصد أو المراجعة."
-          icon={<GraduationCap size={20} />}
+          description="حدد الإسناد قبل بدء الرصد."
+          icon={<GraduationCap size={20} aria-hidden="true" />}
           className="print:hidden"
-          badge={teacherSubjects.length ? `${teacherSubjects.length} إسناد` : "لا توجد إسنادات"}
+          badge={
+            teacherSubjects.length
+              ? `${teacherSubjects.length} إسناد`
+              : "لا توجد إسنادات"
+          }
         >
           <div className="grid gap-3 lg:grid-cols-4">
             <select
               value={selectedTeacherSubjectId}
-              onChange={(event) => setSelectedTeacherSubjectId(event.target.value)}
-              className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white lg:col-span-2"
+              onChange={(event) =>
+                setSelectedTeacherSubjectId(event.target.value)
+              }
+              className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] lg:col-span-2"
             >
               <option value="">اختر إسناد المعلم بالمادة</option>
               {teacherSubjects.map((item) => (
-                <option key={item.id} value={item.id}>{teacherSubjectLabel(item)}</option>
+                <option key={item.id} value={item.id}>
+                  {teacherSubjectLabel(item)}
+                </option>
               ))}
             </select>
 
@@ -1108,14 +1274,17 @@ export default function GradesPage() {
           </div>
         </Section>
 
-        <section className="flex flex-wrap gap-2 rounded-[28px] border border-slate-100 bg-white p-2 shadow-sm print:hidden">
+        <section className="flex flex-wrap gap-2 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-2 shadow-[var(--app-shadow-sm)] print:hidden">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                activeTab === tab.key ? "bg-[#15445A] text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+              aria-pressed={activeTab === tab.key}
+              className={`rounded-[var(--app-radius-lg)] px-4 py-2 text-sm font-black transition ${
+                activeTab === tab.key
+                  ? "bg-[var(--app-primary)] text-[var(--app-text-inverse)] shadow-[var(--app-shadow-sm)]"
+                  : "text-[var(--app-text-muted)] hover:bg-[var(--app-card-soft)]"
               }`}
             >
               {tab.label}
@@ -1127,25 +1296,46 @@ export default function GradesPage() {
           <Section
             title="سير العمل والاعتماد"
             description={`حالة الرصد الحالية: ${statusLabel(gradeBook.status)}`}
-            icon={<Lock size={20} />}
+            icon={<Lock size={20} aria-hidden="true" />}
             className="print:hidden"
             badge={isLocked ? "مغلق" : "قابل للتعديل"}
           >
             <div className="flex flex-wrap gap-2">
               {canManage && !isLocked && (
-                <ActionButton onClick={() => void saveDirtyEntries()} disabled={saving} label={saving ? "جاري الحفظ..." : "حفظ الآن"} icon={<Save size={16} />} />
+                <ActionButton
+                  onClick={() => void saveDirtyEntries()}
+                  disabled={saving}
+                  label={saving ? "جاري الحفظ..." : "حفظ الآن"}
+                  icon={<Save size={16} aria-hidden="true" />}
+                />
               )}
               {canManage && gradeBook.status !== "submitted" && !isLocked && (
-                <ActionButton onClick={() => void updateGradeBookStatus("submitted")} disabled={saving} label="رفع للاعتماد" />
+                <ActionButton
+                  onClick={() => void updateGradeBookStatus("submitted")}
+                  disabled={saving}
+                  label="رفع للاعتماد"
+                />
               )}
               {canApprove && gradeBook.status === "submitted" && (
-                <ActionButton onClick={() => void updateGradeBookStatus("approved")} disabled={saving} label="اعتماد الرصد" />
+                <ActionButton
+                  onClick={() => void updateGradeBookStatus("approved")}
+                  disabled={saving}
+                  label="اعتماد الرصد"
+                />
               )}
               {canLock && gradeBook.status === "approved" && (
-                <ActionButton onClick={() => void updateGradeBookStatus("locked")} disabled={saving} label="إقفال الرصد" />
+                <ActionButton
+                  onClick={() => void updateGradeBookStatus("locked")}
+                  disabled={saving}
+                  label="إقفال الرصد"
+                />
               )}
               {canLock && isLocked && (
-                <ActionButton onClick={() => void updateGradeBookStatus("reopened")} disabled={saving} label="إعادة فتح الرصد" />
+                <ActionButton
+                  onClick={() => void updateGradeBookStatus("reopened")}
+                  disabled={saving}
+                  label="إعادة فتح الرصد"
+                />
               )}
               {canManage && !isLocked && entries.length > 0 && (
                 <ActionButton
@@ -1153,12 +1343,18 @@ export default function GradesPage() {
                     const nextEntries = entries.map((entry) => ({
                       ...entry,
                       values: Object.fromEntries(
-                        components.map((component) => [component.key, component.max_score]),
+                        components.map((component) => [
+                          component.key,
+                          component.max_score,
+                        ]),
                       ) as GradeValueMap,
                       ...calculateGrade(
                         components,
                         Object.fromEntries(
-                          components.map((component) => [component.key, component.max_score]),
+                          components.map((component) => [
+                            component.key,
+                            component.max_score,
+                          ]),
                         ) as GradeValueMap,
                       ),
                       dirty: true,
@@ -1198,36 +1394,76 @@ export default function GradesPage() {
         />
 
         {!selectedTeacherSubject ? (
-          <EmptyState title="اختر إسناد المعلم" description="اختر إسناد المعلم بالمادة لعرض الطلاب والرصد." />
+          <EmptyState
+            title="اختر إسناد المعلم"
+            description="اختر إسناد المعلم بالمادة لعرض الطلاب والرصد."
+          />
         ) : activeTab === "subjects" ? (
           <>
-            <GradesTable entries={pagedEntries} components={components} editEnabled={editEnabled} updateScore={updateScore} onSelect={setSelectedEntry} />
-            {filteredEntries.length > 0 && <Pagination page={page} totalPages={totalPages} setPage={setPage} />}
+            <GradesTable
+              entries={pagedEntries}
+              components={components}
+              editEnabled={editEnabled}
+              updateScore={updateScore}
+              onSelect={setSelectedEntry}
+            />
+            {filteredEntries.length > 0 && (
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                setPage={setPage}
+              />
+            )}
           </>
         ) : activeTab === "behavior" ? (
-          <ConductTable title="السلوك" rows={behaviorRows} canEdit={canManage} onAction={(student, action) => void updateConductScore(student, "behavior", action)} />
+          <ConductTable
+            title="السلوك"
+            rows={behaviorRows}
+            canEdit={canManage}
+            onAction={(student, action) =>
+              void updateConductScore(student, "behavior", action)
+            }
+          />
         ) : activeTab === "attendance" ? (
-          <ConductTable title="المواظبة" rows={attendanceRows} canEdit={canManage} onAction={(student, action) => void updateConductScore(student, "attendance", action)} />
+          <ConductTable
+            title="المواظبة"
+            rows={attendanceRows}
+            canEdit={canManage}
+            onAction={(student, action) =>
+              void updateConductScore(student, "attendance", action)
+            }
+          />
         ) : activeTab === "analytics" ? (
           <AnalyticsSection analytics={analytics} />
         ) : (
-          <HistorySection events={conductEvents} students={students} />
+          <HistorySection
+            events={conductEvents}
+            students={students}
+            aria-hidden="true"
+          />
         )}
-
 
         {selectedEntry && (
           <StudentGradeDrawer
             entry={selectedEntry}
-            behaviorScore={getConductScore(selectedEntry.student.id, "behavior")}
-            attendanceScore={getConductScore(selectedEntry.student.id, "attendance")}
+            behaviorScore={getConductScore(
+              selectedEntry.student.id,
+              "behavior",
+            )}
+            attendanceScore={getConductScore(
+              selectedEntry.student.id,
+              "attendance",
+            )}
             onClose={() => setSelectedEntry(null)}
           />
         )}
 
-        <div className="fixed bottom-3 left-1/2 z-40 w-[calc(100%-2rem)] max-w-[900px] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 shadow-lg backdrop-blur print:hidden">
-          <div className="flex justify-between text-xs font-black text-slate-600">
+        <div className="fixed bottom-3 left-1/2 z-40 w-[calc(100%-2rem)] max-w-[900px] -translate-x-1/2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-card)_95%,transparent)] px-4 py-2 shadow-[var(--app-shadow-lg)] backdrop-blur print:hidden">
+          <div className="flex justify-between text-xs font-black text-[var(--app-text-muted)]">
             <div>الطلاب {students.length || entries.length}</div>
-            <div>{lastSavedAt ? `آخر حفظ ${lastSavedAt}` : "لم يتم الحفظ بعد"}</div>
+            <div>
+              {lastSavedAt ? `آخر حفظ ${lastSavedAt}` : "لم يتم الحفظ بعد"}
+            </div>
           </div>
         </div>
       </div>
@@ -1245,21 +1481,33 @@ function GradesTable({
   entries: EditableEntry[];
   components: GradeComponent[];
   editEnabled: boolean;
-  updateScore: (studentId: string, component: GradeComponent, rawValue: string) => void;
+  updateScore: (
+    studentId: string,
+    component: GradeComponent,
+    rawValue: string,
+  ) => void;
   onSelect: (entry: EditableEntry) => void;
 }) {
-  if (entries.length === 0) return <EmptyState title="لا توجد بيانات" description="لا توجد بيانات طلاب مطابقة للتصفية الحالية." />;
+  if (entries.length === 0)
+    return (
+      <EmptyState
+        title="لا توجد بيانات"
+        description="لا توجد بيانات طلاب مطابقة للتصفية الحالية."
+      />
+    );
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
       <table className="min-w-full text-sm">
-        <thead className="bg-slate-50 text-xs font-black text-slate-500">
+        <thead className="bg-[var(--app-card-soft)] text-xs font-black text-[var(--app-text-muted)]">
           <tr>
             <th className="px-4 py-3 text-right">الطالب</th>
             {components.map((component) => (
               <th key={component.key} className="px-3 py-3 text-center">
                 {component.name}
-                <div className="mt-1 text-[10px] text-slate-400">/{component.max_score}</div>
+                <div className="mt-1 text-[10px] text-[var(--app-text-subtle)]">
+                  /{component.max_score}
+                </div>
               </th>
             ))}
             <th className="px-3 py-3 text-center">المجموع</th>
@@ -1268,21 +1516,34 @@ function GradesTable({
             <th className="px-3 py-3 text-center">الحالة</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-[var(--app-border)]">
           {entries.map((entry) => (
-            <tr key={entry.student.id} className={entry.dirty ? "bg-amber-50/50" : "bg-white"}>
+            <tr
+              key={entry.student.id}
+              className={
+                entry.dirty
+                  ? "bg-[color-mix(in_srgb,var(--app-accent)_7%,transparent)]"
+                  : "bg-[var(--app-card)]"
+              }
+            >
               <td className="min-w-[220px] px-4 py-3">
                 <button
                   type="button"
                   onClick={() => onSelect(entry)}
-                  className="text-right font-black text-[#15445A] hover:text-[#0DA9A6]"
+                  className="text-right font-black text-[var(--app-text)] hover:text-[var(--app-primary)]"
                 >
                   {studentName(entry.student)}
                 </button>
-                <div className="mt-1 text-xs font-bold text-slate-400">
-                  {entry.student.national_id || entry.student.student_number || "-"}
+                <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
+                  {entry.student.national_id ||
+                    entry.student.student_number ||
+                    "-"}
                 </div>
-                {entry.issues.length > 0 && <div className="mt-1 text-xs font-bold text-red-600">{entry.issues[0]}</div>}
+                {entry.issues.length > 0 && (
+                  <div className="mt-1 text-xs font-bold text-[var(--app-danger)]">
+                    {entry.issues[0]}
+                  </div>
+                )}
               </td>
               {components.map((component) => (
                 <td key={component.key} className="px-3 py-3 text-center">
@@ -1293,14 +1554,26 @@ function GradesTable({
                     step="0.25"
                     value={entry.values[component.key] ?? ""}
                     disabled={!editEnabled}
-                    onChange={(event) => updateScore(entry.student.id, component, event.target.value)}
-                    className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold outline-none focus:border-[#0DA9A6] disabled:bg-slate-50 disabled:text-slate-400"
+                    onChange={(event) =>
+                      updateScore(
+                        entry.student.id,
+                        component,
+                        event.target.value,
+                      )
+                    }
+                    className="w-24 rounded-[var(--app-radius-md)] border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-center text-sm font-bold outline-none focus:border-[var(--app-primary)] disabled:bg-[var(--app-card-soft)] disabled:text-[var(--app-text-subtle)]"
                   />
                 </td>
               ))}
-              <td className="px-3 py-3 text-center font-black text-slate-700">{entry.total_score} / {entry.max_score}</td>
-              <td className="px-3 py-3 text-center font-black text-slate-700">{entry.percentage}%</td>
-              <td className="px-3 py-3 text-center font-black text-[#15445A]">{entry.grade_label}</td>
+              <td className="px-3 py-3 text-center font-black text-[var(--app-text)]">
+                {entry.total_score} / {entry.max_score}
+              </td>
+              <td className="px-3 py-3 text-center font-black text-[var(--app-text)]">
+                {entry.percentage}%
+              </td>
+              <td className="px-3 py-3 text-center font-black text-[var(--app-text)]">
+                {entry.grade_label}
+              </td>
               <td className="px-3 py-3 text-center">
                 <StatusBadge status={entry.result_status} />
               </td>
@@ -1319,7 +1592,12 @@ function ConductTable({
   onAction,
 }: {
   title: string;
-  rows: { student: StudentForGrades; score: number; label: string; status: string }[];
+  rows: {
+    student: StudentForGrades;
+    score: number;
+    label: string;
+    status: string;
+  }[];
   canEdit: boolean;
   onAction: (student: StudentForGrades, action: ConductAction) => void;
 }) {
@@ -1333,11 +1611,13 @@ function ConductTable({
   }
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-5 text-2xl font-black text-[#15445A]">{title}</h2>
-      <div className="overflow-x-auto rounded-3xl border border-slate-200">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="mb-5 text-2xl font-black text-[var(--app-text)]">
+        {title}
+      </h2>
+      <div className="overflow-x-auto rounded-[var(--app-radius-xl)] border border-[var(--app-border)]">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-xs font-black text-slate-500">
+          <thead className="bg-[var(--app-card-soft)] text-xs font-black text-[var(--app-text-muted)]">
             <tr>
               <th className="px-4 py-3 text-right">الطالب</th>
               <th className="px-4 py-3 text-center">الدرجة</th>
@@ -1346,19 +1626,43 @@ function ConductTable({
               {canEdit && <th className="px-4 py-3 text-center">إجراء</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--app-border)]">
             {rows.map((row) => (
               <tr key={row.student.id}>
-                <td className="px-4 py-3 font-black text-[#15445A]">{studentName(row.student)}</td>
-                <td className="px-4 py-3 text-center font-black">{row.score} / 100</td>
+                <td className="px-4 py-3 font-black text-[var(--app-text)]">
+                  {studentName(row.student)}
+                </td>
+                <td className="px-4 py-3 text-center font-black">
+                  {row.score} / 100
+                </td>
                 <td className="px-4 py-3 text-center font-bold">{row.label}</td>
-                <td className="px-4 py-3 text-center"><StatusBadge status={row.status} /></td>
+                <td className="px-4 py-3 text-center">
+                  <StatusBadge status={row.status} />
+                </td>
                 {canEdit && (
                   <td className="px-4 py-3">
                     <div className="flex justify-center gap-2">
-                      <button type="button" onClick={() => onAction(row.student, "increase")} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">زيادة</button>
-                      <button type="button" onClick={() => onAction(row.student, "decrease")} className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">خصم</button>
-                      <button type="button" onClick={() => onAction(row.student, "set")} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">تعيين</button>
+                      <button
+                        type="button"
+                        onClick={() => onAction(row.student, "increase")}
+                        className="rounded-[var(--app-radius-md)] border border-[color-mix(in_srgb,var(--app-success)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] px-3 py-2 text-xs font-bold text-[var(--app-success)]"
+                      >
+                        زيادة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onAction(row.student, "decrease")}
+                        className="rounded-[var(--app-radius-md)] border border-[color-mix(in_srgb,var(--app-danger)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] px-3 py-2 text-xs font-bold text-[var(--app-danger)]"
+                      >
+                        خصم
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onAction(row.student, "set")}
+                        className="rounded-[var(--app-radius-md)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2 text-xs font-bold text-[var(--app-text)]"
+                      >
+                        تعيين
+                      </button>
                     </div>
                   </td>
                 )}
@@ -1371,12 +1675,32 @@ function ConductTable({
   );
 }
 
-function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGradeAnalytics> }) {
+function AnalyticsSection({
+  analytics,
+}: {
+  analytics: ReturnType<typeof buildGradeAnalytics>;
+}) {
   const distributionRows = [
-    { label: "ممتاز", value: analytics.distribution.excellent, tone: "green" as const },
-    { label: "جيد جدًا", value: analytics.distribution.veryGood, tone: "blue" as const },
-    { label: "جيد", value: analytics.distribution.good, tone: "slate" as const },
-    { label: "مقبول", value: analytics.distribution.acceptable, tone: "amber" as const },
+    {
+      label: "ممتاز",
+      value: analytics.distribution.excellent,
+      tone: "green" as const,
+    },
+    {
+      label: "جيد جدًا",
+      value: analytics.distribution.veryGood,
+      tone: "primary" as const,
+    },
+    {
+      label: "جيد",
+      value: analytics.distribution.good,
+      tone: "neutral" as const,
+    },
+    {
+      label: "مقبول",
+      value: analytics.distribution.acceptable,
+      tone: "gold" as const,
+    },
     { label: "ضعيف", value: analytics.distribution.weak, tone: "red" as const },
   ];
 
@@ -1391,30 +1715,52 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
 
   return (
     <section className="space-y-5">
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
         <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-black text-[#C1B489]">لوحة التحليلات المتقدمة</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">تحليل النتائج والمؤشرات</h2>
+            <p className="text-sm font-black text-[var(--app-accent)]">
+              لوحة التحليلات المتقدمة
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
+              تحليل النتائج والمؤشرات
+            </h2>
           </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-black text-slate-600">
+          <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-black text-[var(--app-text-muted)]">
             إجمالي السجلات: {analytics.total}
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <AnalyticsCard title="متوسط الصف" value={`${analytics.averagePercentage}%`} detail={`متوسط الدرجات: ${analytics.averageScore}`} />
-          <AnalyticsCard title="نسبة النجاح" value={`${analytics.passRate}%`} detail={`ناجح ${analytics.passed} / راسب ${analytics.failed}`} />
-          <AnalyticsCard title="الوسيط" value={`${analytics.medianPercentage}%`} detail={`الانحراف المعياري: ${analytics.standardDeviation}`} />
-          <AnalyticsCard title="حالة المتابعة" value={analytics.weak} detail={`طلاب يحتاجون متابعة`} />
+          <AnalyticsCard
+            title="متوسط الصف"
+            value={`${analytics.averagePercentage}%`}
+            detail={`متوسط الدرجات: ${analytics.averageScore}`}
+          />
+          <AnalyticsCard
+            title="نسبة النجاح"
+            value={`${analytics.passRate}%`}
+            detail={`ناجح ${analytics.passed} / راسب ${analytics.failed}`}
+          />
+          <AnalyticsCard
+            title="الوسيط"
+            value={`${analytics.medianPercentage}%`}
+            detail={`الانحراف المعياري: ${analytics.standardDeviation}`}
+          />
+          <AnalyticsCard
+            title="حالة المتابعة"
+            value={analytics.weak}
+            detail={`طلاب يحتاجون متابعة`}
+          />
         </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+        <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-xl font-black text-[#15445A]">توزيع التقديرات</h3>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+            <h3 className="text-xl font-black text-[var(--app-text)]">
+              توزيع التقديرات
+            </h3>
+            <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
               حسب النسبة
             </span>
           </div>
@@ -1432,13 +1778,31 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 text-xl font-black text-[#15445A]">ملخص الجودة</h3>
+        <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+          <h3 className="mb-4 text-xl font-black text-[var(--app-text)]">
+            ملخص الجودة
+          </h3>
           <div className="space-y-3">
-            <QualityRow label="المتفوقون" value={analytics.risk.excellent} tone="green" />
-            <QualityRow label="المستقرون" value={analytics.risk.stable} tone="blue" />
-            <QualityRow label="قيد المتابعة" value={analytics.risk.watch} tone="amber" />
-            <QualityRow label="متعثرون" value={analytics.risk.risk} tone="red" />
+            <QualityRow
+              label="المتفوقون"
+              value={analytics.risk.excellent}
+              tone="green"
+            />
+            <QualityRow
+              label="المستقرون"
+              value={analytics.risk.stable}
+              tone="primary"
+            />
+            <QualityRow
+              label="قيد المتابعة"
+              value={analytics.risk.watch}
+              tone="gold"
+            />
+            <QualityRow
+              label="متعثرون"
+              value={analytics.risk.risk}
+              tone="red"
+            />
           </div>
         </div>
       </div>
@@ -1455,7 +1819,7 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
           title="طلاب يحتاجون متابعة"
           emptyText="لا يوجد طلاب في منطقة المتابعة."
           rows={watchStudents}
-          tone="amber"
+          tone="gold"
         />
 
         <StudentRankList
@@ -1466,8 +1830,10 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
         />
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-xl font-black text-[#15445A]">قراءة سريعة للنتائج</h3>
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+        <h3 className="mb-4 text-xl font-black text-[var(--app-text)]">
+          قراءة سريعة للنتائج
+        </h3>
         <div className="grid gap-3 md:grid-cols-2">
           <InsightBox
             title="أعلى نتيجة"
@@ -1481,12 +1847,24 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
           />
           <InsightBox
             title="مؤشر النجاح"
-            value={analytics.passRate >= 85 ? "ممتاز" : analytics.passRate >= 70 ? "مستقر" : "يحتاج متابعة"}
+            value={
+              analytics.passRate >= 85
+                ? "ممتاز"
+                : analytics.passRate >= 70
+                  ? "مستقر"
+                  : "يحتاج متابعة"
+            }
             detail={`نسبة النجاح الحالية ${analytics.passRate}%`}
           />
           <InsightBox
             title="مؤشر التشتت"
-            value={analytics.standardDeviation <= 10 ? "منخفض" : analytics.standardDeviation <= 18 ? "متوسط" : "مرتفع"}
+            value={
+              analytics.standardDeviation <= 10
+                ? "منخفض"
+                : analytics.standardDeviation <= 18
+                  ? "متوسط"
+                  : "مرتفع"
+            }
             detail={`الانحراف المعياري ${analytics.standardDeviation}`}
           />
         </div>
@@ -1495,15 +1873,29 @@ function AnalyticsSection({ analytics }: { analytics: ReturnType<typeof buildGra
   );
 }
 
-function HistorySection({ events, students }: { events: ConductEvent[]; students: StudentForGrades[] }) {
-  if (events.length === 0) return <EmptyState title="لا توجد عمليات" description="لا توجد عمليات مسجلة حتى الآن." />;
+function HistorySection({
+  events,
+  students,
+}: {
+  events: ConductEvent[];
+  students: StudentForGrades[];
+}) {
+  if (events.length === 0)
+    return (
+      <EmptyState
+        title="لا توجد عمليات"
+        description="لا توجد عمليات مسجلة حتى الآن."
+      />
+    );
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-5 flex items-center gap-2 text-2xl font-black text-[#15445A]"><History size={20} /> سجل السلوك والمواظبة</h2>
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="mb-5 flex items-center gap-2 text-2xl font-black text-[var(--app-text)]">
+        <History size={20} aria-hidden="true" /> سجل السلوك والمواظبة
+      </h2>
+      <div className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)]">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-xs font-black text-slate-500">
+          <thead className="bg-[var(--app-card-soft)] text-xs font-black text-[var(--app-text-muted)]">
             <tr>
               <th className="px-4 py-3 text-right">الطالب</th>
               <th className="px-4 py-3 text-right">النوع</th>
@@ -1512,13 +1904,19 @@ function HistorySection({ events, students }: { events: ConductEvent[]; students
               <th className="px-4 py-3 text-right">السبب</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[var(--app-border)]">
             {events.map((event, index) => {
-              const student = students.find((item) => item.id === event.student_id);
+              const student = students.find(
+                (item) => item.id === event.student_id,
+              );
               return (
                 <tr key={event.id || index}>
-                  <td className="px-4 py-3 font-bold">{student ? studentName(student) : "طالب"}</td>
-                  <td className="px-4 py-3">{event.score_type === "behavior" ? "السلوك" : "المواظبة"}</td>
+                  <td className="px-4 py-3 font-bold">
+                    {student ? studentName(student) : "طالب"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {event.score_type === "behavior" ? "السلوك" : "المواظبة"}
+                  </td>
                   <td className="px-4 py-3">{event.event_type}</td>
                   <td className="px-4 py-3">{event.points}</td>
                   <td className="px-4 py-3">{event.notes || "-"}</td>
@@ -1533,43 +1931,71 @@ function HistorySection({ events, students }: { events: ConductEvent[]; students
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const green = ["ناجح", "مستقر", "منتظم", "ممتاز", "جيد", "جيد جدًا"].includes(status);
+  const green = ["ناجح", "مستقر", "منتظم", "ممتاز", "جيد", "جيد جدًا"].includes(
+    status,
+  );
   const red = ["راسب", "خطر", "ضعيف المواظبة"].includes(status);
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${
-      green
-        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-        : red
-          ? "border-red-200 bg-red-50 text-red-700"
-          : "border-amber-200 bg-amber-50 text-amber-700"
-    }`}>
+    <span
+      className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${
+        green
+          ? "border-[color-mix(in_srgb,var(--app-success)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
+          : red
+            ? "border-[color-mix(in_srgb,var(--app-danger)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
+            : "border-[var(--app-accent-border)] bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent-foreground)]"
+      }`}
+    >
       {status}
     </span>
   );
 }
 
-
-
-
 function InfoBox({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">{label}: {value}</div>;
-}
-
-function ActionButton({ label, icon, disabled, onClick }: { label: string; icon?: ReactNode; disabled?: boolean; onClick: () => void }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60">
-      {icon}
-      {label}
-    </button>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-bold text-[var(--app-text)]">
+      {label}: {value}
+    </div>
   );
 }
 
-function AnalyticsCard({ title, value, detail }: { title: string; value: string | number; detail: string }) {
+function ActionButton({
+  label,
+  icon,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon?: ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-5">
-      <div className="text-xs font-black text-slate-400">{title}</div>
-      <div className="mt-2 text-3xl font-black text-[#15445A]">{value}</div>
-      <div className="mt-2 text-sm font-bold text-slate-500">{detail}</div>
+    <SecondaryButton disabled={disabled} onClick={onClick} icon={icon}>
+      {label}
+    </SecondaryButton>
+  );
+}
+
+function AnalyticsCard({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string | number;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-gradient-to-br from-white to-slate-50 p-5">
+      <div className="text-xs font-black text-[var(--app-text-subtle)]">
+        {title}
+      </div>
+      <div className="mt-2 text-3xl font-black text-[var(--app-text)]">
+        {value}
+      </div>
+      <div className="mt-2 text-sm font-bold text-[var(--app-text-muted)]">
+        {detail}
+      </div>
     </div>
   );
 }
@@ -1583,23 +2009,25 @@ function DistributionBar({
   label: string;
   value: number;
   percent: number;
-  tone: "green" | "blue" | "slate" | "amber" | "red";
+  tone: "green" | "primary" | "neutral" | "gold" | "red";
 }) {
   const colors = {
-    green: "bg-emerald-600",
-    blue: "bg-blue-600",
-    slate: "bg-slate-600",
-    amber: "bg-amber-500",
-    red: "bg-red-600",
+    green: "bg-[var(--app-success)]",
+    primary: "bg-[var(--app-primary)]",
+    neutral: "bg-[var(--app-text-muted)]",
+    gold: "bg-[var(--app-accent)]",
+    red: "bg-[var(--app-danger)]",
   };
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-sm font-black">
-        <span className="text-slate-700">{label}</span>
-        <span className="text-slate-500">{value} طالب · {percent}%</span>
+        <span className="text-[var(--app-text)]">{label}</span>
+        <span className="text-[var(--app-text-muted)]">
+          {value} طالب · {percent}%
+        </span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-3 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
         <div
           className={`h-full rounded-full ${colors[tone]}`}
           style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
@@ -1616,17 +2044,21 @@ function QualityRow({
 }: {
   label: string;
   value: number;
-  tone: "green" | "blue" | "amber" | "red";
+  tone: "green" | "primary" | "gold" | "red";
 }) {
   const colors = {
-    green: "bg-emerald-50 text-emerald-700",
-    blue: "bg-blue-50 text-blue-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]",
+    gold: "bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent-foreground)]",
+    red: "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
   };
 
   return (
-    <div className={`flex items-center justify-between rounded-2xl px-4 py-3 ${colors[tone]}`}>
+    <div
+      className={`flex items-center justify-between rounded-[var(--app-radius-lg)] px-4 py-3 ${colors[tone]}`}
+    >
       <span className="text-sm font-black">{label}</span>
       <span className="text-xl font-black">{value}</span>
     </div>
@@ -1648,35 +2080,45 @@ function StudentRankList({
     rank?: number;
   }>;
   emptyText: string;
-  tone: "green" | "amber" | "red";
+  tone: "green" | "gold" | "red";
 }) {
   const badgeColors = {
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]",
+    gold: "bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)] text-[var(--app-accent-foreground)]",
+    red: "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
   };
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-xl font-black text-[#15445A]">{title}</h3>
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h3 className="mb-4 text-xl font-black text-[var(--app-text)]">
+        {title}
+      </h3>
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl bg-slate-50 p-4 text-center text-sm font-bold text-slate-500">
+        <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-center text-sm font-bold text-[var(--app-text-muted)]">
           {emptyText}
         </div>
       ) : (
         <div className="space-y-3">
           {rows.map((row, index) => (
-            <div key={`${row.student_name}-${index}`} className="flex items-center justify-between rounded-2xl border border-slate-100 p-3">
+            <div
+              key={`${row.student_name}-${index}`}
+              className="flex items-center justify-between rounded-[var(--app-radius-lg)] border border-[var(--app-border)] p-3"
+            >
               <div>
-                <div className="font-black text-[#15445A]">
-                  {row.rank ? `${row.rank}. ` : ""}{row.student_name || "طالب بدون اسم"}
+                <div className="font-black text-[var(--app-text)]">
+                  {row.rank ? `${row.rank}. ` : ""}
+                  {row.student_name || "طالب بدون اسم"}
                 </div>
-                <div className="mt-1 text-xs font-bold text-slate-400">
-                  {row.grade_label} {row.risk_label ? `· ${row.risk_label}` : ""}
+                <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
+                  {row.grade_label}{" "}
+                  {row.risk_label ? `· ${row.risk_label}` : ""}
                 </div>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-black ${badgeColors[tone]}`}>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-black ${badgeColors[tone]}`}
+              >
                 {row.percentage}%
               </span>
             </div>
@@ -1697,26 +2139,55 @@ function InsightBox({
   detail: string;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-      <div className="text-xs font-black text-slate-400">{title}</div>
-      <div className="mt-2 text-xl font-black text-[#15445A]">{value}</div>
-      <div className="mt-1 text-sm font-bold text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function Pagination({ page, totalPages, setPage }: { page: number; totalPages: number; setPage: (value: number | ((current: number) => number)) => void }) {
-  return (
-    <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-4">
-      <p className="text-sm text-slate-500">صفحة {page} من {totalPages}</p>
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded-xl border p-2 disabled:opacity-40"><ChevronRight size={18} /></button>
-        <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded-xl border p-2 disabled:opacity-40"><ChevronLeft size={18} /></button>
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5">
+      <div className="text-xs font-black text-[var(--app-text-subtle)]">
+        {title}
+      </div>
+      <div className="mt-2 text-xl font-black text-[var(--app-text)]">
+        {value}
+      </div>
+      <div className="mt-1 text-sm font-bold text-[var(--app-text-muted)]">
+        {detail}
       </div>
     </div>
   );
 }
 
+function Pagination({
+  page,
+  totalPages,
+  setPage,
+}: {
+  page: number;
+  totalPages: number;
+  setPage: (value: number | ((current: number) => number)) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4">
+      <p className="text-sm text-[var(--app-text-muted)]">
+        صفحة {page} من {totalPages}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPage((value) => Math.max(1, value - 1))}
+          disabled={page === 1}
+          className="rounded-[var(--app-radius-md)] border p-2 disabled:opacity-40"
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+          disabled={page === totalPages}
+          className="rounded-[var(--app-radius-md)] border p-2 disabled:opacity-40"
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function GradeExecutiveAnalytics({
   analytics,
@@ -1728,21 +2199,41 @@ function GradeExecutiveAnalytics({
   status: string;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
-          Executive Analytics
+          التحليلات التنفيذية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          قراءة تنفيذية لاكتمال الرصد وجودة النتائج والمخاطر.
+          ملخص الاكتمال والجودة والمخاطر.
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <GradeMetric label="أعلى نتيجة" value={`${analytics.highest?.percentage ?? 0}%`} icon={<ShieldCheck size={18} />} tone="green" />
-        <GradeMetric label="أقل نتيجة" value={`${analytics.lowest?.percentage ?? 0}%`} icon={<AlertCircle size={18} />} tone="red" />
-        <GradeMetric label="اكتمال الرصد" value={`${quality.completionRate}%`} icon={<ListChecks size={18} />} tone="blue" />
-        <GradeMetric label="حالة الاعتماد" value={status} icon={<Lock size={18} />} tone="gold" />
+        <GradeMetric
+          label="أعلى نتيجة"
+          value={`${analytics.highest?.percentage ?? 0}%`}
+          icon={<ShieldCheck size={18} aria-hidden="true" />}
+          tone="green"
+        />
+        <GradeMetric
+          label="أقل نتيجة"
+          value={`${analytics.lowest?.percentage ?? 0}%`}
+          icon={<AlertCircle size={18} aria-hidden="true" />}
+          tone="red"
+        />
+        <GradeMetric
+          label="اكتمال الرصد"
+          value={`${quality.completionRate}%`}
+          icon={<ListChecks size={18} aria-hidden="true" />}
+          tone="primary"
+        />
+        <GradeMetric
+          label="حالة الاعتماد"
+          value={status}
+          icon={<Lock size={18} aria-hidden="true" />}
+          tone="gold"
+        />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1763,14 +2254,14 @@ function GradeExecutiveAnalytics({
 
 function GradeSmartInsights({ insights }: { insights: GradeSmartInsight[] }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
-          Smart Insights
+          <BrainCircuit size={20} aria-hidden="true" />
+          الرؤى الذكية
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-          توصيات آلية مبنية على نتائج الرصد الحالية.
+          توصيات مبنية على الرصد الحالي.
         </p>
       </div>
 
@@ -1778,13 +2269,17 @@ function GradeSmartInsights({ insights }: { insights: GradeSmartInsight[] }) {
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}
+            >
               {item.icon}
             </div>
             <div>
-              <p className="text-sm font-black text-[var(--app-text)]">{item.title}</p>
+              <p className="text-sm font-black text-[var(--app-text)]">
+                {item.title}
+              </p>
               <p className="mt-1 text-xs leading-6 text-[var(--app-text-muted)]">
                 {item.description}
               </p>
@@ -1796,21 +2291,47 @@ function GradeSmartInsights({ insights }: { insights: GradeSmartInsight[] }) {
   );
 }
 
-function GradeRiskPanel({ analytics }: { analytics: ReturnType<typeof buildGradeAnalytics> }) {
+function GradeRiskPanel({
+  analytics,
+}: {
+  analytics: ReturnType<typeof buildGradeAnalytics>;
+}) {
   const total = Math.max(1, analytics.total);
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Grade Risk Engine</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">
+        مؤشر المخاطر
+      </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
-        تصنيف الطلاب حسب مستوى المخاطر الأكاديمية.
+        تصنيف المخاطر الأكاديمية.
       </p>
 
       <div className="mt-5 space-y-4">
-        <GradeProgress label="متفوق" value={analytics.risk.excellent} total={total} tone="green" />
-        <GradeProgress label="مستقر" value={analytics.risk.stable} total={total} tone="blue" />
-        <GradeProgress label="قيد المتابعة" value={analytics.risk.watch} total={total} tone="gold" />
-        <GradeProgress label="خطر" value={analytics.risk.risk} total={total} tone="red" />
+        <GradeProgress
+          label="متفوق"
+          value={analytics.risk.excellent}
+          total={total}
+          tone="green"
+        />
+        <GradeProgress
+          label="مستقر"
+          value={analytics.risk.stable}
+          total={total}
+          tone="primary"
+        />
+        <GradeProgress
+          label="قيد المتابعة"
+          value={analytics.risk.watch}
+          total={total}
+          tone="gold"
+        />
+        <GradeProgress
+          label="خطر"
+          value={analytics.risk.risk}
+          total={total}
+          tone="red"
+        />
       </div>
     </section>
   );
@@ -1818,16 +2339,27 @@ function GradeRiskPanel({ analytics }: { analytics: ReturnType<typeof buildGrade
 
 function GradeQualityPanel({ quality }: { quality: GradeQuality }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Quality Indicators</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+      <h2 className="text-xl font-black text-[var(--app-text)]">
+        Quality Indicators
+      </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات جودة واكتمال الرصد الحالي.
       </p>
 
       <div className="mt-5 space-y-3">
-        <QualityValue label="اكتمال الرصد" value={`${quality.completionRate}%`} />
-        <QualityValue label="طلاب غير مرصودين" value={quality.ungradedStudents} />
-        <QualityValue label="عناصر إلزامية ناقصة" value={quality.missingRequired} />
+        <QualityValue
+          label="اكتمال الرصد"
+          value={`${quality.completionRate}%`}
+        />
+        <QualityValue
+          label="طلاب غير مرصودين"
+          value={quality.ungradedStudents}
+        />
+        <QualityValue
+          label="عناصر إلزامية ناقصة"
+          value={quality.missingRequired}
+        />
         <QualityValue label="تعديلات غير محفوظة" value={quality.dirtyEntries} />
       </div>
     </section>
@@ -1842,14 +2374,21 @@ function GradeImportCenter({
   onImport: (file: File | null) => Promise<void>;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
-      <h2 className="text-xl font-black text-[var(--app-text)]">Import Center</h2>
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
+      <h2 className="text-xl font-black text-[var(--app-text)]">
+        مركز الاستيراد
+      </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         استيراد Excel وCSV، مع جاهزية الربط لاحقًا مع نور.
       </p>
 
-      <label className={`mt-5 flex cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-6 text-center ${!editEnabled ? "pointer-events-none opacity-50" : ""}`}>
-        <Upload className="h-8 w-8 text-[var(--app-teal)]" />
+      <label
+        className={`mt-5 flex cursor-pointer flex-col items-center justify-center rounded-[var(--app-radius-xl)] border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-6 text-center ${!editEnabled ? "pointer-events-none opacity-50" : ""}`}
+      >
+        <Upload
+          className="h-8 w-8 text-[var(--app-primary)]"
+          aria-hidden="true"
+        />
         <span className="mt-3 text-sm font-black text-[var(--app-text)]">
           اختر ملف الدرجات
         </span>
@@ -1885,17 +2424,28 @@ function StudentGradeDrawer({
 
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
-      <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <button
+        type="button"
+        className="flex-1"
+        onClick={onClose}
+        aria-label="إغلاق"
+      />
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Student Drawer V2</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+            <p className="text-xs font-black text-[var(--app-accent)]">
+              Student Drawer V2
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {studentName(entry.student)}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
-            <XCircle size={20} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text-muted)]"
+          >
+            <XCircle size={20} aria-hidden="true" />
           </button>
         </div>
 
@@ -1903,13 +2453,18 @@ function StudentGradeDrawer({
           <GradeDrawerMetric label="النسبة" value={`${entry.percentage}%`} />
           <GradeDrawerMetric label="التقدير" value={entry.grade_label} />
           <GradeDrawerMetric label="السلوك" value={`${behaviorScore}/100`} />
-          <GradeDrawerMetric label="المواظبة" value={`${attendanceScore}/100`} />
+          <GradeDrawerMetric
+            label="المواظبة"
+            value={`${attendanceScore}/100`}
+          />
         </div>
 
         <div className="mt-5 space-y-3">
           <GradeDrawerSection
             title="تفاصيل الدرجات"
-            items={Object.entries(entry.values).map(([key, value]) => `${key}: ${value ?? "-"}`)}
+            items={Object.entries(entry.values).map(
+              ([key, value]) => `${key}: ${value ?? "-"}`,
+            )}
           />
           <GradeDrawerSection
             title="حالة الرصد"
@@ -1926,7 +2481,9 @@ function StudentGradeDrawer({
           <GradeDrawerSection
             title="Timeline"
             items={[
-              entry.dirty ? "يوجد تعديل حديث غير محفوظ." : "لا توجد تعديلات معلقة.",
+              entry.dirty
+                ? "يوجد تعديل حديث غير محفوظ."
+                : "لا توجد تعديلات معلقة.",
               "تم احتساب النسبة والتقدير تلقائيًا.",
               "تمت مقارنة الطالب بمؤشرات الرصد الحالي.",
             ]}
@@ -1949,8 +2506,10 @@ function GradeMetric({
   tone: GradeInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div
+        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}
+      >
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1959,9 +2518,17 @@ function GradeMetric({
   );
 }
 
-function GradeInsightBox({ title, value, detail }: { title: string; value: string; detail: string }) {
+function GradeInsightBox({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+}) {
   return (
-    <div className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{title}</p>
       <p className="mt-1 text-lg font-black text-[var(--app-text)]">{value}</p>
       <p className="mt-1 text-xs text-[var(--app-text-muted)]">{detail}</p>
@@ -1989,16 +2556,27 @@ function GradeProgress({
         <span>{value}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+        <div
+          className={`h-full rounded-full ${progressTone(tone)}`}
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );
 }
 
-function QualityValue({ label, value }: { label: string; value: string | number }) {
+function QualityValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-4 py-3">
-      <span className="text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <span className="text-sm font-bold text-[var(--app-text-muted)]">
+        {label}
+      </span>
       <span className="text-lg font-black text-[var(--app-text)]">{value}</span>
     </div>
   );
@@ -2006,20 +2584,31 @@ function QualityValue({ label, value }: { label: string; value: string | number 
 
 function GradeDrawerMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-xl font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
 
-function GradeDrawerSection({ title, items }: { title: string; items: string[] }) {
+function GradeDrawerSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+          <p
+            key={item}
+            className="text-xs leading-6 text-[var(--app-text-muted)]"
+          >
+            {item}
+          </p>
         ))}
       </div>
     </div>

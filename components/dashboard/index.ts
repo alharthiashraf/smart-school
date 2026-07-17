@@ -30,7 +30,10 @@ export { default as BehaviorChart } from "./charts/BehaviorChart";
 
 export type { QuickAction } from "./ActionCard";
 export type { AttendanceTrendItem } from "./AttendanceTrend";
-export type { PortalCard as PortalCardType } from "./PortalLink";
+export type {
+  PortalLinkItem,
+  PortalLinkProps,
+} from "./PortalLink";
 export type { ExternalSystem } from "./ExternalSystemCard";
 
 export type {

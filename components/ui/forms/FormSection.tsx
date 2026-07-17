@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type FormSectionProps = {
+export type FormSectionProps = {
   title: string;
   description?: string;
   children: ReactNode;
@@ -13,14 +13,16 @@ export default function FormSection({
   description,
   children,
   actions,
-  className = "",
+  className,
 }: FormSectionProps) {
   return (
     <section
       className={[
-        "rounded-3xl border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm",
+        "rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 text-[var(--app-text)] shadow-sm",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <div className="mb-5 flex flex-col gap-3 border-b border-[var(--app-border)] pb-4 lg:flex-row lg:items-start lg:justify-between">
         <div>

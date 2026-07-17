@@ -1,4 +1,4 @@
-type LoadingSkeletonProps = {
+export type LoadingSkeletonProps = {
   variant?: "page" | "table" | "cards";
 };
 
@@ -11,10 +11,11 @@ export default function LoadingSkeleton({
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-sm"
           >
-            <div className="h-4 w-24 animate-pulse rounded-lg bg-slate-100" />
-            <div className="mt-3 h-7 w-16 animate-pulse rounded-lg bg-slate-200" />
+            <div className="h-4 w-24 animate-pulse rounded-lg bg-[var(--app-card-soft)]" />
+
+            <div className="mt-3 h-7 w-16 animate-pulse rounded-lg bg-[var(--app-border)]" />
           </div>
         ))}
       </div>
@@ -23,12 +24,12 @@ export default function LoadingSkeleton({
 
   if (variant === "table") {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, index) => (
             <div
               key={index}
-              className="h-12 animate-pulse rounded-2xl bg-slate-100"
+              className="h-12 animate-pulse rounded-2xl bg-[var(--app-card-soft)]"
             />
           ))}
         </div>
@@ -38,12 +39,14 @@ export default function LoadingSkeleton({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="h-6 w-48 animate-pulse rounded-xl bg-slate-200" />
-        <div className="mt-3 h-4 w-80 max-w-full animate-pulse rounded-xl bg-slate-100" />
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+        <div className="h-6 w-48 animate-pulse rounded-xl bg-[var(--app-border)]" />
+
+        <div className="mt-3 h-4 w-80 max-w-full animate-pulse rounded-xl bg-[var(--app-card-soft)]" />
       </div>
 
       <LoadingSkeleton variant="cards" />
+
       <LoadingSkeleton variant="table" />
     </div>
   );

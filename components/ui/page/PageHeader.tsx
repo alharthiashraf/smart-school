@@ -1,68 +1,93 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-type BreadcrumbItem = {
+export type PageHeaderBreadcrumbItem = {
   label: string;
   href?: string;
 };
 
-type PageHeaderMetaItem = {
+export type PageHeaderMetaItem = {
   label: string;
   value: ReactNode;
 };
 
-type PageHeaderStatTone =
+export type PageHeaderStatTone =
   | "default"
+  | "primary"
   | "blue"
   | "green"
   | "emerald"
   | "red"
   | "amber"
+  | "gold"
   | "purple"
-  | "slate"
-  | string;
+  | "slate";
 
-type PageHeaderStatItem = {
+export type PageHeaderStatItem = {
   label: string;
   value: ReactNode;
   icon?: ReactNode;
   tone?: PageHeaderStatTone;
 };
 
-type PageHeaderVariant = "default" | "hero" | "compact";
+export type PageHeaderVariant = "default" | "hero" | "compact";
 
-type PageHeaderProps = {
+export type PageHeaderProps = {
   title: string;
   description?: string;
   badge?: ReactNode;
   icon?: ReactNode;
   actions?: ReactNode;
-  breadcrumbs?: BreadcrumbItem[];
+  breadcrumbs?: PageHeaderBreadcrumbItem[];
   meta?: PageHeaderMetaItem[];
   stats?: PageHeaderStatItem[];
   lastUpdated?: ReactNode;
-  variant?: PageHeaderVariant | string;
+  variant?: PageHeaderVariant;
   className?: string;
 };
 
-function getToneClass(tone?: PageHeaderStatTone) {
-  switch (tone) {
-    case "blue":
-      return "text-[var(--app-blue)] bg-[var(--app-blue-soft)]";
-    case "green":
-    case "emerald":
-      return "text-[var(--app-green)] bg-[var(--app-green-soft)]";
-    case "red":
-      return "text-[var(--app-destructive)] bg-[var(--app-destructive-soft)]";
-    case "amber":
-      return "text-[var(--app-warning)] bg-[var(--app-warning-soft)]";
-    case "purple":
-      return "text-purple-700 bg-purple-500/10 dark:text-purple-300";
-    case "slate":
-      return "text-[var(--app-text-muted)] bg-[var(--app-card-soft)]";
+function getToneClass(tone: PageHeaderStatTone = "default") {
+  const tones: Record<PageHeaderStatTone, string> = {
     default:
-      return "text-[var(--app-teal)] bg-[var(--app-teal-soft)]";
-  }
+      "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+
+    primary:
+      "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+
+    blue:
+      "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
+
+    green:
+      "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+
+    /*
+     * توافق مؤقت مع الاستخدامات القديمة.
+     * يعرض نفس لون success.
+     */
+    emerald:
+      "bg-[var(--app-green-soft)] text-[var(--app-green)]",
+
+    red:
+      "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
+
+    amber:
+      "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+
+    gold:
+      "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
+
+    /*
+     * توافق مؤقت مع الاستخدامات الحالية.
+     * يعرض اللون الأساسي بدل purple الثابت.
+     */
+    purple:
+      "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
+
+    slate:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+  };
+
+  return tones[tone];
 }
 
 export default function PageHeader({
@@ -76,7 +101,7 @@ export default function PageHeader({
   stats,
   lastUpdated,
   variant = "default",
-  className = "",
+  className,
 }: PageHeaderProps) {
   const isHero = variant === "hero";
   const isCompact = variant === "compact";
@@ -84,28 +109,58 @@ export default function PageHeader({
   return (
     <header
       className={[
-        "mb-6 rounded-[24px] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
+        "mb-6 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-sm",
         isHero ? "p-6" : isCompact ? "p-4" : "p-5",
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-muted)]">
-          {breadcrumbs.map((item, index) => (
-            <span key={`${item.label}-${index}`} className="flex items-center gap-2">
-              {item.href ? (
-                <Link href={item.href} className="transition hover:text-[var(--app-teal)]">
-                  {item.label}
-                </Link>
-              ) : (
-                <span className="text-[var(--app-text-muted)]">{item.label}</span>
-              )}
+        <nav
+          className="mb-4 flex flex-wrap items-center gap-2 text-xs font-bold text-[var(--app-text-muted)]"
+          aria-label="مسار الصفحة"
+        >
+          {breadcrumbs.map((item, index) => {
+            const isCurrent = !item.href;
+            const isLast = index === breadcrumbs.length - 1;
 
-              {index < breadcrumbs.length - 1 && (
-                <span className="text-[var(--app-border)]">/</span>
-              )}
-            </span>
-          ))}
+            return (
+              <span
+                key={`${item.label}-${index}`}
+                className="flex items-center gap-2"
+              >
+                {item.href ? (
+                  <Link
+                    href={item.href}
+                    className="rounded-md transition hover:text-[var(--app-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary-soft)]"
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <span
+                    className={
+                      isCurrent
+                        ? "text-[var(--app-text)]"
+                        : "text-[var(--app-text-muted)]"
+                    }
+                    aria-current={isCurrent ? "page" : undefined}
+                  >
+                    {item.label}
+                  </span>
+                )}
+
+                {!isLast && (
+                  <span
+                    aria-hidden="true"
+                    className="text-[var(--app-border-strong)]"
+                  >
+                    /
+                  </span>
+                )}
+              </span>
+            );
+          })}
         </nav>
       )}
 
@@ -114,9 +169,10 @@ export default function PageHeader({
           {icon && (
             <div
               className={[
-                "flex shrink-0 items-center justify-center rounded-2xl bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+                "flex shrink-0 items-center justify-center rounded-2xl bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
                 isHero ? "h-14 w-14" : "h-12 w-12",
               ].join(" ")}
+              aria-hidden="true"
             >
               {icon}
             </div>
@@ -127,11 +183,16 @@ export default function PageHeader({
               <h1
                 className={[
                   "truncate font-black text-[var(--app-text)]",
-                  isHero ? "text-3xl" : isCompact ? "text-xl" : "text-2xl",
+                  isHero
+                    ? "text-3xl"
+                    : isCompact
+                      ? "text-xl"
+                      : "text-2xl",
                 ].join(" ")}
               >
                 {title}
               </h1>
+
               {badge}
             </div>
 
@@ -157,6 +218,7 @@ export default function PageHeader({
                     <p className="text-[11px] font-bold text-[var(--app-text-muted)]">
                       {item.label}
                     </p>
+
                     <p className="mt-0.5 text-xs font-black text-[var(--app-text)]">
                       {item.value}
                     </p>
@@ -178,6 +240,7 @@ export default function PageHeader({
                           "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm",
                           getToneClass(item.tone),
                         ].join(" ")}
+                        aria-hidden="true"
                       >
                         {item.icon}
                       </div>
@@ -187,6 +250,7 @@ export default function PageHeader({
                       <p className="truncate text-[11px] font-bold text-[var(--app-text-muted)]">
                         {item.label}
                       </p>
+
                       <p className="mt-0.5 truncate text-sm font-black text-[var(--app-text)]">
                         {item.value}
                       </p>

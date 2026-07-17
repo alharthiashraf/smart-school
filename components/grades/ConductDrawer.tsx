@@ -1,7 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Minus, Plus, Save, X } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Loader2,
+  Minus,
+  Plus,
+  Save,
+  X,
+} from "lucide-react";
+
+import { StatusBadge } from "@/components/ui/badges";
+import {
+  PrimaryButton,
+  SecondaryButton,
+} from "@/components/ui/buttons";
+import {
+  NumberField,
+  Select,
+  Textarea,
+  TextField,
+} from "@/components/ui/inputs";
 
 export type ConductScoreType = "behavior" | "attendance";
 export type ConductAction = "increase" | "decrease";
@@ -24,7 +48,16 @@ export type ConductDrawerEvent = {
   created_at?: string | null;
 };
 
-type Props = {
+export type ConductDrawerSubmitPayload = {
+  studentId: string;
+  scoreType: ConductScoreType;
+  action: ConductAction;
+  points: number;
+  reason: string;
+  note: string | null;
+};
+
+export type ConductDrawerProps = {
   open: boolean;
   loading?: boolean;
   student: ConductDrawerStudent | null;
@@ -33,14 +66,9 @@ type Props = {
   currentScore: number;
   events: ConductDrawerEvent[];
   onClose: () => void;
-  onSubmit: (payload: {
-    studentId: string;
-    scoreType: ConductScoreType;
-    action: ConductAction;
-    points: number;
-    reason: string;
-    note: string | null;
-  }) => Promise<void> | void;
+  onSubmit: (
+    payload: ConductDrawerSubmitPayload,
+  ) => Promise<void> | void;
 };
 
 const behaviorReasons = [
@@ -62,6 +90,26 @@ const attendanceReasons = [
   "انتظام مميز",
 ];
 
+function formatEventDate(value?: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("ar-SA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
 export default function ConductDrawer({
   open,
   loading = false,
@@ -72,16 +120,37 @@ export default function ConductDrawer({
   events,
   onClose,
   onSubmit,
-}: Props) {
+}: ConductDrawerProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
   const [points, setPoints] = useState(1);
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
 
-  const title = scoreType === "behavior" ? "تعديل درجة السلوك" : "تعديل درجة المواظبة";
-  const scoreTitle = scoreType === "behavior" ? "درجة السلوك الحالية" : "درجة المواظبة الحالية";
-  const typeLabel = scoreType === "behavior" ? "السلوك" : "المواظبة";
+  const title =
+    scoreType === "behavior"
+      ? "تعديل درجة السلوك"
+      : "تعديل درجة المواظبة";
 
-  const reasons = scoreType === "behavior" ? behaviorReasons : attendanceReasons;
+  const scoreTitle =
+    scoreType === "behavior"
+      ? "درجة السلوك الحالية"
+      : "درجة المواظبة الحالية";
+
+  const typeLabel =
+    scoreType === "behavior" ? "السلوك" : "المواظبة";
+
+  const reasons =
+    scoreType === "behavior"
+      ? behaviorReasons
+      : attendanceReasons;
+
+  const reasonOptions = reasons.map((item) => ({
+    label: item,
+    value: item,
+  }));
 
   const filteredEvents = useMemo(() => {
     if (!student) return [];
@@ -90,17 +159,78 @@ export default function ConductDrawer({
       .filter(
         (event) =>
           event.student_id === student.id &&
-          event.score_type === scoreType
+          event.score_type === scoreType,
       )
+      .sort((first, second) => {
+        const firstDate = first.created_at
+          ? new Date(first.created_at).getTime()
+          : 0;
+
+        const secondDate = second.created_at
+          ? new Date(second.created_at).getTime()
+          : 0;
+
+        return secondDate - firstDate;
+      })
       .slice(0, 10);
-  }, [events, student, scoreType]);
+  }, [events, scoreType, student]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const timeoutId = window.setTimeout(() => {
+      closeButtonRef.current?.focus();
+    }, 0);
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !loading) {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [loading, onClose, open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    setPoints(1);
+    setReason("");
+    setNote("");
+  }, [open, scoreType, student?.id]);
 
   if (!open || !student) return null;
 
-  async function handleSubmit(selectedAction: ConductAction) {
-    if (!student) return;
+  const cleanPoints = Math.max(
+    1,
+    Math.min(100, Number(points) || 1),
+  );
 
-    const cleanPoints = Math.max(1, Math.min(100, Number(points) || 1));
+  const normalizedCurrentScore = clampScore(currentScore);
+
+  const projectedScore =
+    action === "increase"
+      ? clampScore(normalizedCurrentScore + cleanPoints)
+      : clampScore(normalizedCurrentScore - cleanPoints);
+
+  const canSubmit =
+    !loading &&
+    reason.trim().length > 0 &&
+    cleanPoints >= 1;
+
+  async function handleSubmit(
+    selectedAction: ConductAction,
+  ) {
+    if (!student || !canSubmit) return;
 
     await onSubmit({
       studentId: student.id,
@@ -117,198 +247,306 @@ export default function ConductDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
-      <aside className="h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xl font-black text-slate-900">{title}</h2>
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/45 backdrop-blur-sm"
+      onClick={() => {
+        if (!loading) {
+          onClose();
+        }
+      }}
+    >
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        aria-busy={loading}
+        onClick={(event) => event.stopPropagation()}
+        className="flex h-full w-full max-w-md flex-col border-r border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] shadow-[var(--app-shadow)]"
+      >
+        <header className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-4">
+          <div className="min-w-0">
+            <h2
+              id={titleId}
+              className="truncate text-xl font-black text-[var(--app-text)]"
+            >
+              {title}
+            </h2>
+
+            <p
+              id={descriptionId}
+              className="mt-1 text-xs font-bold text-[var(--app-text-muted)]"
+            >
+              أضف أو اخصم درجات مع توثيق السبب والملاحظة.
+            </p>
+          </div>
 
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="rounded-full bg-slate-100 p-2 hover:bg-slate-200"
+            disabled={loading}
+            aria-label="إغلاق النافذة"
+            title="إغلاق"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)] transition hover:bg-[var(--app-card-soft)] hover:text-[var(--app-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-card)] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <X className="h-5 w-5" />
+            <X
+              aria-hidden="true"
+              className="h-5 w-5"
+            />
           </button>
-        </div>
+        </header>
 
-        <div className="rounded-3xl bg-gradient-to-br from-[#0f1f3d] to-[#24477f] p-5 text-white">
-          <div className="text-lg font-black">{student.full_name}</div>
-
-          <div className="mt-2 text-sm text-slate-200">
-            {student.student_number || "بدون رقم"} · {student.classroom_name || "-"}
-          </div>
-
-          <div className="mt-5 rounded-2xl bg-white/10 p-4">
-            <div className="text-xs text-slate-300">{scoreTitle}</div>
-            <div className="mt-1 text-3xl font-black text-[#d4af37]">
-              {currentScore} / 100
+        <div className="flex-1 overflow-y-auto p-5">
+          <section className="rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] p-5 text-[var(--app-primary-foreground)] shadow-sm">
+            <div className="text-lg font-black">
+              {student.full_name}
             </div>
-          </div>
-        </div>
 
-        <div className="mt-5 space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-black text-slate-600">
-              نوع العملية
-            </label>
+            <div className="mt-2 text-sm font-bold text-[var(--app-primary-foreground)]/70">
+              {student.student_number || "بدون رقم"} ·{" "}
+              {student.classroom_name || "-"}
+            </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div
-                className={`rounded-2xl border px-3 py-3 text-center text-sm font-black ${
-                  action === "increase"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-white text-slate-500"
-                }`}
-              >
-                + إضافة
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-primary-foreground)]/15 bg-[var(--app-primary-foreground)]/10 p-4">
+                <div className="text-xs font-bold text-[var(--app-primary-foreground)]/70">
+                  {scoreTitle}
+                </div>
+
+                <div className="mt-1 text-2xl font-black text-[var(--app-accent)]">
+                  {normalizedCurrentScore} / 100
+                </div>
               </div>
 
-              <div
-                className={`rounded-2xl border px-3 py-3 text-center text-sm font-black ${
-                  action === "decrease"
-                    ? "border-red-300 bg-red-50 text-red-700"
-                    : "border-slate-200 bg-white text-slate-500"
-                }`}
-              >
-                - خصم
+              <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-primary-foreground)]/15 bg-[var(--app-primary-foreground)]/10 p-4">
+                <div className="text-xs font-bold text-[var(--app-primary-foreground)]/70">
+                  الدرجة المتوقعة
+                </div>
+
+                <div className="mt-1 text-2xl font-black">
+                  {projectedScore} / 100
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <label className="mb-1 block text-xs font-black text-slate-600">
-              عدد الدرجات
-            </label>
+          <div className="mt-5 space-y-5">
+            <section>
+              <div className="mb-2 text-xs font-black text-[var(--app-text)]">
+                نوع العملية
+              </div>
 
-            <input
-              type="number"
+              <div className="grid grid-cols-2 gap-2">
+                <div
+                  className={[
+                    "rounded-[var(--app-radius-lg)] border px-3 py-3 text-center text-sm font-black",
+                    action === "increase"
+                      ? "border-[var(--app-green)]/30 bg-[var(--app-green-soft)] text-[var(--app-green)]"
+                      : "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+                  ].join(" ")}
+                >
+                  + إضافة
+                </div>
+
+                <div
+                  className={[
+                    "rounded-[var(--app-radius-lg)] border px-3 py-3 text-center text-sm font-black",
+                    action === "decrease"
+                      ? "border-[var(--app-destructive)]/30 bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]"
+                      : "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
+                  ].join(" ")}
+                >
+                  - خصم
+                </div>
+              </div>
+            </section>
+
+            <NumberField
+              label="عدد الدرجات"
               min={1}
               max={100}
               value={points}
-              onChange={(e) => setPoints(Number(e.target.value))}
-              className="w-full rounded-2xl border border-slate-200 px-3 py-3 text-center text-lg font-black outline-none focus:border-[#d4af37]"
+              disabled={loading}
+              onChange={(event) =>
+                setPoints(Number(event.target.value))
+              }
+              inputMode="numeric"
+              className="text-center text-lg"
             />
-          </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-black text-slate-600">
-              السبب
-            </label>
+            <section className="space-y-2">
+              <Select
+                label="السبب"
+                value={reasons.includes(reason) ? reason : ""}
+                options={reasonOptions}
+                placeholder="اختر سببًا"
+                disabled={loading}
+                onChange={(event) =>
+                  setReason(event.target.value)
+                }
+              />
 
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
-            >
-              <option value="">اختر سببًا</option>
-              {reasons.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+              <TextField
+                value={reason}
+                disabled={loading}
+                onChange={(event) =>
+                  setReason(event.target.value)
+                }
+                placeholder="أو اكتب سببًا مخصصًا..."
+                aria-label="سبب مخصص"
+              />
+            </section>
 
-            <input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="أو اكتب سببًا مخصصًا..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-black text-slate-600">
-              ملاحظة إضافية
-            </label>
-
-            <textarea
+            <Textarea
+              label="ملاحظة إضافية"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              disabled={loading}
+              onChange={(event) =>
+                setNote(event.target.value)
+              }
               placeholder="اكتب تفاصيل مختصرة إن وجدت..."
               rows={4}
-              className="w-full resize-none rounded-2xl border border-slate-200 px-3 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
             />
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <SecondaryButton
+                type="button"
+                disabled={!canSubmit}
+                onClick={() => handleSubmit("decrease")}
+                icon={
+                  loading ? (
+                    <Loader2
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin"
+                    />
+                  ) : (
+                    <Minus
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                    />
+                  )
+                }
+                className="border-[var(--app-destructive)]/25 bg-[var(--app-destructive-soft)] text-[var(--app-destructive)] hover:bg-[var(--app-destructive-soft)]"
+              >
+                حفظ كخصم
+              </SecondaryButton>
+
+              <PrimaryButton
+                type="button"
+                disabled={!canSubmit}
+                onClick={() => handleSubmit("increase")}
+                icon={
+                  loading ? (
+                    <Loader2
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin"
+                    />
+                  ) : (
+                    <Plus
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                    />
+                  )
+                }
+              >
+                حفظ كإضافة
+              </PrimaryButton>
+            </div>
+
+            <PrimaryButton
+              type="button"
+              disabled={!canSubmit}
+              onClick={() => handleSubmit(action)}
+              icon={
+                loading ? (
+                  <Loader2
+                    aria-hidden="true"
+                    className="h-4 w-4 animate-spin"
+                  />
+                ) : (
+                  <Save
+                    aria-hidden="true"
+                    className="h-4 w-4 text-[var(--app-accent)]"
+                  />
+                )
+              }
+              className="w-full"
+            >
+              حفظ حسب العملية المحددة
+            </PrimaryButton>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <button
-              type="button"
-              disabled={loading || !reason.trim()}
-              onClick={() => handleSubmit("decrease")}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Minus className="h-4 w-4" />
-              حفظ كخصم
-            </button>
+          <section className="mt-7">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black text-[var(--app-text)]">
+                آخر عمليات {typeLabel}
+              </h3>
 
-            <button
-              type="button"
-              disabled={loading || !reason.trim()}
-              onClick={() => handleSubmit("increase")}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              حفظ كإضافة
-            </button>
-          </div>
+              <StatusBadge tone="primary">
+                {filteredEvents.length}
+              </StatusBadge>
+            </div>
 
-          <button
-            type="button"
-            disabled={loading || !reason.trim()}
-            onClick={() => handleSubmit(action)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0f1f3d] px-4 py-3 text-sm font-black text-white hover:bg-[#18315f] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Save className="h-4 w-4 text-[#d4af37]" />
-            حفظ حسب العملية المحددة
-          </button>
-        </div>
-
-        <div className="mt-6">
-          <h3 className="mb-3 text-sm font-black text-slate-900">
-            آخر عمليات {typeLabel}
-          </h3>
-
-          <div className="space-y-2">
-            {filteredEvents.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">
-                لا توجد عمليات سابقة.
-              </div>
-            ) : (
-              filteredEvents.map((event) => (
-                <div
-                  key={event.id || `${event.student_id}-${event.created_at}`}
-                  className="rounded-2xl border border-slate-200 p-3 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={
-                        event.event_type === "increase"
-                          ? "font-black text-emerald-700"
-                          : "font-black text-red-700"
-                      }
-                    >
-                      {event.event_type === "increase" ? "إضافة" : "خصم"}{" "}
-                      {event.points} درجة
-                    </span>
-
-                    <span className="font-bold text-slate-400">
-                      {event.created_at
-                        ? new Date(event.created_at).toLocaleDateString("ar-SA")
-                        : "-"}
-                    </span>
-                  </div>
-
-                  <div className="mt-1 font-bold text-slate-600">
-                    {event.reason || "بدون سبب"}
-                  </div>
-
-                  {event.note && (
-                    <div className="mt-1 text-slate-400">{event.note}</div>
-                  )}
+            <div className="space-y-2">
+              {filteredEvents.length === 0 ? (
+                <div className="rounded-[var(--app-radius-lg)] border border-dashed border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-center text-xs font-bold text-[var(--app-text-muted)]">
+                  لا توجد عمليات سابقة.
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                filteredEvents.map((event, index) => {
+                  const isIncrease =
+                    event.event_type === "increase";
+
+                  const isSet =
+                    event.event_type === "set";
+
+                  return (
+                    <article
+                      key={
+                        event.id ||
+                        `${event.student_id}-${event.created_at}-${index}`
+                      }
+                      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <StatusBadge
+                          tone={
+                            isIncrease
+                              ? "success"
+                              : isSet
+                                ? "info"
+                                : "danger"
+                          }
+                        >
+                          {isIncrease
+                            ? "إضافة"
+                            : isSet
+                              ? "تعيين"
+                              : "خصم"}{" "}
+                          {event.points} درجة
+                        </StatusBadge>
+
+                        <span className="shrink-0 font-bold text-[var(--app-text-muted)]">
+                          {formatEventDate(event.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 font-bold text-[var(--app-text)]">
+                        {event.reason || "بدون سبب"}
+                      </div>
+
+                      {event.note && (
+                        <div className="mt-1 leading-6 text-[var(--app-text-muted)]">
+                          {event.note}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </section>
         </div>
       </aside>
     </div>
