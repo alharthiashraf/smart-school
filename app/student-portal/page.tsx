@@ -14,9 +14,11 @@ import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryInsightCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 import Section from "@/components/ui/page/PageSection";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageLoader } from "@/components/ui/loading";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
@@ -152,10 +154,10 @@ type QuickLink = {
   description: string;
   href: string;
   icon: React.ElementType;
-  color: "blue" | "green" | "amber" | "red" | "slate";
+  color: "primary" | "green" | "gold" | "red" | "slate";
 };
 
-type StudentInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type StudentInsightTone = "green" | "gold" | "red" | "primary" | "slate";
 
 type StudentInsight = {
   title: string;
@@ -178,7 +180,6 @@ type DistributionItem = {
   value: number;
 };
 
-
 const PAGE_ROLES: SchoolRole[] = ["super_admin", "school_admin", "student"];
 
 const QUICK_LINKS: QuickLink[] = [
@@ -187,7 +188,7 @@ const QUICK_LINKS: QuickLink[] = [
     description: "عرض الدرجات حسب المواد والفصل الدراسي.",
     href: "/student-portal/grades",
     icon: Award,
-    color: "blue",
+    color: "primary",
   },
   {
     title: "حضوري",
@@ -201,7 +202,7 @@ const QUICK_LINKS: QuickLink[] = [
     description: "الأنشطة، المشاركات، الشواهد، والتكريمات.",
     href: "/student-portfolio",
     icon: Trophy,
-    color: "amber",
+    color: "gold",
   },
   {
     title: "التنبيهات",
@@ -268,19 +269,17 @@ function getErrorMessage(error: unknown, fallback: string) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`student portal query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`student portal query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -359,26 +358,49 @@ function gradePercentage(item: GradeRow) {
 }
 
 function gradeColor(value: number) {
-  if (value >= 90) return "bg-emerald-50 text-emerald-700 border-emerald-100";
-  if (value >= 75) return "bg-blue-50 text-blue-700 border-blue-100";
-  if (value >= 60) return "bg-amber-50 text-amber-700 border-amber-100";
-  return "bg-red-50 text-red-700 border-red-100";
+  if (value >= 90) {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (value >= 75) {
+    return "border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (value >= 60) {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
 }
 
 function attendanceColor(value: number) {
-  if (value >= 90) return "bg-emerald-50 text-emerald-700 border-emerald-100";
-  if (value >= 80) return "bg-blue-50 text-blue-700 border-blue-100";
-  if (value >= 70) return "bg-amber-50 text-amber-700 border-amber-100";
-  return "bg-red-50 text-red-700 border-red-100";
+  if (value >= 90) {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (value >= 80) {
+    return "border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (value >= 70) {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
 }
 
 function quickColorClasses(color: QuickLink["color"]) {
-  const colors = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-    amber: "bg-[#C1B489]/20 text-[#15445A]",
-    red: "bg-red-50 text-red-700",
-    slate: "bg-slate-100 text-slate-700",
+  const colors: Record<QuickLink["color"], string> = {
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    slate:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return colors[color];
@@ -406,11 +428,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: StudentInsightTone) {
   const tones: Record<StudentInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    slate:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -418,11 +445,11 @@ function insightTone(tone: StudentInsightTone) {
 
 function progressTone(tone: StudentInsightTone) {
   const tones: Record<StudentInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    slate: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -469,7 +496,6 @@ function buildStudyRecommendations(
     ? recommendations
     : ["أداؤك مستقر؛ حافظ على نفس المستوى وحدد هدفًا أعلى للفترة القادمة."];
 }
-
 
 export default function StudentPortalPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
@@ -888,7 +914,7 @@ export default function StudentPortalPage() {
         title: item.event_title || item.event_type || "حدث",
         description: item.event_description || "حدث مسجل في ملف الطالب.",
         date: item.event_time || item.created_at,
-        tone: "blue" as StudentInsightTone,
+        tone: "primary" as StudentInsightTone,
       })),
       ...notifications.map((item) => ({
         id: `notification-${item.id}`,
@@ -897,7 +923,7 @@ export default function StudentPortalPage() {
         date: item.created_at,
         tone: item.is_read === false
           ? ("gold" as StudentInsightTone)
-          : ("teal" as StudentInsightTone),
+          : ("slate" as StudentInsightTone),
       })),
       ...attendance.slice(0, 8).map((item) => ({
         id: `attendance-${item.id}`,
@@ -929,7 +955,7 @@ export default function StudentPortalPage() {
         title: "مؤشر النجاح يحتاج تدخلًا",
         description: `مؤشر النجاح الحالي ${health.successScore}% ويحتاج خطة تحسين واضحة.`,
         tone: "red",
-        icon: <AlertTriangle className="h-5 w-5" />,
+        icon: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -938,7 +964,7 @@ export default function StudentPortalPage() {
         title: "الأداء الأكاديمي يحتاج دعمًا",
         description: `متوسط الدرجات الحالي ${stats.averageGrade}%.`,
         tone: "gold",
-        icon: <TrendingUp className="h-5 w-5" />,
+        icon: <TrendingUp className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -946,8 +972,8 @@ export default function StudentPortalPage() {
       items.push({
         title: "الانتظام يؤثر على الأداء",
         description: `نسبة الحضور الحالية ${stats.attendanceRate}% وتحتاج إلى تحسن.`,
-        tone: "blue",
-        icon: <CalendarDays className="h-5 w-5" />,
+        tone: "primary",
+        icon: <CalendarDays className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -955,8 +981,8 @@ export default function StudentPortalPage() {
       items.push({
         title: "ملف إنجاز نشط",
         description: `لديك ${stats.achievements} إنجازات أو مشاركات مسجلة.`,
-        tone: "teal",
-        icon: <Trophy className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Trophy className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -965,7 +991,7 @@ export default function StudentPortalPage() {
         title: "أداؤك مستقر",
         description: "لا توجد مؤشرات حرجة حاليًا؛ استمر في التقدم.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -998,7 +1024,17 @@ export default function StudentPortalPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل بوابة الطالب..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={PAGE_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -1013,7 +1049,7 @@ export default function StudentPortalPage() {
             title={`أهلًا، ${studentName(student)}`}
             description="بوابة الطالب لمتابعة الدرجات، الحضور، السلوك، الإحالات، التنبيهات، الجدول الدراسي، والإنجازات في مكان واحد."
             badge="بوابة الطالب"
-            icon={<GraduationCap size={18} />}
+            icon={<GraduationCap size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة الطالب" },
@@ -1025,56 +1061,47 @@ export default function StudentPortalPage() {
               { label: "رقم الطالب", value: student?.student_number || "—" },
             ]}
             stats={[
-              { label: "نسبة الحضور", value: stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—", icon: <CalendarDays size={20} />, tone: stats.attendanceRate >= 90 ? "green" : stats.attendanceRate >= 75 ? "gold" : "red" },
-              { label: "متوسط الدرجات", value: stats.averageGrade ? `${stats.averageGrade}%` : "—", icon: <Award size={20} />, tone: stats.averageGrade >= 90 ? "green" : stats.averageGrade >= 70 ? "gold" : stats.averageGrade > 0 ? "red" : "slate" },
-              { label: "الإنجازات", value: stats.achievements, icon: <Trophy size={20} />, tone: stats.achievements > 0 ? "green" : "teal" },
-              { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "gold" : "green" },
+              { label: "نسبة الحضور", value: stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—", icon: <CalendarDays size={20} aria-hidden="true" />, tone: stats.attendanceRate >= 90 ? "green" : stats.attendanceRate >= 75 ? "gold" : "red" },
+              { label: "متوسط الدرجات", value: stats.averageGrade ? `${stats.averageGrade}%` : "—", icon: <Award size={20} aria-hidden="true" />, tone: stats.averageGrade >= 90 ? "green" : stats.averageGrade >= 70 ? "gold" : stats.averageGrade > 0 ? "red" : "slate" },
+              { label: "الإنجازات", value: stats.achievements, icon: <Trophy size={20} aria-hidden="true" />, tone: stats.achievements > 0 ? "green" : "slate" },
+              { label: "التنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} aria-hidden="true" />, tone: stats.unreadNotifications > 0 ? "gold" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void loadPage()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
                 <Link
                   href="/notifications"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0DA9A6] hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-4 text-sm font-black text-[var(--app-primary-foreground)] shadow-[var(--app-shadow-sm)] transition hover:opacity-90"
                 >
-                  <Bell size={17} />
+                  <Bell size={17} aria-hidden="true" />
                   التنبيهات
                 </Link>
 
                 <Link
                   href="/search"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] px-4 text-sm font-black text-[var(--app-accent-foreground)] shadow-[var(--app-shadow-sm)] transition hover:opacity-90"
                 >
-                  <Search size={17} />
+                  <Search size={17} aria-hidden="true" />
                   البحث
                 </Link>
               </>
             }
           />
 
-          {errorMsg && (
-            <SummaryInsightCard
-              title="تعذر تحميل بعض البيانات"
-              description={errorMsg}
-              tone="red"
-              icon={<AlertTriangle size={22} />}
-            />
-          )}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           {!student ? (
             <EmptyBox text="لم يتم العثور على ملف طالب مرتبط بهذا الحساب. تأكد أن بريد الطالب أو auth_user_id في جدول students مطابق لحساب تسجيل الدخول." />
           ) : (
             <>
               {studentDataLoading && (
-                <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold text-blue-700">
+                <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-sm font-bold text-[var(--app-primary)]">
                   جاري تحديث بيانات الطالب...
                 </div>
               )}
@@ -1083,7 +1110,7 @@ export default function StudentPortalPage() {
                   title="تنبيهات ذكية تحتاج انتباهك"
                   description="ملاحظات سريعة مبنية على بيانات الحضور والدرجات والسلوك."
                   tone="gold"
-                  icon={<AlertTriangle size={22} />}
+                  icon={<AlertTriangle size={22} aria-hidden="true" />}
                   items={smartAlerts.map((item) => item)}
                 />
               )}
@@ -1093,7 +1120,7 @@ export default function StudentPortalPage() {
                   title="نسبة الحضور"
                   value={stats.attendanceRecords > 0 ? `${stats.attendanceRate}%` : "—"}
                   subtitle="آخر سجلات الحضور"
-                  icon={<CalendarDays size={22} />}
+                  icon={<CalendarDays size={22} aria-hidden="true" />}
                   tone={stats.attendanceRecords === 0 ? "primary" : stats.attendanceRate >= 90 ? "green" : stats.attendanceRate >= 75 ? "gold" : "red"}
                   progress={stats.attendanceRate}
                 />
@@ -1102,7 +1129,7 @@ export default function StudentPortalPage() {
                   title="متوسط الدرجات"
                   value={stats.averageGrade ? `${stats.averageGrade}%` : "—"}
                   subtitle="متوسط آخر الدرجات"
-                  icon={<Award size={22} />}
+                  icon={<Award size={22} aria-hidden="true" />}
                   tone={stats.averageGrade >= 90 ? "green" : stats.averageGrade >= 70 ? "gold" : stats.averageGrade > 0 ? "red" : "primary"}
                   progress={stats.averageGrade}
                 />
@@ -1111,7 +1138,7 @@ export default function StudentPortalPage() {
                   title="غياب / تأخر"
                   value={`${stats.absent} / ${stats.late}`}
                   subtitle="حالات تحتاج متابعة"
-                  icon={<AlertTriangle size={22} />}
+                  icon={<AlertTriangle size={22} aria-hidden="true" />}
                   tone={stats.absent > 2 || stats.late > 2 ? "red" : "gold"}
                 />
 
@@ -1119,7 +1146,7 @@ export default function StudentPortalPage() {
                   title="حالة اليوم"
                   value={normalizeAttendanceStatus(todayAttendance?.attendance_status || todayAttendance?.status)}
                   subtitle="آخر حالة مسجلة"
-                  icon={<CheckCircle2 size={22} />}
+                  icon={<CheckCircle2 size={22} aria-hidden="true" />}
                   tone={todayAttendance ? "green" : "primary"}
                 />
 
@@ -1127,7 +1154,7 @@ export default function StudentPortalPage() {
                   title="السلوك"
                   value={stats.behaviorCount}
                   subtitle="سجلات سلوكية"
-                  icon={<ShieldAlert size={22} />}
+                  icon={<ShieldAlert size={22} aria-hidden="true" />}
                   tone={stats.behaviorCount > 0 ? "gold" : "green"}
                 />
 
@@ -1135,15 +1162,15 @@ export default function StudentPortalPage() {
                   title="الإنجازات"
                   value={stats.achievements}
                   subtitle="إنجازات ومشاركات"
-                  icon={<Trophy size={22} />}
-                  tone={stats.achievements > 0 ? "green" : "primary"}
+                  icon={<Trophy size={22} aria-hidden="true" />}
+                  tone={stats.achievements > 0 ? "green" : "slate"}
                 />
 
                 <ExecutiveCard
                   title="تنبيهات"
                   value={stats.unreadNotifications}
                   subtitle="غير مقروءة"
-                  icon={<Bell size={22} />}
+                  icon={<Bell size={22} aria-hidden="true" />}
                   tone={stats.unreadNotifications > 0 ? "red" : "green"}
                 />
               </section>
@@ -1162,7 +1189,6 @@ export default function StudentPortalPage() {
                 ]}
                 footer="تعتمد هذه المؤشرات على البيانات المسجلة في المنصة، وتزداد دقتها مع اكتمال الحضور والدرجات والجدول."
               />
-
 
               <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
                 <StudentSuccessAnalytics
@@ -1186,7 +1212,7 @@ export default function StudentPortalPage() {
               </section>
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.85fr_1.15fr]">
-                <Panel title="بطاقة الطالب" icon={<User size={24} />}>
+                <Panel title="بطاقة الطالب" icon={<User size={24} aria-hidden="true" />}>
                   <div className="space-y-3">
                     <InfoRow label="الاسم" value={studentName(student)} />
                     <InfoRow
@@ -1209,7 +1235,7 @@ export default function StudentPortalPage() {
                   </div>
                 </Panel>
 
-                <Panel title="مؤشرات الطالب" icon={<Sparkles size={24} />}>
+                <Panel title="مؤشرات الطالب" icon={<Sparkles size={24} aria-hidden="true" />}>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <MetricBox
                       title="مؤشر الحضور"
@@ -1232,7 +1258,7 @@ export default function StudentPortalPage() {
                     <MetricBox
                       title="زيارات العيادة"
                       value={stats.healthCount}
-                      className="bg-blue-50 text-blue-700 border-blue-100"
+                      className="bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)] border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))]"
                       description="زيارات أو تحويلات صحية مسجلة للطالب."
                     />
 
@@ -1241,15 +1267,14 @@ export default function StudentPortalPage() {
                       value={stats.openReferrals}
                       className={
                         stats.openReferrals === 0
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                          : "bg-red-50 text-red-700 border-red-100"
+                          ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)] border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))]"
+                          : "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)] border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))]"
                       }
                       description="الإحالات التي لا تزال قيد المتابعة."
                     />
                   </div>
                 </Panel>
               </section>
-
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
                 <StudentTodayHub
@@ -1268,7 +1293,7 @@ export default function StudentPortalPage() {
               </section>
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-                <Panel title="جدولي الدراسي" icon={<BookOpenCheck size={24} />}>
+                <Panel title="جدولي الدراسي" icon={<BookOpenCheck size={24} aria-hidden="true" />}>
                   {nextScheduleItems.length === 0 ? (
                     <EmptyBox text="لا يوجد جدول دراسي مرتبط بفصلك حتى الآن." />
                   ) : (
@@ -1276,21 +1301,21 @@ export default function StudentPortalPage() {
                       {nextScheduleItems.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3"
+                          className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3"
                         >
                           <div>
-                            <p className="font-black text-[#15445A]">
+                            <p className="font-black text-[var(--app-text)]">
                               {item.subject || item.subject_name || "مادة غير محددة"}
                             </p>
 
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-[var(--app-text-subtle)]">
                               {item.day_name || "—"} • الحصة{" "}
                               {item.period_number || "—"} • القاعة{" "}
                               {item.room || "—"}
                             </p>
                           </div>
 
-                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+                          <span className="rounded-full bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
                             {item.class_name || item.classroom_name || student.class_name || "—"}
                           </span>
                         </div>
@@ -1299,7 +1324,7 @@ export default function StudentPortalPage() {
                   )}
                 </Panel>
 
-                <Panel title="آخر الدرجات" icon={<Award size={24} />}>
+                <Panel title="آخر الدرجات" icon={<Award size={24} aria-hidden="true" />}>
                   {grades.length === 0 ? (
                     <EmptyBox text="لا توجد درجات مسجلة حتى الآن." />
                   ) : (
@@ -1310,15 +1335,15 @@ export default function StudentPortalPage() {
                         return (
                           <div
                             key={item.id}
-                            className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+                            className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <h3 className="font-black text-[#15445A]">
+                                <h3 className="font-black text-[var(--app-text)]">
                                   {item.subject_name || item.subject || "مادة"}
                                 </h3>
 
-                                <p className="mt-1 text-sm text-slate-500">
+                                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                                   {item.semester || "الفصل الدراسي"} —{" "}
                                   {item.academic_year || "العام الدراسي"}
                                 </p>
@@ -1333,7 +1358,7 @@ export default function StudentPortalPage() {
                               </span>
                             </div>
 
-                            <p className="mt-3 text-sm font-bold text-slate-500">
+                            <p className="mt-3 text-sm font-bold text-[var(--app-text-muted)]">
                               {item.grade_label || item.result_status || "—"}
                             </p>
                           </div>
@@ -1345,14 +1370,14 @@ export default function StudentPortalPage() {
               </section>
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-                <Panel title="سجل الحضور الأخير" icon={<CalendarDays size={24} />}>
+                <Panel title="سجل الحضور الأخير" icon={<CalendarDays size={24} aria-hidden="true" />}>
                   {todayAttendance && (
-                    <div className="mb-4 rounded-2xl bg-slate-50 p-4">
-                      <p className="text-xs font-bold text-slate-400">
+                    <div className="mb-4 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+                      <p className="text-xs font-bold text-[var(--app-text-subtle)]">
                         حضور اليوم
                       </p>
 
-                      <p className="mt-1 text-xl font-black text-[#15445A]">
+                      <p className="mt-1 text-xl font-black text-[var(--app-text)]">
                         {normalizeAttendanceStatus(
                           todayAttendance.attendance_status || todayAttendance.status,
                         )}
@@ -1372,14 +1397,14 @@ export default function StudentPortalPage() {
                         return (
                           <div
                             key={item.id}
-                            className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3"
+                            className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3"
                           >
                             <div>
-                              <p className="font-black text-[#15445A]">
+                              <p className="font-black text-[var(--app-text)]">
                                 {formatDate(item.attendance_date)}
                               </p>
 
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-[var(--app-text-subtle)]">
                                 {item.notes || "—"}
                               </p>
                             </div>
@@ -1387,10 +1412,10 @@ export default function StudentPortalPage() {
                             <span
                               className={`rounded-full px-3 py-1 text-xs font-black ${
                                 status === "حاضر"
-                                  ? "bg-emerald-50 text-emerald-700"
+                                  ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
                                   : status === "غائب"
-                                    ? "bg-red-50 text-red-700"
-                                    : "bg-amber-50 text-amber-700"
+                                    ? "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
+                                    : "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]"
                               }`}
                             >
                               {status}
@@ -1402,7 +1427,7 @@ export default function StudentPortalPage() {
                   )}
                 </Panel>
 
-                <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} />}>
+                <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} aria-hidden="true" />}>
                   {notifications.length === 0 ? (
                     <EmptyBox text="لا توجد تنبيهات حاليًا." />
                   ) : (
@@ -1411,23 +1436,23 @@ export default function StudentPortalPage() {
                         <Link
                           key={item.id}
                           href="/notifications"
-                          className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm"
+                          className="block rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]"
                         >
                           <div className="mb-1 flex items-center justify-between gap-2">
-                            <h3 className="line-clamp-1 font-black text-[#15445A]">
+                            <h3 className="line-clamp-1 font-black text-[var(--app-text)]">
                               {item.title || "تنبيه"}
                             </h3>
 
                             {item.is_read === false && (
-                              <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                              <span className="h-2.5 w-2.5 rounded-full bg-[var(--app-danger)]" />
                             )}
                           </div>
 
-                          <p className="line-clamp-2 text-sm leading-7 text-slate-500">
+                          <p className="line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
                             {item.message || "لا توجد تفاصيل."}
                           </p>
 
-                          <p className="mt-2 text-xs font-bold text-slate-400">
+                          <p className="mt-2 text-xs font-bold text-[var(--app-text-subtle)]">
                             {formatDate(item.created_at)}
                           </p>
                         </Link>
@@ -1438,10 +1463,10 @@ export default function StudentPortalPage() {
               </section>
 
               <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-                <Panel title="السلوك والإحالات" icon={<ShieldAlert size={24} />}>
+                <Panel title="السلوك والإحالات" icon={<ShieldAlert size={24} aria-hidden="true" />}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                      <h3 className="mb-3 font-black text-[#15445A]">
+                      <h3 className="mb-3 font-black text-[var(--app-text)]">
                         السجلات السلوكية
                       </h3>
 
@@ -1462,7 +1487,7 @@ export default function StudentPortalPage() {
                     </div>
 
                     <div>
-                      <h3 className="mb-3 font-black text-[#15445A]">
+                      <h3 className="mb-3 font-black text-[var(--app-text)]">
                         الإحالات
                       </h3>
 
@@ -1484,7 +1509,7 @@ export default function StudentPortalPage() {
                   </div>
                 </Panel>
 
-                <Panel title="آخر الإنجازات" icon={<Trophy size={24} />}>
+                <Panel title="آخر الإنجازات" icon={<Trophy size={24} aria-hidden="true" />}>
                   {timeline.filter(isAchievementEvent).length === 0 ? (
                     <EmptyBox text="لا توجد إنجازات أو مشاركات مسجلة حتى الآن." />
                   ) : (
@@ -1522,7 +1547,7 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <Section title={title} icon={icon} className="transition hover:shadow-md">
+    <Section title={title} icon={icon} className="transition hover:shadow-[var(--app-shadow-md)]">
       {children}
     </Section>
   );
@@ -1530,9 +1555,9 @@ function Panel({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-      <span className="text-sm font-bold text-slate-500">{label}</span>
-      <span className="text-left font-black text-[#15445A]">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <span className="text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-left font-black text-[var(--app-text)]">{value}</span>
     </div>
   );
 }
@@ -1549,7 +1574,7 @@ function MetricBox({
   className: string;
 }) {
   return (
-    <div className={`rounded-3xl border p-5 ${className}`}>
+    <div className={`rounded-[var(--app-radius-xl)] border p-5 ${className}`}>
       <p className="text-sm font-bold opacity-80">{title}</p>
       <h3 className="mt-2 text-3xl font-black">{value}</h3>
       <p className="mt-3 text-sm leading-7 opacity-80">{description}</p>
@@ -1563,23 +1588,23 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
   return (
     <Link
       href={link.href}
-      className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#0DA9A6]/30 hover:shadow-lg"
+      className="group rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--app-primary)_30%,var(--app-border))] hover:shadow-[var(--app-shadow-lg)]"
     >
       <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition ${quickColorClasses(
+        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] transition ${quickColorClasses(
           link.color,
         )}`}
       >
         <Icon size={24} />
       </div>
 
-      <h3 className="text-xl font-black text-[#15445A]">{link.title}</h3>
+      <h3 className="text-xl font-black text-[var(--app-text)]">{link.title}</h3>
 
-      <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-500">
+      <p className="mt-3 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
         {link.description}
       </p>
 
-      <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-center text-sm font-black text-[#15445A] transition group-hover:bg-[#15445A] group-hover:text-white">
+      <div className="mt-5 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3 text-center text-sm font-black text-[var(--app-text)] transition group-hover:bg-[var(--app-primary)] group-hover:text-[var(--app-primary-foreground)]">
         فتح
       </div>
     </Link>
@@ -1596,10 +1621,10 @@ function SmallRecord({
   date?: string | null;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="line-clamp-1 font-black text-[#15445A]">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-      <p className="mt-1 text-xs font-bold text-slate-400">
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="line-clamp-1 font-black text-[var(--app-text)]">{title}</p>
+      <p className="mt-1 text-sm text-[var(--app-text-muted)]">{subtitle}</p>
+      <p className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
         {formatDate(date)}
       </p>
     </div>
@@ -1611,15 +1636,10 @@ function EmptyBox({ text }: { text: string }) {
     <EmptyState
       title="لا توجد بيانات"
       description={text}
-      className="bg-slate-50"
+      className="bg-[var(--app-card-soft)]"
     />
   );
 }
-
-function LoadingBox() {
-  return <PageLoader text="جاري تحميل بوابة الطالب..." />;
-}
-
 
 function StudentSuccessAnalytics({
   health,
@@ -1643,7 +1663,7 @@ function StudentSuccessAnalytics({
   className: string;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
           Student Success Analytics
@@ -1654,10 +1674,10 @@ function StudentSuccessAnalytics({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StudentPortalMetric label="مؤشر النجاح" value={`${health.successScore}%`} icon={<Target size={18} />} tone={health.riskLevel === "مستقر" ? "green" : health.riskLevel === "متابعة" ? "gold" : "red"} />
-        <StudentPortalMetric label="الأكاديمي" value={`${health.academicScore}%`} icon={<Award size={18} />} tone="blue" />
-        <StudentPortalMetric label="الانتظام" value={`${health.attendanceScore}%`} icon={<CalendarDays size={18} />} tone="teal" />
-        <StudentPortalMetric label="السلوك" value={`${health.behaviorScore}%`} icon={<ShieldAlert size={18} />} tone="green" />
+        <StudentPortalMetric label="مؤشر النجاح" value={`${health.successScore}%`} icon={<Target size={18} aria-hidden="true" />} tone={health.riskLevel === "مستقر" ? "green" : health.riskLevel === "متابعة" ? "gold" : "red"} />
+        <StudentPortalMetric label="الأكاديمي" value={`${health.academicScore}%`} icon={<Award size={18} aria-hidden="true" />} tone="primary" />
+        <StudentPortalMetric label="الانتظام" value={`${health.attendanceScore}%`} icon={<CalendarDays size={18} aria-hidden="true" />} tone="primary" />
+        <StudentPortalMetric label="السلوك" value={`${health.behaviorScore}%`} icon={<ShieldAlert size={18} aria-hidden="true" />} tone="green" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1676,10 +1696,10 @@ function StudentSmartInsights({
   insights: StudentInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
+          <BrainCircuit size={20} aria-hidden="true" />
           AI Student Insights
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1691,9 +1711,9 @@ function StudentSmartInsights({
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1715,9 +1735,9 @@ function StudentHealthPanel({
   health: StudentHealth;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <HeartPulse size={20} />
+        <HeartPulse size={20} aria-hidden="true" />
         Student Health
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1725,9 +1745,9 @@ function StudentHealthPanel({
       </p>
 
       <div className="mt-5 space-y-4">
-        <StudentPortalProgress label="الأكاديمي" value={health.academicScore} total={100} tone="blue" suffix="%" />
+        <StudentPortalProgress label="الأكاديمي" value={health.academicScore} total={100} tone="primary" suffix="%" />
         <StudentPortalProgress label="الحضور" value={health.attendanceScore} total={100} tone="green" suffix="%" />
-        <StudentPortalProgress label="السلوك" value={health.behaviorScore} total={100} tone="teal" suffix="%" />
+        <StudentPortalProgress label="السلوك" value={health.behaviorScore} total={100} tone="primary" suffix="%" />
         <StudentPortalProgress label="المشاركة" value={health.engagementScore} total={100} tone="gold" suffix="%" />
       </div>
     </section>
@@ -1742,9 +1762,9 @@ function StudentAcademicProgress({
   average: number;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <ChartNoAxesCombined size={20} />
+        <ChartNoAxesCombined size={20} aria-hidden="true" />
         Academic Progress
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1779,9 +1799,9 @@ function StudentStudyPlan({
   recommendations: string[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <TrendingUp size={20} />
+        <TrendingUp size={20} aria-hidden="true" />
         Smart Study Plan
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1792,9 +1812,9 @@ function StudentStudyPlan({
         {recommendations.map((item, index) => (
           <div
             key={`${index}-${item}`}
-            className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--app-teal-soft)] text-sm font-black text-[var(--app-teal)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-sm font-black text-[var(--app-primary)]">
               {index + 1}
             </span>
             <p className="text-sm leading-7 text-[var(--app-text)]">{item}</p>
@@ -1815,9 +1835,9 @@ function StudentTodayHub({
   unreadNotifications: number;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Clock3 size={20} />
+        <Clock3 size={20} aria-hidden="true" />
         Today Hub
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1845,7 +1865,7 @@ function StudentTodayHub({
         {schedule.slice(0, 4).map((item) => (
           <div
             key={item.id}
-            className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-4 py-3"
+            className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3"
           >
             <div>
               <p className="font-black text-[var(--app-text)]">
@@ -1855,7 +1875,7 @@ function StudentTodayHub({
                 الحصة {item.period_number || "—"} · القاعة {item.room || "—"}
               </p>
             </div>
-            <CalendarDays size={18} className="text-[var(--app-teal)]" />
+            <CalendarDays size={18} className="text-[var(--app-primary)]" />
           </div>
         ))}
       </div>
@@ -1875,9 +1895,9 @@ function StudentUnifiedTimeline({
   }>;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Activity size={20} />
+        <Activity size={20} aria-hidden="true" />
         Unified Timeline
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1893,7 +1913,7 @@ function StudentUnifiedTimeline({
           items.map((item) => (
             <div
               key={item.id}
-              className="flex gap-3 rounded-2xl bg-[var(--app-card-soft)] p-4"
+              className="flex gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4"
             >
               <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${progressTone(item.tone)}`} />
               <div>
@@ -1927,8 +1947,8 @@ function StudentPortalMetric({
   tone: StudentInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1945,7 +1965,7 @@ function StudentPortalInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -1965,7 +1985,7 @@ function StudentPortalProgress({
   tone: StudentInsightTone;
   suffix?: string;
 }) {
-  const width = Math.min(100, Math.max(4, percentage(value, total)));
+  const width = Math.min(100, Math.max(0, percentage(value, total)));
 
   return (
     <div>
@@ -1974,8 +1994,17 @@ function StudentPortalProgress({
         <span>{value}{suffix}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+        <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={width}
+          className={`h-full rounded-full ${progressTone(tone)}`}
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );
 }
+

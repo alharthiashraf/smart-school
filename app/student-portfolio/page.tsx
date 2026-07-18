@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
@@ -10,6 +10,11 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +31,6 @@ import {
   FileText,
   FolderOpen,
   GraduationCap,
-  Loader2,
   Medal,
   RefreshCcw,
   ShieldCheck,
@@ -65,17 +69,13 @@ type PortfolioItem = {
   created_at: string | null;
 };
 
-type QueryLimitResult<T> = {
-  data: T[] | null;
-  error: unknown;
+type StudentQueryResult = {
+  data: Student[] | null;
+  error: { message?: string } | null;
 };
 
-type LimitableQuery<T> = {
-  limit: (count: number) => PromiseLike<QueryLimitResult<T>>;
-};
-
-type EqCapableQuery<T> = T & {
-  eq: (column: string, value: string) => T;
+type StudentQuery = {
+  limit: (count: number) => PromiseLike<StudentQueryResult>;
 };
 
 type CategoryKey =
@@ -89,6 +89,22 @@ type CategoryKey =
   | "other";
 
 const STUDENT_ROLES: SchoolRole[] = ["super_admin", "school_admin", "student"];
+
+const EXPORT_HEADERS = [
+  "#",
+  "اسم الطالب",
+  "رقم الهوية",
+  "الصف",
+  "الفصل",
+  "العنوان",
+  "التصنيف",
+  "الوصف",
+  "الحالة",
+  "النقاط",
+  "التاريخ",
+  "اسم الملف",
+  "المصدر",
+];
 
 const CATEGORY_OPTIONS: { value: CategoryKey; label: string }[] = [
   { value: "all", label: "كل التصنيفات" },
@@ -180,27 +196,44 @@ function categoryLabel(category?: string | null) {
 function categoryClass(category?: string | null) {
   const key = normalizeCategory(category);
 
-  if (key === "achievement") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (key === "certificate") return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (key === "activity") return "border-purple-200 bg-purple-50 text-purple-700";
-  if (key === "competition") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  if (key === "project") return "border-[#0DA9A6]/20 bg-[#0DA9A6]/10 text-[#0DA9A6]";
-  if (key === "file") return "border-slate-200 bg-slate-50 text-slate-700";
+  if (key === "achievement") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  if (key === "certificate") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (key === "activity") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (key === "competition") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  if (key === "project") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_22%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (key === "file") {
+    return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text)]";
+  }
+
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function categoryIcon(category?: string | null) {
   const key = normalizeCategory(category);
 
-  if (key === "achievement") return <Award className="h-4 w-4" />;
-  if (key === "certificate") return <Medal className="h-4 w-4" />;
-  if (key === "activity") return <Sparkles className="h-4 w-4" />;
-  if (key === "competition") return <Trophy className="h-4 w-4" />;
-  if (key === "project") return <BookOpenCheck className="h-4 w-4" />;
-  if (key === "file") return <FileText className="h-4 w-4" />;
+  if (key === "achievement") return <Award className="h-4 w-4" aria-hidden="true" />;
+  if (key === "certificate") return <Medal className="h-4 w-4" aria-hidden="true" />;
+  if (key === "activity") return <Sparkles className="h-4 w-4" aria-hidden="true" />;
+  if (key === "competition") return <Trophy className="h-4 w-4" aria-hidden="true" />;
+  if (key === "project") return <BookOpenCheck className="h-4 w-4" aria-hidden="true" />;
+  if (key === "file") return <FileText className="h-4 w-4" aria-hidden="true" />;
 
-  return <Star className="h-4 w-4" />;
+  return <Star className="h-4 w-4" aria-hidden="true" />;
 }
 
 function statusLabel(status?: string | null) {
@@ -219,24 +252,27 @@ function statusLabel(status?: string | null) {
 function statusClass(status?: string | null) {
   const label = statusLabel(status);
 
-  if (label === "معتمد") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (label === "قيد المراجعة") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  if (label === "مرفوض") return "border-red-200 bg-red-50 text-red-700";
+  if (label === "معتمد") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  if (label === "قيد المراجعة") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  if (label === "مرفوض") {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
-async function safeSingleStudentQuery(query: LimitableQuery<Student>) {
+async function safeSingleStudentQuery(query: StudentQuery) {
   const { data, error } = await query.limit(1);
 
   if (error) throw error;
 
   return Array.isArray(data) && data.length ? data[0] : null;
-}
-
-function applySchoolFilter<T>(query: T, schoolId: string | null) {
-  if (!schoolId) return query;
-  return (query as EqCapableQuery<T>).eq("school_id", schoolId);
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -295,7 +331,7 @@ function mapPortfolioRow(row: Record<string, unknown>, source: string): Portfoli
 }
 
 export default function StudentPortfolioPage() {
-  const { currentSchool } = useSchool();
+  const { currentSchool, loading: schoolLoading } = useSchool();
   const schoolId = currentSchool?.id ?? null;
 
   const [loading, setLoading] = useState(true);
@@ -312,31 +348,35 @@ export default function StudentPortfolioPage() {
 
   const findStudentForCurrentUser = useCallback(
     async (userId: string, email: string) => {
+      const buildQuery = (
+        column: "auth_user_id" | "user_id" | "email" | "student_email",
+        value: string,
+      ) => {
+        let query = supabase.from("students").select("*").eq(column, value);
+
+        if (schoolId) {
+          query = query.eq("school_id", schoolId);
+        }
+
+        return query;
+      };
+
       const attempts = [
-        () =>
-          safeSingleStudentQuery(
-            applySchoolFilter(supabase.from("students").select("*").eq("auth_user_id", userId), schoolId),
-          ),
-        () =>
-          safeSingleStudentQuery(
-            applySchoolFilter(supabase.from("students").select("*").eq("user_id", userId), schoolId),
-          ),
-        () =>
-          safeSingleStudentQuery(
-            applySchoolFilter(supabase.from("students").select("*").eq("email", email), schoolId),
-          ),
-        () =>
-          safeSingleStudentQuery(
-            applySchoolFilter(supabase.from("students").select("*").eq("student_email", email), schoolId),
-          ),
+        () => safeSingleStudentQuery(buildQuery("auth_user_id", userId)),
+        () => safeSingleStudentQuery(buildQuery("user_id", userId)),
+        () => safeSingleStudentQuery(buildQuery("email", email)),
+        () => safeSingleStudentQuery(buildQuery("student_email", email)),
       ];
 
       for (const attempt of attempts) {
         try {
           const result = await attempt();
-          if (result) return result;
+
+          if (result) {
+            return result;
+          }
         } catch {
-          // بعض الأعمدة قد لا تكون موجودة في كل مشروع، لذلك نكمل المحاولات.
+          // بعض الأعمدة قد لا تكون موجودة في كل نسخة من قاعدة البيانات.
         }
       }
 
@@ -503,38 +543,69 @@ export default function StudentPortfolioPage() {
     };
   }, [filteredItems]);
 
-  const exportRows = useMemo(() => {
-    return filteredItems.map((item, index) => ({
-      "#": index + 1,
-      "اسم الطالب": student?.full_name || "—",
-      "رقم الهوية": student?.national_id || "—",
-      "الصف": student?.grade_name || "—",
-      "الفصل": student?.classroom_name || "—",
-      "العنوان": item.title || "—",
-      "التصنيف": categoryLabel(item.category),
-      "الوصف": item.description || "—",
-      "الحالة": statusLabel(item.status),
-      "النقاط": item.points ?? "—",
-      "التاريخ": formatDate(item.item_date || item.created_at),
-      "اسم الملف": item.file_name || "—",
-      "المصدر": item.source,
-    }));
+  const exportRows = useMemo<(string | number | null | undefined)[][]>(() => {
+    return filteredItems.map((item, index) => [
+      index + 1,
+      student?.full_name || "—",
+      student?.national_id || "—",
+      student?.grade_name || "—",
+      student?.classroom_name || "—",
+      item.title || "—",
+      categoryLabel(item.category),
+      item.description || "—",
+      statusLabel(item.status),
+      item.points ?? "—",
+      formatDate(item.item_date || item.created_at),
+      item.file_name || "—",
+      item.source,
+    ]);
   }, [filteredItems, student]);
 
   function handleExportPDF() {
     exportTableToPDF({
       title: "تقرير ملف إنجاز الطالب",
-      fileName: `student-portfolio-report-${todayFileStamp()}.pdf`,
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `ملف إنجاز الطالب: ${student.full_name}`
+        : "ملف إنجاز الطالب",
+      headers: EXPORT_HEADERS,
       rows: exportRows,
-    } as any);
+      fileName: `student-portfolio-report-${todayFileStamp()}.pdf`,
+    });
   }
 
   async function handleExportExcel() {
     await exportTableToExcel({
+      title: "تقرير ملف إنجاز الطالب",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `ملف إنجاز الطالب: ${student.full_name}`
+        : "ملف إنجاز الطالب",
+      headers: EXPORT_HEADERS,
+      rows: exportRows,
       fileName: `student-portfolio-report-${todayFileStamp()}.xlsx`,
       sheetName: "Portfolio",
-      rows: exportRows,
-    } as any);
+    });
+  }
+
+  if (schoolLoading) {
+    return (
+      <RoleGuard allowedRoles={STUDENT_ROLES}>
+        <AppShell>
+          <PageLoader text="جاري تحميل بيانات المدرسة..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={STUDENT_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
+        </AppShell>
+      </RoleGuard>
+    );
   }
 
   return (
@@ -547,7 +618,7 @@ export default function StudentPortfolioPage() {
             title="ملف إنجازي"
             description="تعرض هذه الصفحة إنجازات الطالب وشهاداته ومشاركاته وملفاته المرتبطة بحسابه في منصة المدرسة الذكية."
             badge="بوابة الطالب"
-            icon={<GraduationCap size={18} />}
+            icon={<GraduationCap size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة الطالب", href: "/student-portal" },
@@ -560,42 +631,41 @@ export default function StudentPortfolioPage() {
               { label: "البريد", value: currentEmail || "—" },
             ]}
             stats={[
-              { label: "إجمالي العناصر", value: stats.total, icon: <FolderOpen size={20} />, tone: "blue" },
-              { label: "الإنجازات", value: stats.achievements, icon: <Award size={20} />, tone: "green" },
-              { label: "الشهادات", value: stats.certificates, icon: <Medal size={20} />, tone: "gold" },
-              { label: "النقاط", value: stats.totalPoints, icon: <Star size={20} />, tone: stats.totalPoints > 0 ? "green" : "slate" },
+              { label: "إجمالي العناصر", value: stats.total, icon: <FolderOpen size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "الإنجازات", value: stats.achievements, icon: <Award size={20} aria-hidden="true" />, tone: "green" },
+              { label: "الشهادات", value: stats.certificates, icon: <Medal size={20} aria-hidden="true" />, tone: "gold" },
+              { label: "النقاط", value: stats.totalPoints, icon: <Star size={20} aria-hidden="true" />, tone: stats.totalPoints > 0 ? "green" : "slate" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw className="h-4 w-4" aria-hidden="true" />}
                   onClick={() => void loadData(true)}
-                  disabled={refreshing}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={refreshing}
                 >
-                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                   onClick={handleExportPDF}
                   disabled={!filteredItems.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileText className="h-4 w-4" />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={
+                    <FileSpreadsheet
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  }
                   onClick={() => void handleExportExcel()}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
                   Excel
-                </button>
+                </ExportButton>
               </>
             }
           />
@@ -605,8 +675,8 @@ export default function StudentPortfolioPage() {
               title="إجمالي العناصر"
               value={stats.total}
               subtitle="حسب الفلاتر الحالية"
-              icon={<FolderOpen className="h-5 w-5" />}
-              tone="blue"
+              icon={<FolderOpen className="h-5 w-5" aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
@@ -614,7 +684,7 @@ export default function StudentPortfolioPage() {
               title="إنجازات"
               value={stats.achievements}
               subtitle="سجلات الإنجاز"
-              icon={<Award className="h-5 w-5" />}
+              icon={<Award className="h-5 w-5" aria-hidden="true" />}
               tone="green"
               progress={stats.total ? Math.round((stats.achievements / stats.total) * 100) : 0}
             />
@@ -623,7 +693,7 @@ export default function StudentPortfolioPage() {
               title="شهادات"
               value={stats.certificates}
               subtitle="الشهادات المرفقة"
-              icon={<Medal className="h-5 w-5" />}
+              icon={<Medal className="h-5 w-5" aria-hidden="true" />}
               tone="gold"
               progress={stats.total ? Math.round((stats.certificates / stats.total) * 100) : 0}
             />
@@ -632,8 +702,8 @@ export default function StudentPortfolioPage() {
               title="أنشطة"
               value={stats.activities}
               subtitle="المشاركات"
-              icon={<Sparkles className="h-5 w-5" />}
-              tone="teal"
+              icon={<Sparkles className="h-5 w-5" aria-hidden="true" />}
+              tone="primary"
               progress={stats.total ? Math.round((stats.activities / stats.total) * 100) : 0}
             />
 
@@ -641,7 +711,7 @@ export default function StudentPortfolioPage() {
               title="مسابقات"
               value={stats.competitions}
               subtitle="المنافسات"
-              icon={<Trophy className="h-5 w-5" />}
+              icon={<Trophy className="h-5 w-5" aria-hidden="true" />}
               tone="primary"
               progress={stats.total ? Math.round((stats.competitions / stats.total) * 100) : 0}
             />
@@ -650,8 +720,8 @@ export default function StudentPortfolioPage() {
               title="مرفقات"
               value={stats.files}
               subtitle="روابط ملفات"
-              icon={<FileText className="h-5 w-5" />}
-              tone="blue"
+              icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+              tone="primary"
               progress={stats.total ? Math.round((stats.files / stats.total) * 100) : 0}
             />
 
@@ -659,7 +729,7 @@ export default function StudentPortfolioPage() {
               title="النقاط"
               value={stats.totalPoints}
               subtitle="مجموع النقاط"
-              icon={<Star className="h-5 w-5" />}
+              icon={<Star className="h-5 w-5" aria-hidden="true" />}
               tone={stats.totalPoints > 0 ? "green" : "primary"}
             />
           </section>
@@ -679,8 +749,7 @@ export default function StudentPortfolioPage() {
             footer="يتم عرض العناصر من جداول ملف الإنجاز والإنجازات والشهادات والملفات المرتبطة بالطالب."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-            <PageToolbar
+          <PageToolbar
               search={{
                 value: search,
                 onChange: setSearch,
@@ -711,33 +780,22 @@ export default function StudentPortfolioPage() {
               }
               onRefresh={() => void loadData(true)}
               onExportPDF={handleExportPDF}
-              onExportExcel={() => void handleExportExcel()}
-            />
-          </section>
+            onExportExcel={() => void handleExportExcel()}
+          />
 
-          {error && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-4 text-sm leading-7 text-red-700">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-1 h-5 w-5 shrink-0" />
-                <div>
-                  <p className="font-bold">تعذر تحميل البيانات</p>
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {error && <ErrorState description={error} />}
 
           {loading ? (
-            <LoadingBox />
+            <PageLoader text="جاري تحميل ملف الإنجاز..." />
           ) : !student ? (
-            <EmptyState
-              icon={<UserRound className="h-9 w-9" />}
+            <UiEmptyState
+              icon={<UserRound className="h-9 w-9" aria-hidden="true" />}
               title="لم يتم العثور على حساب طالب مرتبط"
               description="تأكد أن حساب الطالب مرتبط في جدول students عبر auth_user_id أو user_id أو email أو student_email."
             />
           ) : !filteredItems.length ? (
-            <EmptyState
-              icon={<FolderOpen className="h-9 w-9" />}
+            <UiEmptyState
+              icon={<FolderOpen className="h-9 w-9" aria-hidden="true" />}
               title="لا توجد عناصر في ملف الإنجاز"
               description="لم يتم تسجيل إنجازات أو شهادات أو ملفات مرتبطة بحساب الطالب حتى الآن."
             />
@@ -756,16 +814,16 @@ export default function StudentPortfolioPage() {
 
 function PortfolioCard({ item }: { item: PortfolioItem }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]">
             {categoryIcon(item.category)}
           </div>
 
           <div className="min-w-0">
-            <h3 className="line-clamp-2 font-black text-[#15445A]">{item.title}</h3>
-            <p className="mt-1 text-xs text-slate-500">
+            <h3 className="line-clamp-2 font-black text-[var(--app-text)]">{item.title}</h3>
+            <p className="mt-1 text-xs text-[var(--app-text-muted)]">
               {formatDate(item.item_date || item.created_at)}
             </p>
           </div>
@@ -783,17 +841,17 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
         </div>
       </div>
 
-      <p className="mt-4 min-h-[44px] text-sm leading-7 text-slate-600">
+      <p className="mt-4 min-h-[44px] text-sm leading-7 text-[var(--app-text-muted)]">
         {item.description || "لا يوجد وصف مسجل لهذا العنصر."}
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-        <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-          <span className="rounded-full bg-slate-50 px-3 py-1 font-semibold">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--app-border)] pt-3">
+        <div className="flex flex-wrap gap-2 text-xs text-[var(--app-text-muted)]">
+          <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 font-semibold">
             المصدر: {item.source}
           </span>
 
-          <span className="rounded-full bg-slate-50 px-3 py-1 font-semibold">
+          <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 font-semibold">
             النقاط: {item.points ?? "—"}
           </span>
         </div>
@@ -803,14 +861,14 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
             href={item.file_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0DA9A6]"
+            className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-4 py-2 text-xs font-bold text-[var(--app-primary-foreground)] transition hover:opacity-90"
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
             فتح المرفق
           </a>
         ) : (
-          <span className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500">
-            <ShieldCheck className="h-4 w-4" />
+          <span className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-xs font-bold text-[var(--app-text-muted)]">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
             بدون مرفق
           </span>
         )}
@@ -819,38 +877,4 @@ function PortfolioCard({ item }: { item: PortfolioItem }) {
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white">
-      <div className="flex flex-col items-center gap-3 text-slate-600">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-        <p className="text-sm font-bold">جاري تحميل ملف الإنجاز...</p>
-      </div>
-    </div>
-  );
-}
 
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white p-6 text-center shadow-sm">
-      <div className="mx-auto max-w-md">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          {icon}
-        </div>
-
-        <h2 className="mt-4 text-xl font-black text-[#15445A]">{title}</h2>
-        <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
-      </div>
-    </div>
-  );
-}

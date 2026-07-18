@@ -39,8 +39,17 @@ import AuthGuard from "@/components/auth/AuthGuard";
 import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { ExportEngine } from "@/core";
@@ -87,7 +96,7 @@ type Toast = {
   message: string;
 };
 
-type SubjectInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type SubjectInsightTone = "green" | "gold" | "red" | "primary" | "slate";
 
 type SubjectInsight = {
   title: string;
@@ -108,7 +117,6 @@ type DistributionItem = {
   name: string;
   count: number;
 };
-
 
 const PAGE_SIZE = 10;
 
@@ -183,11 +191,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: SubjectInsightTone) {
   const tones: Record<SubjectInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    slate:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -195,11 +208,11 @@ function insightTone(tone: SubjectInsightTone) {
 
 function progressTone(tone: SubjectInsightTone) {
   const tones: Record<SubjectInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    slate: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -228,7 +241,6 @@ function buildSubjectRecommendations(subject: SubjectView) {
     ? recommendations
     : ["المادة مكتملة ولا توجد ملاحظات تشغيلية حرجة."];
 }
-
 
 export default function SubjectsPage() {
   const {
@@ -402,6 +414,10 @@ export default function SubjectsPage() {
     page * PAGE_SIZE,
   );
 
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
   const stats = useMemo(() => {
     const active = rows.filter((row) => row.is_active !== false).length;
     const inactive = rows.filter((row) => row.is_active === false).length;
@@ -481,7 +497,7 @@ export default function SubjectsPage() {
         title: "مواد بدون مرحلة",
         description: `يوجد ${subjectsWithoutStage.length} مادة غير مرتبطة بمرحلة دراسية.`,
         tone: "red",
-        icon: <AlertTriangle className="h-5 w-5" />,
+        icon: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -490,7 +506,7 @@ export default function SubjectsPage() {
         title: "رموز مواد ناقصة",
         description: `${subjectsWithoutCode.length} مادة لا تحتوي على رمز واضح.`,
         tone: "gold",
-        icon: <Target className="h-5 w-5" />,
+        icon: <Target className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -498,8 +514,8 @@ export default function SubjectsPage() {
       items.push({
         title: "مواد غير نشطة",
         description: `يوجد ${stats.inactive} مادة معطلة وتحتاج إلى مراجعة.`,
-        tone: "blue",
-        icon: <XCircle className="h-5 w-5" />,
+        tone: "primary",
+        icon: <XCircle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -508,8 +524,8 @@ export default function SubjectsPage() {
       items.push({
         title: "أعلى مرحلة من حيث المواد",
         description: `${topStage.name} تضم ${topStage.count} مادة.`,
-        tone: "teal",
-        icon: <School className="h-5 w-5" />,
+        tone: "primary",
+        icon: <School className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -518,7 +534,7 @@ export default function SubjectsPage() {
         title: "هيكلة المواد مستقرة",
         description: "لا توجد مؤشرات حرجة في المرحلة أو الرمز أو الحالة.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -736,7 +752,7 @@ export default function SubjectsPage() {
             title="لا تملك صلاحية الوصول إلى المواد الدراسية"
             description="هذه الصفحة مخصصة للإدارة المدرسية حسب الصلاحيات."
             tone="gold"
-            icon={<BookOpen size={22} />}
+            icon={<BookOpen size={22} aria-hidden="true" />}
           />
         </PageContainer>
       </AuthGuard>
@@ -748,7 +764,7 @@ export default function SubjectsPage() {
       <AuthGuard>
         <PageContainer size="wide" className="space-y-5">
           <Breadcrumb />
-          <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+          <PageLoader text="جاري تحميل بيانات المدرسة..." />
         </PageContainer>
       </AuthGuard>
     );
@@ -764,7 +780,7 @@ export default function SubjectsPage() {
             title="لا توجد مدرسة مرتبطة"
             description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
             tone="red"
-            icon={<BookOpen size={22} />}
+            icon={<BookOpen size={22} aria-hidden="true" />}
           />
         </PageContainer>
       </AuthGuard>
@@ -776,13 +792,21 @@ export default function SubjectsPage() {
       <PageContainer size="wide" className="space-y-5">
         <Breadcrumb />
 
-        {toast && <ToastBox toast={toast} />}
+        {toast && (
+          <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+            {toast.type === "success" ? (
+              <SuccessBanner description={toast.message} />
+            ) : (
+              <ErrorState description={toast.message} />
+            )}
+          </div>
+        )}
         <PageHeader
           variant="hero"
           title="المواد الدراسية"
           description={`${currentSchool.school_name} — إدارة المواد وربطها بالمراحل، لتكون أساسًا لإسناد المعلمين والجداول والدرجات والتقارير.`}
           badge="الإدارة الأكاديمية"
-          icon={<BookOpen size={18} />}
+          icon={<BookOpen size={18} aria-hidden="true" />}
           breadcrumbs={[
             { label: "لوحة التحكم", href: "/dashboard" },
             { label: "المواد الدراسية" },
@@ -794,51 +818,45 @@ export default function SubjectsPage() {
             { label: "أنواع المواد", value: stats.types },
           ]}
           stats={[
-            { label: "إجمالي المواد", value: stats.total, icon: <BookOpen size={20} />, tone: "blue" },
-            { label: "مواد نشطة", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
-            { label: "غير نشطة", value: stats.inactive, icon: <XCircle size={20} />, tone: stats.inactive > 0 ? "red" : "green" },
-            { label: "نتائج البحث", value: stats.filtered, icon: <FileText size={20} />, tone: "teal" },
+            { label: "إجمالي المواد", value: stats.total, icon: <BookOpen size={20} aria-hidden="true" />, tone: "primary" },
+            { label: "مواد نشطة", value: stats.active, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
+            { label: "غير نشطة", value: stats.inactive, icon: <XCircle size={20} aria-hidden="true" />, tone: stats.inactive > 0 ? "red" : "green" },
+            { label: "نتائج البحث", value: stats.filtered, icon: <FileText size={20} aria-hidden="true" />, tone: "primary" },
           ]}
           actions={
             <>
               {canManage && (
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Plus size={17} aria-hidden="true" />}
                   onClick={openCreateForm}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Plus size={17} />
                   إضافة مادة
-                </button>
+                </PrimaryButton>
               )}
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<Download size={17} aria-hidden="true" />}
                 onClick={exportExcel}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                disabled={!filteredRows.length}
               >
-                <Download size={17} />
                 Excel
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<Printer size={17} aria-hidden="true" />}
                 onClick={exportPDF}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                disabled={!filteredRows.length}
               >
-                <Printer size={17} />
                 PDF
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<RefreshCcw size={17} aria-hidden="true" />}
                 onClick={() => void loadData()}
-                disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                loading={loading}
               >
-                <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
                 تحديث
-              </button>
+              </SecondaryButton>
             </>
           }
         />
@@ -848,15 +866,15 @@ export default function SubjectsPage() {
             title="إجمالي المواد"
             value={stats.total}
             subtitle="كل المواد المسجلة"
-            icon={<BookOpen size={22} />}
-            tone="blue"
+            icon={<BookOpen size={22} aria-hidden="true" />}
+            tone="primary"
             progress={stats.total > 0 ? 100 : 0}
           />
           <ExecutiveCard
             title="نتائج البحث"
             value={stats.filtered}
             subtitle={`من ${stats.total} مادة`}
-            icon={<FileText size={22} />}
+            icon={<FileText size={22} aria-hidden="true" />}
             tone="primary"
             progress={stats.total ? Math.round((stats.filtered / stats.total) * 100) : 0}
           />
@@ -864,7 +882,7 @@ export default function SubjectsPage() {
             title="مواد نشطة"
             value={stats.active}
             subtitle="جاهزة للإسناد والاستخدام"
-            icon={<CheckCircle2 size={22} />}
+            icon={<CheckCircle2 size={22} aria-hidden="true" />}
             tone="green"
             progress={stats.total ? Math.round((stats.active / stats.total) * 100) : 0}
           />
@@ -872,7 +890,7 @@ export default function SubjectsPage() {
             title="مواد غير نشطة"
             value={stats.inactive}
             subtitle={stats.inactive > 0 ? "تحتاج مراجعة" : "لا توجد مواد معطلة"}
-            icon={<XCircle size={22} />}
+            icon={<XCircle size={22} aria-hidden="true" />}
             tone={stats.inactive > 0 ? "red" : "green"}
             progress={stats.total ? Math.round((stats.inactive / stats.total) * 100) : 0}
           />
@@ -880,7 +898,7 @@ export default function SubjectsPage() {
             title="أنواع المواد"
             value={stats.types}
             subtitle={`${stats.stages} مراحل مرتبطة`}
-            icon={<Layers3 size={22} />}
+            icon={<Layers3 size={22} aria-hidden="true" />}
             tone="gold"
           />
         </section>
@@ -899,7 +917,6 @@ export default function SubjectsPage() {
           ]}
           footer="تستخدم المواد في إسناد المعلمين والجداول والدرجات؛ لذلك يفضل ضبط المرحلة والنوع قبل اعتمادها."
         />
-
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <SubjectExecutiveAnalytics
@@ -925,7 +942,7 @@ export default function SubjectsPage() {
           />
         </section>
 
-        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+        <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
           <div className="mb-4">
             <h2 className="text-xl font-black text-[var(--app-text)]">
               البحث الذكي في المواد
@@ -941,7 +958,7 @@ export default function SubjectsPage() {
                 key={command}
                 type="button"
                 onClick={() => runSmartSearch(command)}
-                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-primary)] hover:text-[var(--app-primary)]"
               >
                 {command}
               </button>
@@ -950,27 +967,23 @@ export default function SubjectsPage() {
         </section>
 
         {formOpen && (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {editingSubject ? (
-                  <Edit3 className="text-[#C1B489]" />
+                  <Edit3 className="text-[var(--app-accent)]" aria-hidden="true" />
                 ) : (
-                  <Plus className="text-[#C1B489]" />
+                  <Plus className="text-[var(--app-accent)]" aria-hidden="true" />
                 )}
 
-                <h2 className="text-xl font-black text-[#15445A]">
+                <h2 className="text-xl font-black text-[var(--app-text)]">
                   {editingSubject ? "تعديل مادة" : "إضافة مادة"}
                 </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold"
-              >
+              <SecondaryButton onClick={closeForm}>
                 إغلاق
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -982,7 +995,7 @@ export default function SubjectsPage() {
                     stage_id: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               >
                 <option value="">بدون مرحلة</option>
                 {activeStages.map((stage) => (
@@ -1022,7 +1035,7 @@ export default function SubjectsPage() {
                     subject_type: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               >
                 {SUBJECT_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -1034,7 +1047,7 @@ export default function SubjectsPage() {
                 )}
               </select>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+              <label className="flex items-center gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-black text-[var(--app-text)]">
                 <input
                   type="checkbox"
                   checked={form.is_active}
@@ -1044,100 +1057,85 @@ export default function SubjectsPage() {
                       is_active: event.target.checked,
                     }))
                   }
-                  className="h-4 w-4"
+                  className="h-4 w-4 accent-[var(--app-primary)]"
                 />
                 المادة نشطة
               </label>
             </div>
 
-            <button
-              type="button"
+            <PrimaryButton
+              className="mt-5"
+              icon={<Save size={16} aria-hidden="true" />}
               onClick={() => void submitForm()}
-              disabled={saving}
-              className="mt-5 flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              loading={saving}
             >
-              <Save size={16} />
-              {saving ? "جاري الحفظ..." : "حفظ"}
-            </button>
+              حفظ
+            </PrimaryButton>
           </section>
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-            <div className="mb-5 flex flex-col gap-4 print:hidden">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">
-                    قائمة المواد
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    عرض {pagedRows.length} من {filteredRows.length} مادة
-                  </p>
-                </div>
+          <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
+            <div className="mb-5 print:hidden">
+              <div className="mb-4">
+                <h2 className="text-2xl font-black text-[var(--app-text)]">
+                  قائمة المواد
+                </h2>
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
+                  عرض {pagedRows.length} من {filteredRows.length} مادة
+                </p>
               </div>
 
-              <div className="grid w-full gap-3 lg:grid-cols-4">
-                <div className="relative lg:col-span-2">
-                  <Search
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={18}
-                  />
+              <PageToolbar
+                search={{
+                  value: search,
+                  onChange: setSearch,
+                  placeholder: "ابحث باسم المادة أو الرمز أو المرحلة...",
+                }}
+                filters={
+                  <>
+                    <ToolbarSelect value={stageFilter} onChange={setStageFilter}>
+                      <option value="all">كل المراحل</option>
+                      {activeStages.map((stage) => (
+                        <option key={stage.id} value={stage.id}>
+                          {stage.stage_name || "مرحلة بدون اسم"}
+                        </option>
+                      ))}
+                    </ToolbarSelect>
 
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="ابحث باسم المادة أو الرمز أو المرحلة..."
-                    className="w-full rounded-2xl border border-slate-200 py-3 pl-4 pr-10 outline-none focus:border-[#0DA9A6]"
-                  />
-                </div>
+                    <ToolbarSelect value={typeFilter} onChange={setTypeFilter}>
+                      <option value="all">كل الأنواع</option>
+                      {subjectTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </ToolbarSelect>
 
-                <select
-                  value={stageFilter}
-                  onChange={(event) => setStageFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل المراحل</option>
-                  {activeStages.map((stage) => (
-                    <option key={stage.id} value={stage.id}>
-                      {stage.stage_name || "مرحلة بدون اسم"}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
-                >
-                  <option value="all">كل الأنواع</option>
-                  {subjectTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(event) =>
-                    setStatusFilter(
-                      event.target.value as "all" | "active" | "inactive",
-                    )
-                  }
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6] lg:col-span-2"
-                >
-                  <option value="all">كل الحالات</option>
-                  <option value="active">نشطة</option>
-                  <option value="inactive">غير نشطة</option>
-                </select>
-              </div>
+                    <ToolbarSelect
+                      value={statusFilter}
+                      onChange={(value) =>
+                        setStatusFilter(
+                          value as "all" | "active" | "inactive",
+                        )
+                      }
+                    >
+                      <option value="all">كل الحالات</option>
+                      <option value="active">نشطة</option>
+                      <option value="inactive">غير نشطة</option>
+                    </ToolbarSelect>
+                  </>
+                }
+                onRefresh={() => void loadData()}
+                onExportExcel={exportExcel}
+                onExportPDF={exportPDF}
+              />
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full min-w-[950px]">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+                  <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)] text-right text-sm text-[var(--app-text-muted)]">
                     <th className="rounded-r-2xl px-4 py-3">المادة</th>
                     <th className="px-4 py-3">الرمز</th>
                     <th className="px-4 py-3">المرحلة</th>
@@ -1155,13 +1153,13 @@ export default function SubjectsPage() {
                     pagedRows.map((subject) => (
                       <tr
                         key={subject.id}
-                        className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
+                        className="border-b border-slate-50 text-sm transition hover:bg-[var(--app-card-soft)]"
                       >
                         <td className="px-4 py-3">
-                          <div className="font-black text-[#15445A]">
+                          <div className="font-black text-[var(--app-text)]">
                             {subject.displayName}
                           </div>
-                          <div className="mt-1 text-xs font-bold text-slate-400">
+                          <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
                             رقم السجل: {subject.id.slice(0, 8)}
                           </div>
                         </td>
@@ -1169,7 +1167,7 @@ export default function SubjectsPage() {
                         <td className="px-4 py-3">{subject.displayCode}</td>
                         <td className="px-4 py-3">{subject.displayStage}</td>
                         <td className="px-4 py-3">
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                          <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
                             {subject.displayType}
                           </span>
                         </td>
@@ -1184,47 +1182,43 @@ export default function SubjectsPage() {
 
                         <td className="px-4 py-3 print:hidden">
                           <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSubject(subject)}
-                              className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+                            <IconButton
+                              label="عرض تفاصيل المادة"
                               title="عرض مختصر"
-                            >
-                              <Eye size={16} />
-                            </button>
+                              onClick={() => setSelectedSubject(subject)}
+                              icon={<Eye size={16} aria-hidden="true" />}
+                            />
 
                             {canManage && (
                               <>
-                                <button
-                                  type="button"
-                                  onClick={() => openEditForm(subject)}
-                                  className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/20"
+                                <IconButton
+                                  label="تعديل المادة"
                                   title="تعديل"
-                                >
-                                  <Edit3 size={16} />
-                                </button>
+                                  onClick={() => openEditForm(subject)}
+                                  icon={<Edit3 size={16} aria-hidden="true" />}
+                                />
 
-                                <button
-                                  type="button"
-                                  onClick={() => void toggleActive(subject)}
-                                  className="rounded-xl bg-[#C1B489]/20 p-2 text-[#15445A] hover:bg-[#C1B489]/30"
+                                <IconButton
+                                  label={
+                                    subject.is_active === false
+                                      ? "تفعيل المادة"
+                                      : "تعطيل المادة"
+                                  }
                                   title={
                                     subject.is_active === false
                                       ? "تفعيل"
                                       : "تعطيل"
                                   }
-                                >
-                                  <Power size={16} />
-                                </button>
+                                  onClick={() => void toggleActive(subject)}
+                                  icon={<Power size={16} aria-hidden="true" />}
+                                />
 
-                                <button
-                                  type="button"
-                                  onClick={() => void removeSubject(subject)}
-                                  className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                                <IconButton
+                                  label="حذف المادة"
                                   title="حذف"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                  onClick={() => void removeSubject(subject)}
+                                  icon={<Trash2 size={16} aria-hidden="true" />}
+                                />
                               </>
                             )}
                           </div>
@@ -1235,48 +1229,50 @@ export default function SubjectsPage() {
               </table>
 
               {loading && (
-                <div className="py-10 text-center text-slate-500">
-                  جاري تحميل المواد الدراسية...
-                </div>
+                <PageLoader text="جاري تحميل المواد الدراسية..." />
               )}
 
               {!loading && filteredRows.length === 0 && (
-                <div className="py-10 text-center text-slate-500">
-                  لا توجد مواد مطابقة للبحث
+                <div className="p-6">
+                  <UiEmptyState
+                    icon={<Search className="h-8 w-8" aria-hidden="true" />}
+                    title="لا توجد مواد"
+                    description="غيّر البحث أو الفلاتر، أو أضف مادة دراسية جديدة."
+                  />
                 </div>
               )}
             </div>
 
             {!loading && filteredRows.length > 0 && (
               <div className="mt-5 flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[var(--app-text-muted)]">
                   عرض {pagedRows.length} من {filteredRows.length}
                 </p>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  <IconButton
+                    label="الصفحة السابقة"
+                    title="السابق"
+                    onClick={() =>
+                      setPage((value) => Math.max(1, value - 1))
+                    }
                     disabled={page === 1}
-                    className="rounded-xl border p-2 disabled:opacity-40"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
+                    icon={<ChevronRight size={18} aria-hidden="true" />}
+                  />
 
-                  <span className="text-sm font-bold text-slate-700">
+                  <span className="text-sm font-bold text-[var(--app-text)]">
                     {page} / {totalPages}
                   </span>
 
-                  <button
-                    type="button"
+                  <IconButton
+                    label="الصفحة التالية"
+                    title="التالي"
                     onClick={() =>
                       setPage((value) => Math.min(totalPages, value + 1))
                     }
                     disabled={page === totalPages}
-                    className="rounded-xl border p-2 disabled:opacity-40"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
+                    icon={<ChevronLeft size={18} aria-hidden="true" />}
+                  />
                 </div>
               </div>
             )}
@@ -1289,18 +1285,6 @@ export default function SubjectsPage() {
         </section>
       </PageContainer>
     </AuthGuard>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      <span>{toast.message}</span>
-    </div>
   );
 }
 
@@ -1321,7 +1305,7 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#0DA9A6]"
+      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     />
   );
 }
@@ -1330,7 +1314,7 @@ function SubjectStatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-black ${
-        active ? "bg-[#07A869]/10 text-[#07A869]" : "bg-red-50 text-red-700"
+        active ? "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]" : "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]"
       }`}
     >
       {active ? "نشطة" : "غير نشطة"}
@@ -1347,50 +1331,43 @@ function SubjectSideCard({
 }) {
   if (!selectedSubject) {
     return (
-      <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
-          <div>
-            <BookOpen size={42} className="mx-auto text-[#C1B489]" />
-            <h3 className="mt-4 text-xl font-black text-[#15445A]">
-              اختر مادة
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              اضغط على أيقونة العين لعرض تفاصيل المادة
-            </p>
-          </div>
-        </div>
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+        <UiEmptyState
+          icon={<BookOpen className="h-9 w-9" aria-hidden="true" />}
+          title="اختر مادة"
+          description="اضغط على زر العرض بجانب المادة لمشاهدة تفاصيلها."
+        />
       </div>
     );
   }
 
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-2xl font-black text-[#15445A]">
+        <h2 className="text-2xl font-black text-[var(--app-text)]">
           تفاصيل المادة
         </h2>
 
-        <button
-          type="button"
+        <IconButton
+          label="إغلاق تفاصيل المادة"
+          title="إغلاق"
           onClick={() => setSelectedSubject(null)}
-          className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-        >
-          <X size={18} />
-        </button>
+          icon={<X size={18} aria-hidden="true" />}
+        />
       </div>
 
-      <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
+      <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] p-5 text-[var(--app-primary-foreground)]">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#C1B489] text-[#15445A]">
-            <BookOpen size={28} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] text-[var(--app-accent-foreground)]">
+            <BookOpen size={28} aria-hidden="true" />
           </div>
 
           <div>
-            <h3 className="text-2xl font-black text-[#C1B489]">
+            <h3 className="text-2xl font-black text-[var(--app-accent)]">
               {selectedSubject.displayName}
             </h3>
 
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-[var(--app-primary-foreground)]/70">
               {selectedSubject.displayStage}
             </p>
           </div>
@@ -1446,22 +1423,12 @@ function SubjectSideCard({
 
 function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
-      <p className="mt-1 truncate font-black text-white">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)]/10 p-3">
+      <p className="text-xs text-[var(--app-primary-foreground)]/70">{title}</p>
+      <p className="mt-1 truncate font-black text-[var(--app-primary-foreground)]">{value}</p>
     </div>
   );
 }
-
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
-
 
 function SubjectExecutiveAnalytics({
   stats,
@@ -1484,7 +1451,7 @@ function SubjectExecutiveAnalytics({
   };
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
           Executive Analytics
@@ -1495,10 +1462,10 @@ function SubjectExecutiveAnalytics({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SubjectMetric label="معدل النشاط" value={`${health.activeRate}%`} icon={<Activity size={18} />} tone="green" />
-        <SubjectMetric label="تغطية المراحل" value={`${health.stageCoverage}%`} icon={<School size={18} />} tone="blue" />
-        <SubjectMetric label="اكتمال الرموز" value={`${health.codeCoverage}%`} icon={<Target size={18} />} tone="teal" />
-        <SubjectMetric label="اكتمال الأنواع" value={`${health.typeCoverage}%`} icon={<Layers3 size={18} />} tone="gold" />
+        <SubjectMetric label="معدل النشاط" value={`${health.activeRate}%`} icon={<Activity size={18} aria-hidden="true" />} tone="green" />
+        <SubjectMetric label="تغطية المراحل" value={`${health.stageCoverage}%`} icon={<School size={18} aria-hidden="true" />} tone="primary" />
+        <SubjectMetric label="اكتمال الرموز" value={`${health.codeCoverage}%`} icon={<Target size={18} aria-hidden="true" />} tone="primary" />
+        <SubjectMetric label="اكتمال الأنواع" value={`${health.typeCoverage}%`} icon={<Layers3 size={18} aria-hidden="true" />} tone="gold" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1517,10 +1484,10 @@ function SubjectExecutiveAnalytics({
 
 function SubjectSmartInsights({ insights }: { insights: SubjectInsight[] }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
+          <BrainCircuit size={20} aria-hidden="true" />
           AI Smart Insights
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1532,9 +1499,9 @@ function SubjectSmartInsights({ insights }: { insights: SubjectInsight[] }) {
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -1552,7 +1519,7 @@ function SubjectSmartInsights({ insights }: { insights: SubjectInsight[] }) {
 
 function SubjectHealthPanel({ health }: { health: SubjectHealth }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">Subject Health</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات جودة واكتمال بيانات المواد.
@@ -1560,8 +1527,8 @@ function SubjectHealthPanel({ health }: { health: SubjectHealth }) {
 
       <div className="mt-5 space-y-4">
         <SubjectProgress label="المواد النشطة" value={health.activeRate} total={100} tone="green" suffix="%" />
-        <SubjectProgress label="ربط المراحل" value={health.stageCoverage} total={100} tone="blue" suffix="%" />
-        <SubjectProgress label="اكتمال الرموز" value={health.codeCoverage} total={100} tone="teal" suffix="%" />
+        <SubjectProgress label="ربط المراحل" value={health.stageCoverage} total={100} tone="primary" suffix="%" />
+        <SubjectProgress label="اكتمال الرموز" value={health.codeCoverage} total={100} tone="primary" suffix="%" />
         <SubjectProgress label="المواد غير النشطة" value={health.inactiveRate} total={100} tone="red" suffix="%" />
       </div>
     </section>
@@ -1578,7 +1545,7 @@ function SubjectDistributionPanel({
   const max = Math.max(1, ...items.map((item) => item.count));
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         توزيع المواد حسب البيانات المسجلة.
@@ -1591,7 +1558,7 @@ function SubjectDistributionPanel({
             label={item.name}
             value={item.count}
             total={max}
-            tone="blue"
+            tone="primary"
           />
         ))}
 
@@ -1615,8 +1582,8 @@ function SubjectMetric({
   tone: SubjectInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -1627,7 +1594,7 @@ function SubjectMetric({
 
 function SubjectInfoLine({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -1647,7 +1614,7 @@ function SubjectProgress({
   tone: SubjectInsightTone;
   suffix?: string;
 }) {
-  const width = Math.min(100, Math.max(4, percentage(value, total)));
+  const width = Math.min(100, Math.max(0, percentage(value, total)));
 
   return (
     <div>
@@ -1656,7 +1623,15 @@ function SubjectProgress({
         <span>{value}{suffix}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+        <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={width}
+          className={`h-full rounded-full ${progressTone(tone)}`}
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );
@@ -1664,13 +1639,14 @@ function SubjectProgress({
 
 function SubjectDrawerSection({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">{item}</p>
         ))}
       </div>
     </div>
   );
 }
+

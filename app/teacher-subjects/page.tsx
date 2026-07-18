@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -20,8 +19,6 @@ import {
   Download,
   Edit3,
   Eye,
-  FileText,
-  GraduationCap,
   Layers3,
   Plus,
   Power,
@@ -31,12 +28,9 @@ import {
   Search,
   School,
   ShieldAlert,
-  Target,
   Sparkles,
   Trash2,
   UserRound,
-  Users,
-  WandSparkles,
   X,
   XCircle,
 } from "lucide-react";
@@ -48,6 +42,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { ExportEngine } from "@/core";
@@ -141,7 +143,7 @@ type Toast = {
 
 type ViewMode = "table" | "cards";
 
-type AssignmentInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type AssignmentInsightTone = "green" | "gold" | "red" | "primary" | "slate";
 
 type AssignmentInsight = {
   title: string;
@@ -162,7 +164,6 @@ type DistributionItem = {
   name: string;
   count: number;
 };
-
 
 const PAGE_SIZE = 10;
 
@@ -315,11 +316,16 @@ function rowKey(row: AssignmentView) {
 
 function insightTone(tone: AssignmentInsightTone) {
   const tones: Record<AssignmentInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    slate:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -327,11 +333,11 @@ function insightTone(tone: AssignmentInsightTone) {
 
 function progressTone(tone: AssignmentInsightTone) {
   const tones: Record<AssignmentInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    slate: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -369,7 +375,6 @@ function buildAssignmentRecommendations(
     : ["الإسناد مكتمل ولا توجد ملاحظات تشغيلية حرجة."];
 }
 
-
 export default function TeacherSubjectsPage() {
   const {
     currentSchool,
@@ -388,7 +393,6 @@ export default function TeacherSubjectsPage() {
     currentRole === "school_admin";
 
   const canView =
-    hasPermission("teacher_subjects.view") ||
     hasPermission("teacher_subjects.view") ||
     currentRole === "super_admin" ||
     currentRole === "school_admin" ||
@@ -638,6 +642,10 @@ export default function TeacherSubjectsPage() {
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
   const duplicateRows = useMemo(() => {
     const map = new Map<string, AssignmentView[]>();
 
@@ -749,7 +757,7 @@ export default function TeacherSubjectsPage() {
         title: "معلمون بلا إسناد",
         description: `يوجد ${stats.unassignedTeachers} معلم نشط بدون إسناد أكاديمي.`,
         tone: "red",
-        icon: <AlertTriangle className="h-5 w-5" />,
+        icon: <AlertTriangle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -758,7 +766,7 @@ export default function TeacherSubjectsPage() {
         title: "إسنادات مكررة",
         description: `تم اكتشاف ${stats.duplicates} سجلًا ضمن مجموعات مكررة.`,
         tone: "gold",
-        icon: <ShieldAlert className="h-5 w-5" />,
+        icon: <ShieldAlert className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -766,8 +774,8 @@ export default function TeacherSubjectsPage() {
       items.push({
         title: "حمل مرتفع",
         description: `${teacherLoad[0].teacherName} لديه ${teacherLoad[0].count} إسنادات.`,
-        tone: "blue",
-        icon: <BarChart3 className="h-5 w-5" />,
+        tone: "primary",
+        icon: <BarChart3 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -775,8 +783,8 @@ export default function TeacherSubjectsPage() {
       items.push({
         title: "فصول غير مستخدمة",
         description: `تغطية الفصول الحالية ${health.classroomCoverage}% فقط.`,
-        tone: "teal",
-        icon: <School className="h-5 w-5" />,
+        tone: "primary",
+        icon: <School className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -785,7 +793,7 @@ export default function TeacherSubjectsPage() {
         title: "الإسنادات مستقرة",
         description: "لا توجد مؤشرات حرجة في التغطية أو التكرارات.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -1029,7 +1037,7 @@ export default function TeacherSubjectsPage() {
           title="لا تملك صلاحية الوصول إلى إسناد المعلمين"
           description="هذه الصفحة مخصصة للإدارة المدرسية حسب الصلاحيات."
           tone="gold"
-          icon={<Layers3 size={22} />}
+          icon={<Layers3 size={22} aria-hidden="true" />}
         />
       </AuthGuard>
     );
@@ -1038,7 +1046,7 @@ export default function TeacherSubjectsPage() {
   if (schoolLoading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        <PageLoader text="جاري تحميل بيانات المدرسة..." />
       </AuthGuard>
     );
   }
@@ -1050,7 +1058,7 @@ export default function TeacherSubjectsPage() {
           title="لا توجد مدرسة مرتبطة"
           description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
           tone="red"
-          icon={<Layers3 size={22} />}
+          icon={<Layers3 size={22} aria-hidden="true" />}
         />
       </AuthGuard>
     );
@@ -1060,14 +1068,22 @@ export default function TeacherSubjectsPage() {
     <AuthGuard>
       <PageContainer size="wide" className="space-y-5">
         <Breadcrumb />
-        {toast && <ToastBox toast={toast} />}
+        {toast && (
+          <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+            {toast.type === "success" ? (
+              <SuccessBanner description={toast.message} />
+            ) : (
+              <ErrorState description={toast.message} />
+            )}
+          </div>
+        )}
 
         <PageHeader
           variant="hero"
           title="إسناد المعلمين للمواد"
           description={`${currentSchool.school_name} — ربط المعلم بالمادة والفصل والسنة الدراسية والفصل الدراسي؛ ليُستخدم مباشرة في الجداول والدرجات والحضور والتحضير الإلكتروني والتقارير.`}
           badge="قلب النظام الأكاديمي"
-          icon={<Layers3 size={18} />}
+          icon={<Layers3 size={18} aria-hidden="true" />}
           breadcrumbs={[
             { label: "لوحة التحكم", href: "/dashboard" },
             { label: "إسناد المعلمين" },
@@ -1079,62 +1095,56 @@ export default function TeacherSubjectsPage() {
             { label: "المعروض", value: stats.filtered },
           ]}
           stats={[
-            { label: "إجمالي الإسنادات", value: stats.total, icon: <Layers3 size={20} />, tone: "blue" },
-            { label: "إسنادات نشطة", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
-            { label: "معلمون مرتبطون", value: stats.teachers, icon: <UserRound size={20} />, tone: "teal" },
-            { label: "تنبيهات", value: stats.unassignedTeachers + stats.duplicates, icon: <AlertTriangle size={20} />, tone: stats.unassignedTeachers + stats.duplicates > 0 ? "gold" : "green" },
+            { label: "إجمالي الإسنادات", value: stats.total, icon: <Layers3 size={20} aria-hidden="true" />, tone: "primary" },
+            { label: "إسنادات نشطة", value: stats.active, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
+            { label: "معلمون مرتبطون", value: stats.teachers, icon: <UserRound size={20} aria-hidden="true" />, tone: "primary" },
+            { label: "تنبيهات", value: stats.unassignedTeachers + stats.duplicates, icon: <AlertTriangle size={20} aria-hidden="true" />, tone: stats.unassignedTeachers + stats.duplicates > 0 ? "gold" : "green" },
           ]}
           actions={
             <>
               {canManage && (
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Plus size={17} aria-hidden="true" />}
                   onClick={openCreateForm}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Plus size={17} />
                   إضافة إسناد
-                </button>
+                </PrimaryButton>
               )}
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<Download size={17} aria-hidden="true" />}
                 onClick={exportExcel}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                disabled={!filteredRows.length}
               >
-                <Download size={17} />
                 Excel
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<Printer size={17} aria-hidden="true" />}
                 onClick={exportPDF}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                disabled={!filteredRows.length}
               >
-                <Printer size={17} />
                 PDF
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<RefreshCcw size={17} aria-hidden="true" />}
                 onClick={() => void loadData()}
-                disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                loading={loading}
               >
-                <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
                 تحديث
-              </button>
+              </SecondaryButton>
             </>
           }
         />
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <ExecutiveCard title="إجمالي الإسنادات" value={stats.total} subtitle="كل الإسنادات" icon={<Layers3 size={22} />} tone="blue" progress={stats.total > 0 ? 100 : 0} />
-          <ExecutiveCard title="نشطة" value={stats.active} subtitle="جاهزة للتشغيل" icon={<CheckCircle2 size={22} />} tone="green" progress={percentage(stats.active, stats.total)} />
-          <ExecutiveCard title="غير نشطة" value={stats.inactive} subtitle={stats.inactive > 0 ? "تحتاج مراجعة" : "لا توجد"} icon={<XCircle size={22} />} tone={stats.inactive > 0 ? "red" : "green"} progress={percentage(stats.inactive, stats.total)} />
-          <ExecutiveCard title="معلمون" value={stats.teachers} subtitle={`${stats.unassignedTeachers} بلا إسناد`} icon={<UserRound size={22} />} tone="primary" />
-          <ExecutiveCard title="مواد" value={stats.subjects} subtitle="ضمن الإسنادات" icon={<BookOpen size={22} />} tone="gold" />
-          <ExecutiveCard title="تكرارات" value={stats.duplicates} subtitle="إسنادات مكررة" icon={<ShieldAlert size={22} />} tone={stats.duplicates > 0 ? "red" : "green"} />
+          <ExecutiveCard title="إجمالي الإسنادات" value={stats.total} subtitle="كل الإسنادات" icon={<Layers3 size={22} aria-hidden="true" />} tone="primary" progress={stats.total > 0 ? 100 : 0} />
+          <ExecutiveCard title="نشطة" value={stats.active} subtitle="جاهزة للتشغيل" icon={<CheckCircle2 size={22} aria-hidden="true" />} tone="green" progress={percentage(stats.active, stats.total)} />
+          <ExecutiveCard title="غير نشطة" value={stats.inactive} subtitle={stats.inactive > 0 ? "تحتاج مراجعة" : "لا توجد"} icon={<XCircle size={22} aria-hidden="true" />} tone={stats.inactive > 0 ? "red" : "green"} progress={percentage(stats.inactive, stats.total)} />
+          <ExecutiveCard title="معلمون" value={stats.teachers} subtitle={`${stats.unassignedTeachers} بلا إسناد`} icon={<UserRound size={22} aria-hidden="true" />} tone="primary" />
+          <ExecutiveCard title="مواد" value={stats.subjects} subtitle="ضمن الإسنادات" icon={<BookOpen size={22} aria-hidden="true" />} tone="gold" />
+          <ExecutiveCard title="تكرارات" value={stats.duplicates} subtitle="إسنادات مكررة" icon={<ShieldAlert size={22} aria-hidden="true" />} tone={stats.duplicates > 0 ? "red" : "green"} />
         </section>
 
         <SummaryCard
@@ -1151,7 +1161,6 @@ export default function TeacherSubjectsPage() {
           ]}
           footer="هذه الصفحة هي الأساس الذي تعتمد عليه الجداول والدرجات والحضور؛ لذلك يفضل مراجعة الإسنادات قبل بناء الجدول الدراسي."
         />
-
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <AssignmentExecutiveAnalytics
@@ -1178,7 +1187,7 @@ export default function TeacherSubjectsPage() {
           />
         </section>
 
-        <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm print:hidden">
+        <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
           <div className="mb-4">
             <h2 className="text-xl font-black text-[var(--app-text)]">
               البحث الذكي في الإسنادات
@@ -1190,14 +1199,13 @@ export default function TeacherSubjectsPage() {
 
           <div className="flex flex-wrap gap-2">
             {["إسنادات الرياضيات", "المرحلة الثانوية", "إسنادات غير نشطة", "إسنادات مكررة"].map((command) => (
-              <button
+              <SecondaryButton
                 key={command}
-                type="button"
+                size="sm"
                 onClick={() => runSmartSearch(command)}
-                className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2 text-sm font-black text-[var(--app-text)] transition hover:-translate-y-0.5 hover:border-[var(--app-teal)] hover:text-[var(--app-teal)]"
               >
                 {command}
-              </button>
+              </SecondaryButton>
             ))}
           </div>
         </section>
@@ -1205,7 +1213,7 @@ export default function TeacherSubjectsPage() {
         {(unassignedTeachers.length > 0 || teacherLoad.length > 0 || duplicateRows.length > 0) && (
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
             {teacherLoad.length > 0 && (
-              <Panel title="حمل المعلمين" icon={<BarChart3 size={24} />}>
+              <Panel title="حمل المعلمين" icon={<BarChart3 size={24} aria-hidden="true" />}>
                 <div className="space-y-3">
                   {teacherLoad.slice(0, 6).map((item) => (
                     <LoadBar key={item.teacherId} name={item.teacherName} count={item.count} max={teacherLoad[0]?.count || 1} />
@@ -1215,12 +1223,12 @@ export default function TeacherSubjectsPage() {
             )}
 
             {unassignedTeachers.length > 0 && (
-              <Panel title="معلمون بلا إسناد" icon={<AlertTriangle size={24} />} tone="gold">
+              <Panel title="معلمون بلا إسناد" icon={<AlertTriangle size={24} aria-hidden="true" />} tone="gold">
                 <div className="grid gap-3">
                   {unassignedTeachers.slice(0, 6).map((teacher) => (
-                    <div key={teacher.id} className="rounded-2xl bg-white px-4 py-3">
-                      <p className="font-black text-[#15445A]">{getTeacherName(teacher)}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-400">يحتاج إسناد مادة وفصل</p>
+                    <div key={teacher.id} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3">
+                      <p className="font-black text-[var(--app-text)]">{getTeacherName(teacher)}</p>
+                      <p className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">يحتاج إسناد مادة وفصل</p>
                     </div>
                   ))}
                 </div>
@@ -1228,17 +1236,17 @@ export default function TeacherSubjectsPage() {
             )}
 
             {duplicateRows.length > 0 && (
-              <Panel title="إسنادات مكررة" icon={<ShieldAlert size={24} />} tone="red">
+              <Panel title="إسنادات مكررة" icon={<ShieldAlert size={24} aria-hidden="true" />} tone="red">
                 <div className="space-y-3">
                   {duplicateRows.slice(0, 6).map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => setSelectedAssignment(item)}
-                      className="w-full rounded-2xl bg-white px-4 py-3 text-right transition hover:shadow-sm"
+                      className="w-full rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3 text-right transition hover:shadow-[var(--app-shadow-sm)]"
                     >
-                      <p className="font-black text-[#15445A]">{item.teacherName}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{item.subjectName} — {item.classroomName}</p>
+                      <p className="font-black text-[var(--app-text)]">{item.teacherName}</p>
+                      <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">{item.subjectName} — {item.classroomName}</p>
                     </button>
                   ))}
                 </div>
@@ -1248,16 +1256,16 @@ export default function TeacherSubjectsPage() {
         )}
 
         {formOpen && (
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {editingAssignment ? <Edit3 className="text-[#C1B489]" /> : <Plus className="text-[#C1B489]" />}
-                <h2 className="text-xl font-black text-[#15445A]">{editingAssignment ? "تعديل إسناد" : "إضافة إسناد"}</h2>
+                {editingAssignment ? <Edit3 className="text-[var(--app-accent)]" aria-hidden="true" /> : <Plus className="text-[var(--app-accent)]" aria-hidden="true" />}
+                <h2 className="text-xl font-black text-[var(--app-text)]">{editingAssignment ? "تعديل إسناد" : "إضافة إسناد"}</h2>
               </div>
 
-              <button type="button" onClick={closeForm} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold">
+              <SecondaryButton onClick={closeForm}>
                 إغلاق
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1301,53 +1309,52 @@ export default function TeacherSubjectsPage() {
                 ))}
               </Select>
 
-              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+              <label className="flex items-center gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-black text-[var(--app-text)]">
                 <input
                   type="checkbox"
                   checked={form.is_active}
                   onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
-                  className="h-4 w-4"
+                  className="h-4 w-4 accent-[var(--app-primary)]"
                 />
                 الإسناد نشط
               </label>
             </div>
 
-            <button
-              type="button"
+            <PrimaryButton
+              className="mt-5"
+              icon={<Save size={16} aria-hidden="true" />}
               onClick={() => void submitForm()}
-              disabled={saving}
-              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              loading={saving}
             >
-              <Save size={16} />
-              {saving ? "جاري الحفظ..." : "حفظ"}
-            </button>
+              حفظ
+            </PrimaryButton>
           </section>
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm xl:col-span-2">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
             <div className="mb-5 flex flex-col gap-4 print:hidden">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">قائمة الإسنادات</h2>
-                  <p className="mt-1 text-sm text-slate-500">عرض {pagedRows.length} من {filteredRows.length} إسناد</p>
+                  <h2 className="text-2xl font-black text-[var(--app-text)]">قائمة الإسنادات</h2>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">عرض {pagedRows.length} من {filteredRows.length} إسناد</p>
                 </div>
 
                 <div className="flex gap-2">
-                  <button
-                    type="button"
+                  <SecondaryButton
+                    size="sm"
                     onClick={() => setViewMode("table")}
-                    className={`rounded-2xl px-4 py-2 text-sm font-black ${viewMode === "table" ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"}`}
+                    aria-pressed={viewMode === "table"}
                   >
                     جدول
-                  </button>
-                  <button
-                    type="button"
+                  </SecondaryButton>
+                  <SecondaryButton
+                    size="sm"
                     onClick={() => setViewMode("cards")}
-                    className={`rounded-2xl px-4 py-2 text-sm font-black ${viewMode === "cards" ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"}`}
+                    aria-pressed={viewMode === "cards"}
                   >
                     بطاقات
-                  </button>
+                  </SecondaryButton>
                 </div>
               </div>
 
@@ -1418,9 +1425,13 @@ export default function TeacherSubjectsPage() {
             </div>
 
             {loading ? (
-              <LoadingBox text="جاري تحميل إسناد المعلمين..." />
+              <PageLoader text="جاري تحميل إسناد المعلمين..." />
             ) : filteredRows.length === 0 ? (
-              <EmptyBox text="لا توجد إسنادات مطابقة للبحث أو الفلاتر الحالية." />
+              <UiEmptyState
+                icon={<Layers3 className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد إسنادات"
+                description="غيّر البحث أو الفلاتر، أو أضف إسنادًا جديدًا."
+              />
             ) : viewMode === "cards" ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {pagedRows.map((assignment) => (
@@ -1448,20 +1459,32 @@ export default function TeacherSubjectsPage() {
 
             {!loading && filteredRows.length > 0 && (
               <div className="mt-5 flex items-center justify-between">
-                <p className="text-sm text-slate-500">عرض {pagedRows.length} من {filteredRows.length}</p>
+                <p className="text-sm text-[var(--app-text-muted)]">عرض {pagedRows.length} من {filteredRows.length}</p>
 
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded-xl border p-2 disabled:opacity-40">
-                    <ChevronRight size={18} />
-                  </button>
+                  <IconButton
+                    label="الصفحة السابقة"
+                    title="السابق"
+                    onClick={() =>
+                      setPage((value) => Math.max(1, value - 1))
+                    }
+                    disabled={page === 1}
+                    icon={<ChevronRight size={18} aria-hidden="true" />}
+                  />
 
-                  <span className="text-sm font-bold text-slate-700">
+                  <span className="text-sm font-bold text-[var(--app-text)]">
                     {page} / {totalPages}
                   </span>
 
-                  <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages} className="rounded-xl border p-2 disabled:opacity-40">
-                    <ChevronLeft size={18} />
-                  </button>
+                  <IconButton
+                    label="الصفحة التالية"
+                    title="التالي"
+                    onClick={() =>
+                      setPage((value) => Math.min(totalPages, value + 1))
+                    }
+                    disabled={page === totalPages}
+                    icon={<ChevronLeft size={18} aria-hidden="true" />}
+                  />
                 </div>
               </div>
             )}
@@ -1497,7 +1520,7 @@ function AssignmentsTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1250px]">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+          <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)] text-right text-sm text-[var(--app-text-muted)]">
             <th className="rounded-r-2xl px-4 py-3">المعلم</th>
             <th className="px-4 py-3">المادة</th>
             <th className="px-4 py-3">الفصل</th>
@@ -1513,20 +1536,20 @@ function AssignmentsTable({
 
         <tbody>
           {rows.map((assignment) => (
-            <tr key={assignment.id} className="border-b border-slate-50 text-sm transition hover:bg-slate-50">
+            <tr key={assignment.id} className="border-b border-slate-50 text-sm transition hover:bg-[var(--app-card-soft)]">
               <td className="px-4 py-3">
-                <div className="font-black text-[#15445A]">{assignment.teacherName}</div>
-                <div className="mt-1 text-xs font-bold text-slate-400">{assignment.teacherEmail}</div>
+                <div className="font-black text-[var(--app-text)]">{assignment.teacherName}</div>
+                <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">{assignment.teacherEmail}</div>
               </td>
 
               <td className="px-4 py-3">
-                <div className="font-bold text-slate-700">{assignment.subjectName}</div>
-                <div className="mt-1 text-xs text-slate-400">الرمز: {assignment.subjectCode}</div>
+                <div className="font-bold text-[var(--app-text)]">{assignment.subjectName}</div>
+                <div className="mt-1 text-xs text-[var(--app-text-subtle)]">الرمز: {assignment.subjectCode}</div>
               </td>
 
               <td className="px-4 py-3">
                 <div>{assignment.classroomName}</div>
-                <div className="mt-1 text-xs text-slate-400">الشعبة: {assignment.sectionName}</div>
+                <div className="mt-1 text-xs text-[var(--app-text-subtle)]">الشعبة: {assignment.sectionName}</div>
               </td>
 
               <td className="px-4 py-3">{assignment.stageName}</td>
@@ -1573,19 +1596,19 @@ function AssignmentCard({
   onDelete: (assignment: AssignmentView) => Promise<void>;
 }) {
   return (
-    <article className="rounded-[24px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+    <article className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-black text-[#15445A]">{assignment.teacherName}</h3>
-          <p className="mt-1 text-sm text-slate-500">{assignment.subjectName}</p>
+          <h3 className="font-black text-[var(--app-text)]">{assignment.teacherName}</h3>
+          <p className="mt-1 text-sm text-[var(--app-text-muted)]">{assignment.subjectName}</p>
         </div>
 
         <AssignmentStatusBadge active={assignment.is_active !== false} />
       </div>
 
-      <div className="rounded-2xl bg-white p-4">
-        <p className="text-sm font-black text-[#15445A]">{assignment.label || assignment.classroomName}</p>
-        <p className="mt-2 text-xs leading-6 text-slate-500">
+      <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-4">
+        <p className="text-sm font-black text-[var(--app-text)]">{assignment.label || assignment.classroomName}</p>
+        <p className="mt-2 text-xs leading-6 text-[var(--app-text-muted)]">
           الفصل: {assignment.classroomName} • الشعبة: {assignment.sectionName}
         </p>
       </div>
@@ -1621,23 +1644,39 @@ function RowActions({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button type="button" onClick={() => onView(assignment)} className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200" title="عرض مختصر">
-        <Eye size={16} />
-      </button>
+      <IconButton
+        label="عرض تفاصيل الإسناد"
+        title="عرض مختصر"
+        onClick={() => onView(assignment)}
+        icon={<Eye size={16} aria-hidden="true" />}
+      />
 
       {canManage && (
         <>
-          <button type="button" onClick={() => onEdit(assignment)} className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/20" title="تعديل">
-            <Edit3 size={16} />
-          </button>
+          <IconButton
+            label="تعديل الإسناد"
+            title="تعديل"
+            onClick={() => onEdit(assignment)}
+            icon={<Edit3 size={16} aria-hidden="true" />}
+          />
 
-          <button type="button" onClick={() => void onToggle(assignment)} className="rounded-xl bg-[#C1B489]/20 p-2 text-[#15445A] hover:bg-[#C1B489]/30" title={assignment.is_active === false ? "تفعيل" : "تعطيل"}>
-            <Power size={16} />
-          </button>
+          <IconButton
+            label={
+              assignment.is_active === false
+                ? "تفعيل الإسناد"
+                : "تعطيل الإسناد"
+            }
+            title={assignment.is_active === false ? "تفعيل" : "تعطيل"}
+            onClick={() => void onToggle(assignment)}
+            icon={<Power size={16} aria-hidden="true" />}
+          />
 
-          <button type="button" onClick={() => void onDelete(assignment)} className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100" title="حذف">
-            <Trash2 size={16} />
-          </button>
+          <IconButton
+            label="حذف الإسناد"
+            title="حذف"
+            onClick={() => void onDelete(assignment)}
+            icon={<Trash2 size={16} aria-hidden="true" />}
+          />
         </>
       )}
     </div>
@@ -1656,18 +1695,20 @@ function Panel({
   tone?: "white" | "gold" | "red";
 }) {
   const styles = {
-    white: "border-slate-100 bg-white",
-    gold: "border-[#C1B489]/40 bg-[#C1B489]/15",
-    red: "border-red-100 bg-red-50",
+    white: "border-[var(--app-border)] bg-[var(--app-card)]",
+    gold:
+      "border-[color-mix(in_srgb,var(--app-accent)_35%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)]",
+    red:
+      "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_8%,transparent)]",
   };
 
   return (
-    <section className={`rounded-[28px] border p-5 shadow-sm ${styles[tone]}`}>
+    <section className={`rounded-[var(--app-radius-xl)] border p-5 shadow-[var(--app-shadow-sm)] ${styles[tone]}`}>
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
           {icon}
         </div>
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </section>
@@ -1676,27 +1717,23 @@ function Panel({
 
 function LoadBar({ name, count, max }: { name: string; count: number; max: number }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
       <div className="mb-2 flex items-center justify-between text-sm font-black">
-        <span className="text-[#15445A]">{name}</span>
-        <span className="text-slate-500">{count}</span>
+        <span className="text-[var(--app-text)]">{name}</span>
+        <span className="text-[var(--app-text-muted)]">{count}</span>
       </div>
 
-      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-        <div className="h-full rounded-full bg-[#0DA9A6]" style={{ width: `${percentage(count, max)}%` }} />
+      <div className="h-2 overflow-hidden rounded-full bg-[var(--app-border)]">
+        <div
+          role="progressbar"
+          aria-label={`حمل ${name}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percentage(count, max)}
+          className="h-full rounded-full bg-[var(--app-primary)]"
+          style={{ width: `${percentage(count, max)}%` }}
+        />
       </div>
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      <span>{toast.message}</span>
     </div>
   );
 }
@@ -1714,7 +1751,7 @@ function Select({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     >
       {children}
     </select>
@@ -1735,14 +1772,14 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#0DA9A6]"
+      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     />
   );
 }
 
 function AssignmentStatusBadge({ active }: { active: boolean }) {
   return (
-    <span className={`rounded-full px-3 py-1 text-xs font-black ${active ? "bg-[#07A869]/10 text-[#07A869]" : "bg-red-50 text-red-700"}`}>
+    <span className={`rounded-full px-3 py-1 text-xs font-black ${active ? "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]" : "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]"}`}>
       {active ? "نشط" : "غير نشط"}
     </span>
   );
@@ -1759,14 +1796,12 @@ function AssignmentSideCard({
 }) {
   if (!selectedAssignment) {
     return (
-      <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
-          <div>
-            <Layers3 size={42} className="mx-auto text-[#C1B489]" />
-            <h3 className="mt-4 text-xl font-black text-[#15445A]">اختر إسنادًا</h3>
-            <p className="mt-2 text-sm text-slate-500">اضغط على أيقونة العين لعرض تفاصيل الإسناد</p>
-          </div>
-        </div>
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+        <UiEmptyState
+          icon={<Layers3 className="h-9 w-9" aria-hidden="true" />}
+          title="اختر إسنادًا"
+          description="اضغط على زر العرض بجانب الإسناد لمشاهدة تفاصيله."
+        />
       </div>
     );
   }
@@ -1774,28 +1809,31 @@ function AssignmentSideCard({
   const load = teacherLoad.find((item) => item.teacherId === selectedAssignment.teacher_id);
 
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-2xl font-black text-[#15445A]">تفاصيل الإسناد</h2>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">تفاصيل الإسناد</h2>
 
-        <button type="button" onClick={() => setSelectedAssignment(null)} className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200">
-          <X size={18} />
-        </button>
+        <IconButton
+          label="إغلاق تفاصيل الإسناد"
+          title="إغلاق"
+          onClick={() => setSelectedAssignment(null)}
+          icon={<X size={18} aria-hidden="true" />}
+        />
       </div>
 
-      <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
+      <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] p-5 text-[var(--app-primary-foreground)]">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#C1B489] text-[#15445A]">
-            <Layers3 size={28} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] text-[var(--app-text)]">
+            <Layers3 size={28} aria-hidden="true" />
           </div>
 
           <div>
-            <h3 className="text-2xl font-black text-[#C1B489]">{selectedAssignment.teacherName}</h3>
-            <p className="text-sm text-slate-300">{selectedAssignment.subjectName} — {selectedAssignment.classroomName}</p>
+            <h3 className="text-2xl font-black text-[var(--app-accent)]">{selectedAssignment.teacherName}</h3>
+            <p className="text-sm text-[var(--app-primary-foreground)]/70">{selectedAssignment.subjectName} — {selectedAssignment.classroomName}</p>
           </div>
         </div>
 
-        <p className="rounded-2xl bg-white/10 p-3 text-sm font-black text-white">
+        <p className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)]/10 p-3 text-sm font-black text-[var(--app-primary-foreground)]">
           {selectedAssignment.label}
         </p>
 
@@ -1862,9 +1900,9 @@ function AssignmentSideCard({
         />
       </div>
 
-      <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-4">
-        <p className="text-xs font-black text-slate-400">تاريخ الإضافة</p>
-        <p className="mt-2 font-black text-[#15445A]">{formatDate(selectedAssignment.created_at)}</p>
+      <div className="mt-5 rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4">
+        <p className="text-xs font-black text-[var(--app-text-subtle)]">تاريخ الإضافة</p>
+        <p className="mt-2 font-black text-[var(--app-text)]">{formatDate(selectedAssignment.created_at)}</p>
       </div>
     </div>
   );
@@ -1872,39 +1910,21 @@ function AssignmentSideCard({
 
 function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
-      <p className="mt-1 truncate font-black text-white">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)]/10 p-3">
+      <p className="text-xs text-[var(--app-primary-foreground)]/70">{title}</p>
+      <p className="mt-1 truncate font-black text-[var(--app-primary-foreground)]">{value}</p>
     </div>
   );
 }
 
 function MiniMetric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4 text-center">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-center">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
-
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
-
 
 function AssignmentExecutiveAnalytics({
   stats,
@@ -1940,7 +1960,7 @@ function AssignmentExecutiveAnalytics({
   };
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
           Executive Analytics
@@ -1951,10 +1971,10 @@ function AssignmentExecutiveAnalytics({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AssignmentMetric label="تغطية المعلمين" value={`${health.teacherCoverage}%`} icon={<UserRound size={18} />} tone="green" />
-        <AssignmentMetric label="تغطية المواد" value={`${health.subjectCoverage}%`} icon={<BookOpen size={18} />} tone="blue" />
-        <AssignmentMetric label="تغطية الفصول" value={`${health.classroomCoverage}%`} icon={<School size={18} />} tone="teal" />
-        <AssignmentMetric label="معدل النشاط" value={`${health.activeRate}%`} icon={<Activity size={18} />} tone="gold" />
+        <AssignmentMetric label="تغطية المعلمين" value={`${health.teacherCoverage}%`} icon={<UserRound size={18} aria-hidden="true" />} tone="green" />
+        <AssignmentMetric label="تغطية المواد" value={`${health.subjectCoverage}%`} icon={<BookOpen size={18} aria-hidden="true" />} tone="primary" />
+        <AssignmentMetric label="تغطية الفصول" value={`${health.classroomCoverage}%`} icon={<School size={18} aria-hidden="true" />} tone="primary" />
+        <AssignmentMetric label="معدل النشاط" value={`${health.activeRate}%`} icon={<Activity size={18} aria-hidden="true" />} tone="gold" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -1973,10 +1993,10 @@ function AssignmentExecutiveAnalytics({
 
 function AssignmentSmartInsights({ insights }: { insights: AssignmentInsight[] }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
+          <BrainCircuit size={20} aria-hidden="true" />
           AI Smart Insights
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1988,9 +2008,9 @@ function AssignmentSmartInsights({ insights }: { insights: AssignmentInsight[] }
         {insights.map((item) => (
           <div
             key={item.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -2006,7 +2026,7 @@ function AssignmentSmartInsights({ insights }: { insights: AssignmentInsight[] }
 
 function AssignmentHealthPanel({ health }: { health: AssignmentHealth }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">Assignment Health</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات الجاهزية والتغطية وجودة البيانات.
@@ -2014,8 +2034,8 @@ function AssignmentHealthPanel({ health }: { health: AssignmentHealth }) {
 
       <div className="mt-5 space-y-4">
         <AssignmentProgress label="معدل النشاط" value={health.activeRate} total={100} tone="green" suffix="%" />
-        <AssignmentProgress label="تغطية المعلمين" value={health.teacherCoverage} total={100} tone="blue" suffix="%" />
-        <AssignmentProgress label="تغطية المواد" value={health.subjectCoverage} total={100} tone="teal" suffix="%" />
+        <AssignmentProgress label="تغطية المعلمين" value={health.teacherCoverage} total={100} tone="primary" suffix="%" />
+        <AssignmentProgress label="تغطية المواد" value={health.subjectCoverage} total={100} tone="primary" suffix="%" />
         <AssignmentProgress label="نسبة التكرار" value={health.duplicateRate} total={100} tone="red" suffix="%" />
       </div>
     </section>
@@ -2032,7 +2052,7 @@ function AssignmentDistributionPanel({
   secondary: DistributionItem[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         قراءة سريعة لأكثر العناصر استخدامًا.
@@ -2064,8 +2084,8 @@ function AssignmentMetric({
   tone: AssignmentInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -2076,7 +2096,7 @@ function AssignmentMetric({
 
 function AssignmentInfoLine({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -2096,7 +2116,7 @@ function AssignmentProgress({
   tone: AssignmentInsightTone;
   suffix?: string;
 }) {
-  const width = Math.min(100, Math.max(4, percentage(value, total)));
+  const width = Math.min(100, Math.max(0, percentage(value, total)));
 
   return (
     <div>
@@ -2105,7 +2125,15 @@ function AssignmentProgress({
         <span>{value}{suffix}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
-        <div className={`h-full rounded-full ${progressTone(tone)}`} style={{ width: `${width}%` }} />
+        <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={width}
+          className={`h-full rounded-full ${progressTone(tone)}`}
+          style={{ width: `${width}%` }}
+        />
       </div>
     </div>
   );
@@ -2113,14 +2141,14 @@ function AssignmentProgress({
 
 function AssignmentMiniList({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-3xl bg-[var(--app-card-soft)] p-4">
+    <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-4">
       <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-2">
         {items.length === 0 ? (
           <p className="text-xs text-[var(--app-text-muted)]">لا توجد بيانات.</p>
         ) : (
           items.map((item) => (
-            <div key={item} className="rounded-2xl bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
+            <div key={item} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-3 py-2 text-sm font-bold text-[var(--app-text)]">
               {item}
             </div>
           ))
@@ -2132,13 +2160,14 @@ function AssignmentMiniList({ title, items }: { title: string; items: string[] }
 
 function AssignmentDrawerSection({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">{item}</p>
         ))}
       </div>
     </div>
   );
 }
+

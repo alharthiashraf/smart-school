@@ -77,3 +77,4 @@ export function calculateClassAverage(entries: Array<{ total_score?: number | nu
     averagePercentage: Number((percentage / entries.length).toFixed(2)),
   };
 }
+

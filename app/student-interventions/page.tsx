@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
@@ -9,6 +9,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 import { useSchool } from "@/contexts/SchoolContext";
@@ -22,7 +30,6 @@ import {
   Edit,
   FileText,
   Flag,
-  Loader2,
   PlusCircle,
   RefreshCcw,
   Save,
@@ -113,6 +120,22 @@ const INTERVENTION_STATUS = [
   "مغلق",
 ];
 
+const EXPORT_HEADERS = [
+  "#",
+  "الطالب",
+  "الفصل",
+  "الشعبة",
+  "نوع التدخل",
+  "العنوان",
+  "الحالة",
+  "الخطورة",
+  "تاريخ الهدف",
+  "تاريخ المتابعة",
+  "مؤشر النجاح",
+  "الملاحظات",
+  "ملاحظات الإغلاق",
+];
+
 function getTodayDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -132,20 +155,42 @@ function formatDate(value?: string | null) {
 
 function getPriorityStyle(priority?: string | null) {
   const value = String(priority || "");
-  if (value === "حرج") return "bg-red-100 text-red-800";
-  if (value === "مرتفع") return "bg-orange-50 text-orange-700";
-  if (value === "متوسط") return "bg-[#C1B489]/20 text-[#15445A]";
-  return "bg-[#07A869]/10 text-[#07A869]";
+
+  if (value === "حرج") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_14%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (value === "مرتفع") {
+    return "bg-[color-mix(in_srgb,var(--app-warning)_14%,transparent)] text-[var(--app-warning)]";
+  }
+
+  if (value === "متوسط") {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
 }
 
 function getStatusStyle(status?: string | null) {
   const value = String(status || "");
-  if (value === "مغلق" || value === "تم تحقيق الأهداف" || value === "تم التحسن") {
-    return "bg-[#07A869]/10 text-[#07A869]";
+
+  if (
+    value === "مغلق" ||
+    value === "تم تحقيق الأهداف" ||
+    value === "تم التحسن"
+  ) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
-  if (value.includes("بانتظار")) return "bg-[#C1B489]/20 text-[#15445A]";
-  if (value === "قيد التنفيذ" || value === "قيد الدراسة") return "bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  return "bg-slate-100 text-slate-700";
+
+  if (value.includes("بانتظار")) {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  if (value === "قيد التنفيذ" || value === "قيد الدراسة") {
+    return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
+  }
+
+  return "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function isClosed(status?: string | null) {
@@ -195,16 +240,15 @@ export default function StudentInterventionsPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [form, setForm] = useState<InterventionForm>(makeInitialForm());
 
-  useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-  }, [currentSchool?.id]);
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+      window.setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
     setLoading(true);
     setErrorMsg("");
@@ -240,10 +284,25 @@ export default function StudentInterventionsPage() {
     setStudents(loadedStudents);
     setInterventions(loadedInterventions);
 
-    if (!form.student_id && loadedStudents.length > 0) {
-      setForm((prev) => ({ ...prev, student_id: loadedStudents[0].id }));
+    if (loadedStudents.length > 0) {
+      setForm((current) =>
+        current.student_id
+          ? current
+          : { ...current, student_id: loadedStudents[0].id },
+      );
     }
-  }
+  }, [currentSchool?.id]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      return;
+    }
+
+    void fetchData();
+  }, [currentSchool?.id, fetchData, schoolLoading]);
 
   const studentMap = useMemo(() => {
     return new Map(students.map((student) => [student.id, student]));
@@ -431,42 +490,52 @@ export default function StudentInterventionsPage() {
     void fetchData();
   }
 
-  function getExportRows() {
+  function getExportRows(): (string | number | null | undefined)[][] {
     return filteredInterventions.map((item, index) => {
       const student = studentMap.get(item.student_id);
-      return {
-        "#": index + 1,
-        "الطالب": student?.full_name || "—",
-        "الفصل": student?.classroom || "—",
-        "الشعبة": student?.section || "—",
-        "نوع التدخل": item.intervention_type || "—",
-        "العنوان": item.title || "—",
-        "الحالة": item.status || "—",
-        "الخطورة": item.priority || "—",
-        "تاريخ الهدف": item.target_date || "—",
-        "تاريخ المتابعة": item.follow_up_date || "—",
-        "مؤشر النجاح": item.success_indicator || "—",
-        "الملاحظات": item.notes || "—",
-        "ملاحظات الإغلاق": item.closure_notes || "—",
-      };
+
+      return [
+        index + 1,
+        student?.full_name || "—",
+        student?.classroom || "—",
+        student?.section || "—",
+        item.intervention_type || "—",
+        item.title || "—",
+        item.status || "—",
+        item.priority || "—",
+        item.target_date || "—",
+        item.follow_up_date || "—",
+        item.success_indicator || "—",
+        item.notes || "—",
+        item.closure_notes || "—",
+      ];
     });
   }
 
   async function exportExcel() {
     await exportTableToExcel({
+      title: "خطط التدخل الطلابية",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: `تقرير صادر بتاريخ ${getTodayDate()}`,
+      headers: EXPORT_HEADERS,
+      rows: getExportRows(),
       fileName: `student-interventions-${getTodayDate()}.xlsx`,
       sheetName: "Student Interventions",
-      rows: getExportRows(),
-    } as any);
+    });
+
     showToast("success", "تم تصدير Excel");
   }
 
   function exportPDF() {
     exportTableToPDF({
       title: "خطط التدخل الطلابية",
-      fileName: `student-interventions-${getTodayDate()}.pdf`,
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: `تقرير صادر بتاريخ ${getTodayDate()}`,
+      headers: EXPORT_HEADERS,
       rows: getExportRows(),
-    } as any);
+      fileName: `student-interventions-${getTodayDate()}.pdf`,
+    });
+
     showToast("success", "تم تجهيز PDF");
   }
 
@@ -474,7 +543,17 @@ export default function StudentInterventionsPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل خطط التدخل الطلابية..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={PAGE_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -485,14 +564,22 @@ export default function StudentInterventionsPage() {
       <AppShell>
         <PageContainer size="wide" className="space-y-5">
           <Breadcrumb />
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title="خطط التدخل الطلابية"
             description="إنشاء ومتابعة خطط التدخل الأكاديمية والسلوكية والصحية والاجتماعية، مع مؤشرات نجاح ومواعيد متابعة وربط تلقائي بالسجل الزمني للطالب."
             badge="الإرشاد والمتابعة الطلابية"
-            icon={<Target size={18} />}
+            icon={<Target size={18} aria-hidden="true" />}
             breadcrumbs={[{ label: "لوحة التحكم", href: "/dashboard" }, { label: "خطط التدخل الطلابية" }]}
             meta={[
               { label: "المدرسة", value: currentSchool?.school_name || "غير محدد" },
@@ -501,41 +588,54 @@ export default function StudentInterventionsPage() {
               { label: "المعروض", value: filteredInterventions.length },
             ]}
             stats={[
-              { label: "إجمالي الخطط", value: stats.total, icon: <ClipboardCheck size={20} />, tone: "blue" },
-              { label: "قيد التنفيذ", value: stats.inProgress, icon: <Target size={20} />, tone: "teal" },
-              { label: "مغلقة", value: stats.closed, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "عالية الخطورة", value: stats.highRisk, icon: <AlertTriangle size={20} />, tone: stats.highRisk > 0 ? "red" : "green" },
+              { label: "إجمالي الخطط", value: stats.total, icon: <ClipboardCheck size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "قيد التنفيذ", value: stats.inProgress, icon: <Target size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "مغلقة", value: stats.closed, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
+              { label: "عالية الخطورة", value: stats.highRisk, icon: <AlertTriangle size={20} aria-hidden="true" />, tone: stats.highRisk > 0 ? "red" : "green" },
             ]}
             actions={
               <>
-                <button type="button" onClick={openCreateForm} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                  <PlusCircle size={17} />
+                <PrimaryButton
+                  icon={<PlusCircle size={17} aria-hidden="true" />}
+                  onClick={openCreateForm}
+                >
                   إضافة خطة
-                </button>
-                <button type="button" onClick={() => void fetchData()} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                  <RefreshCcw size={17} />
+                </PrimaryButton>
+
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
+                  onClick={() => void fetchData()}
+                >
                   تحديث
-                </button>
-                <button type="button" onClick={() => void exportExcel()} disabled={!filteredInterventions.length} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60">
-                  <Download size={17} />
+                </SecondaryButton>
+
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
+                  onClick={() => void exportExcel()}
+                  disabled={!filteredInterventions.length}
+                >
                   Excel
-                </button>
-                <button type="button" onClick={exportPDF} disabled={!filteredInterventions.length} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60">
-                  <FileText size={17} />
+                </ExportButton>
+
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
+                  onClick={exportPDF}
+                  disabled={!filteredInterventions.length}
+                >
                   PDF
-                </button>
+                </ExportButton>
               </>
             }
           />
 
-          {errorMsg && <div className="rounded-[28px] border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">{errorMsg}</div>}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <ExecutiveCard title="إجمالي الخطط" value={stats.total} icon={<ClipboardCheck size={22} />} tone="blue" subtitle="كل خطط التدخل" progress={stats.total > 0 ? 100 : 0} />
-            <ExecutiveCard title="جديدة" value={stats.newItems} icon={<PlusCircle size={22} />} tone="gold" subtitle="تحتاج بدء متابعة" progress={stats.total ? percentage(stats.newItems, stats.total) : 0} />
-            <ExecutiveCard title="قيد التنفيذ" value={stats.inProgress} icon={<Target size={22} />} tone="teal" subtitle="خطط نشطة" progress={stats.total ? percentage(stats.inProgress, stats.total) : 0} />
-            <ExecutiveCard title="مغلقة" value={stats.closed} icon={<CheckCircle2 size={22} />} tone="green" subtitle="أهداف مكتملة" progress={stats.total ? percentage(stats.closed, stats.total) : 0} />
-            <ExecutiveCard title="عالية الخطورة" value={stats.highRisk} icon={<AlertTriangle size={22} />} tone={stats.highRisk > 0 ? "red" : "green"} subtitle="مرتفع أو حرج" progress={stats.total ? percentage(stats.highRisk, stats.total) : 0} />
+            <ExecutiveCard title="إجمالي الخطط" value={stats.total} icon={<ClipboardCheck size={22} aria-hidden="true" />} tone="primary" subtitle="كل خطط التدخل" progress={stats.total > 0 ? 100 : 0} />
+            <ExecutiveCard title="جديدة" value={stats.newItems} icon={<PlusCircle size={22} aria-hidden="true" />} tone="gold" subtitle="تحتاج بدء متابعة" progress={stats.total ? percentage(stats.newItems, stats.total) : 0} />
+            <ExecutiveCard title="قيد التنفيذ" value={stats.inProgress} icon={<Target size={22} aria-hidden="true" />} tone="primary" subtitle="خطط نشطة" progress={stats.total ? percentage(stats.inProgress, stats.total) : 0} />
+            <ExecutiveCard title="مغلقة" value={stats.closed} icon={<CheckCircle2 size={22} aria-hidden="true" />} tone="green" subtitle="أهداف مكتملة" progress={stats.total ? percentage(stats.closed, stats.total) : 0} />
+            <ExecutiveCard title="عالية الخطورة" value={stats.highRisk} icon={<AlertTriangle size={22} aria-hidden="true" />} tone={stats.highRisk > 0 ? "red" : "green"} subtitle="مرتفع أو حرج" progress={stats.total ? percentage(stats.highRisk, stats.total) : 0} />
           </section>
 
           <SummaryCard
@@ -568,8 +668,7 @@ export default function StudentInterventionsPage() {
             />
           )}
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-            <PageToolbar
+          <PageToolbar
               search={{ value: search, onChange: setSearch, placeholder: "بحث باسم الطالب أو نوع التدخل أو العنوان..." }}
               filters={
                 <>
@@ -589,13 +688,16 @@ export default function StudentInterventionsPage() {
               }
               onRefresh={() => void fetchData()}
               onExportPDF={exportPDF}
-              onExportExcel={() => void exportExcel()}
-            />
-          </section>
+            onExportExcel={() => void exportExcel()}
+          />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             {filteredInterventions.length === 0 ? (
-              <EmptyBox text="لا توجد خطط تدخل حاليًا." />
+              <UiEmptyState
+                icon={<Target className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد خطط تدخل"
+                description="غيّر الفلاتر أو أضف خطة تدخل جديدة."
+              />
             ) : (
               <div className="space-y-3">
                 {filteredInterventions.map((item) => (
@@ -634,76 +736,86 @@ function InterventionFormCard({
   onCancel: () => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-2xl font-black text-[#15445A]">{editingItem ? "تعديل خطة التدخل" : "إضافة خطة تدخل جديدة"}</h2>
-        <button type="button" onClick={onCancel} className="rounded-2xl bg-slate-50 p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">{editingItem ? "تعديل خطة التدخل" : "إضافة خطة تدخل جديدة"}</h2>
+        <IconButton
+          label="إغلاق نموذج خطة التدخل"
+          title="إغلاق"
+          onClick={onCancel}
+          icon={<X size={18} aria-hidden="true" />}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <FormField label="الطالب">
-          <select value={form.student_id} onChange={(event) => setForm({ ...form, student_id: event.target.value })} className="field">
+          <select value={form.student_id} onChange={(event) => setForm({ ...form, student_id: event.target.value })} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]">
             {students.map((student) => <option key={student.id} value={student.id}>{student.full_name}</option>)}
           </select>
         </FormField>
 
         <FormField label="نوع التدخل">
-          <select value={form.intervention_type} onChange={(event) => setForm({ ...form, intervention_type: event.target.value })} className="field">
+          <select value={form.intervention_type} onChange={(event) => setForm({ ...form, intervention_type: event.target.value })} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]">
             {INTERVENTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
         </FormField>
 
         <FormField label="مستوى الخطورة">
-          <select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} className="field">
+          <select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]">
             {PRIORITY_LEVELS.map((priority) => <option key={priority} value={priority}>{priority}</option>)}
           </select>
         </FormField>
 
         <FormField label="حالة الخطة">
-          <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="field">
+          <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]">
             {INTERVENTION_STATUS.map((status) => <option key={status} value={status}>{status}</option>)}
           </select>
         </FormField>
 
         <FormField label="تاريخ الهدف">
-          <input type="date" value={form.target_date} onChange={(event) => setForm({ ...form, target_date: event.target.value })} className="field" />
+          <input type="date" value={form.target_date} onChange={(event) => setForm({ ...form, target_date: event.target.value })} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]" />
         </FormField>
 
         <FormField label="تاريخ المتابعة">
-          <input type="date" value={form.follow_up_date} onChange={(event) => setForm({ ...form, follow_up_date: event.target.value })} className="field" />
+          <input type="date" value={form.follow_up_date} onChange={(event) => setForm({ ...form, follow_up_date: event.target.value })} className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]" />
         </FormField>
 
         <div className="lg:col-span-3">
           <FormField label="عنوان خطة التدخل">
-            <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="مثال: خطة متابعة الغياب المتكرر" className="field" />
+            <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="مثال: خطة متابعة الغياب المتكرر" className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]" />
           </FormField>
         </div>
 
         <div className="lg:col-span-3">
           <FormField label="مؤشر النجاح">
-            <input value={form.success_indicator} onChange={(event) => setForm({ ...form, success_indicator: event.target.value })} placeholder="مثال: انخفاض الغياب إلى أقل من يومين خلال شهر" className="field" />
+            <input value={form.success_indicator} onChange={(event) => setForm({ ...form, success_indicator: event.target.value })} placeholder="مثال: انخفاض الغياب إلى أقل من يومين خلال شهر" className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]" />
           </FormField>
         </div>
 
         <div className="lg:col-span-3">
           <FormField label="ملاحظات وخطوات التدخل">
-            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={4} placeholder="اكتب إجراءات الخطة، الأطراف المشاركة، آلية المتابعة..." className="field" />
+            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={4} placeholder="اكتب إجراءات الخطة، الأطراف المشاركة، آلية المتابعة..." className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]" />
           </FormField>
         </div>
 
         <div className="lg:col-span-3">
           <FormField label="ملاحظات الإغلاق / النتيجة النهائية">
-            <textarea value={form.closure_notes} onChange={(event) => setForm({ ...form, closure_notes: event.target.value })} rows={3} placeholder="تكتب عند إغلاق الخطة أو تحقيق الأهداف..." className="field" />
+            <textarea value={form.closure_notes} onChange={(event) => setForm({ ...form, closure_notes: event.target.value })} rows={3} placeholder="تكتب عند إغلاق الخطة أو تحقيق الأهداف..." className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]" />
           </FormField>
         </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button type="button" disabled={saving} onClick={onSave} className="inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-black text-white disabled:opacity-50">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />}
-          {saving ? "جاري الحفظ..." : "حفظ الخطة"}
-        </button>
-        <button type="button" onClick={onCancel} className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-600">إلغاء</button>
+        <PrimaryButton
+          icon={<Save size={17} aria-hidden="true" />}
+          onClick={onSave}
+          loading={saving}
+        >
+          حفظ الخطة
+        </PrimaryButton>
+        <SecondaryButton onClick={onCancel}>
+          إلغاء
+        </SecondaryButton>
       </div>
     </section>
   );
@@ -721,22 +833,22 @@ function InterventionCard({
   onDelete: (item: StudentIntervention) => void;
 }) {
   return (
-    <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-5">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex-1">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-black text-[#15445A]">
-              <Flag size={15} />
+            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
+              <Flag size={15} aria-hidden="true" />
               {item.intervention_type || "تدخل"}
             </span>
             <span className={`rounded-full px-3 py-1 text-xs font-black ${getPriorityStyle(item.priority)}`}>{item.priority || "متوسط"}</span>
             <span className={`rounded-full px-3 py-1 text-xs font-black ${getStatusStyle(item.status)}`}>{item.status || "جديد"}</span>
-            <span className="text-xs font-bold text-slate-400">{formatDate(item.created_at)}</span>
+            <span className="text-xs font-bold text-[var(--app-text-subtle)]">{formatDate(item.created_at)}</span>
           </div>
 
-          <h3 className="text-xl font-black text-[#15445A]">{item.title || "خطة تدخل"}</h3>
-          <p className="mt-1 text-sm font-bold text-slate-700">الطالب: {student?.full_name || "طالب غير معروف"}</p>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="text-xl font-black text-[var(--app-text)]">{item.title || "خطة تدخل"}</h3>
+          <p className="mt-1 text-sm font-bold text-[var(--app-text)]">الطالب: {student?.full_name || "طالب غير معروف"}</p>
+          <p className="mt-1 text-sm text-[var(--app-text-muted)]">
             الفصل: {student?.classroom || "—"}
             {student?.section ? ` - ${student.section}` : ""}
             {student?.grade_level ? ` | ${student.grade_level}` : ""}
@@ -749,19 +861,23 @@ function InterventionCard({
             <MiniInfo label="ولي الأمر" value={student?.guardian_name || "—"} />
           </div>
 
-          {item.notes && <p className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm leading-7 text-slate-600">{item.notes}</p>}
-          {item.closure_notes && <p className="mt-3 rounded-2xl bg-[#07A869]/10 px-4 py-3 text-sm leading-7 text-[#07A869]">نتيجة الإغلاق: {item.closure_notes}</p>}
+          {item.notes && <p className="mt-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm leading-7 text-[var(--app-text-muted)]">{item.notes}</p>}
+          {item.closure_notes && <p className="mt-3 rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] px-4 py-3 text-sm leading-7 text-[var(--app-success)]">نتيجة الإغلاق: {item.closure_notes}</p>}
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
-          <button type="button" onClick={() => onEdit(item)} className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-bold text-[#15445A] hover:bg-slate-100">
-            <Edit size={15} />
+          <SecondaryButton
+            icon={<Edit size={15} aria-hidden="true" />}
+            onClick={() => onEdit(item)}
+          >
             تعديل
-          </button>
-          <button type="button" onClick={() => void onDelete(item)} className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100">
-            <Trash2 size={15} />
+          </SecondaryButton>
+          <SecondaryButton
+            icon={<Trash2 size={15} aria-hidden="true" />}
+            onClick={() => void onDelete(item)}
+          >
             حذف
-          </button>
+          </SecondaryButton>
         </div>
       </div>
     </div>
@@ -771,7 +887,7 @@ function InterventionCard({
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-bold text-slate-600">{label}</span>
+      <span className="mb-2 block text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
       {children}
     </label>
   );
@@ -779,33 +895,11 @@ function FormField({ label, children }: { label: string; children: ReactNode }) 
 
 function MiniInfo({ label, value }: { label: string; value?: string | number | null }) {
   return (
-    <div className="rounded-2xl bg-white px-4 py-3 text-sm">
-      <p className="mb-1 text-xs font-bold text-slate-400">{label}</p>
-      <p className="font-bold text-slate-700">{value || "—"}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3 text-sm">
+      <p className="mb-1 text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="font-bold text-[var(--app-text)]">{value || "—"}</p>
     </div>
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-500">{text}</div>;
-}
 
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-xl ${toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"}`}>
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-      {toast.message}
-    </div>
-  );
-}
-
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="flex items-center gap-3 rounded-[28px] border bg-white px-6 py-4 text-slate-600 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-[#15445A]" />
-        جاري تحميل خطط التدخل الطلابية...
-      </div>
-    </div>
-  );
-}

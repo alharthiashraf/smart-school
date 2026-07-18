@@ -3,17 +3,14 @@
 import { useCallback, useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 import {
   Copy,
-  Download,
   Edit3,
   FileText,
-  Filter,
   GraduationCap,
   KeyRound,
   Plus,
   RefreshCcw,
   Save,
   School,
-  Search,
   ShieldCheck,
   Trash2,
   UserCheck,
@@ -25,6 +22,18 @@ import {
 import AuthGuard from "@/components/auth/AuthGuard";
 import Breadcrumb from "@/components/layout/Breadcrumb";
 import PageContainer from "@/components/layout/PageContainer";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
 import { ExportEngine } from "@/core";
@@ -179,9 +188,15 @@ function normalizeMember(row: SchoolMemberRow): UserView | null {
   };
 }
 
-function copyText(value: string) {
-  if (typeof navigator === "undefined") return;
-  void navigator.clipboard.writeText(value);
+async function copyText(value: string) {
+  if (typeof navigator === "undefined" || !navigator.clipboard) return false;
+
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export default function UsersPage() {
@@ -225,6 +240,18 @@ export default function UsersPage() {
       setMessage(null);
     }, 3500);
   }, []);
+
+  const handleCopyUserId = useCallback(
+    async (value: string) => {
+      const copied = await copyText(value);
+
+      showMessage(
+        copied ? "success" : "error",
+        copied ? "تم نسخ معرّف المستخدم." : "تعذر نسخ معرّف المستخدم.",
+      );
+    },
+    [showMessage],
+  );
 
   const loadSchools = useCallback(async () => {
     const { data, error } = await supabase
@@ -550,15 +577,12 @@ export default function UsersPage() {
   if (!canView) {
     return (
       <AuthGuard>
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-center">
-          <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-amber-700" />
-          <h1 className="text-xl font-black text-amber-800">
-            لا تملك صلاحية الوصول إلى إدارة المستخدمين
-          </h1>
-          <p className="mt-2 text-sm font-bold text-amber-700">
-            هذه الصفحة مخصصة لمدير النظام ومدير المدرسة.
-          </p>
-        </div>
+        <PageContainer size="wide">
+          <ErrorState
+            title="لا تملك صلاحية الوصول"
+            description="هذه الصفحة مخصصة لمدير النظام ومدير المدرسة."
+          />
+        </PageContainer>
       </AuthGuard>
     );
   }
@@ -567,177 +591,220 @@ export default function UsersPage() {
     <AuthGuard>
       <PageContainer size="wide" className="space-y-6">
         <Breadcrumb />
-        <section className="rounded-[32px] bg-gradient-to-l from-[#0f1f3d] via-[#18315f] to-[#24477f] p-6 text-white shadow-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="mb-3 flex w-fit items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-black text-[#d4af37]">
-                <ShieldCheck size={17} />
-                إدارة الصلاحيات
-              </div>
-
-              <h1 className="text-4xl font-black">
-                إدارة المستخدمين والصلاحيات
-              </h1>
-
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
-                إدارة عضويات المستخدمين داخل المدارس، وتحديد الأدوار، وتفعيل أو
-                تعطيل الوصول حسب صلاحيات المدرسة الحالية.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
+        <PageHeader
+          variant="hero"
+          title="إدارة المستخدمين والصلاحيات"
+          description="إدارة عضويات المستخدمين داخل المدارس وتحديد الأدوار وحالة الوصول."
+          badge="إدارة الصلاحيات"
+          icon={<ShieldCheck size={18} aria-hidden="true" />}
+          breadcrumbs={[
+            { label: "لوحة التحكم", href: "/dashboard" },
+            { label: "إدارة المستخدمين" },
+          ]}
+          meta={[
+            {
+              label: "المدرسة",
+              value:
+                currentRole === "super_admin"
+                  ? "جميع المدارس"
+                  : currentSchool?.school_name || "—",
+            },
+            { label: "إجمالي العضويات", value: stats.total },
+            { label: "الحسابات النشطة", value: stats.active },
+            { label: "نتائج العرض", value: stats.filtered },
+          ]}
+          stats={[
+            {
+              label: "الإدارة",
+              value: stats.admins,
+              icon: <ShieldCheck size={20} aria-hidden="true" />,
+              tone: "primary",
+            },
+            {
+              label: "المعلمون",
+              value: stats.teachers,
+              icon: <GraduationCap size={20} aria-hidden="true" />,
+              tone: "green",
+            },
+            {
+              label: "الطلاب وأولياء الأمور",
+              value: stats.studentsAndParents,
+              icon: <Users size={20} aria-hidden="true" />,
+              tone: "gold",
+            },
+            {
+              label: "الحسابات المعطلة",
+              value: stats.inactive,
+              icon: <UserX size={20} aria-hidden="true" />,
+              tone: stats.inactive > 0 ? "red" : "green",
+            },
+          ]}
+          actions={
+            <>
+              <SecondaryButton
+                icon={<RefreshCcw size={17} aria-hidden="true" />}
                 onClick={() => void loadMembers()}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15 disabled:opacity-60"
+                loading={loading}
               >
-                <RefreshCcw
-                  size={17}
-                  className={loading ? "animate-spin" : ""}
-                />
                 تحديث
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<FileText size={17} aria-hidden="true" />}
                 onClick={exportPDF}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
+                disabled={!filteredMembers.length}
               >
-                <Download size={17} />
                 PDF
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<FileText size={17} aria-hidden="true" />}
                 onClick={exportExcel}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/15"
+                disabled={!filteredMembers.length}
               >
-                <FileText size={17} />
                 Excel
-              </button>
+              </ExportButton>
 
               {canManage && (
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Plus size={17} aria-hidden="true" />}
                   onClick={openCreateForm}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#d4af37] px-5 py-3 text-sm font-black text-[#0f1f3d] transition hover:bg-[#e5c756]"
                 >
-                  <Plus size={17} />
                   ربط مستخدم
-                </button>
+                </PrimaryButton>
               )}
-            </div>
-          </div>
-        </section>
+            </>
+          }
+        />
 
         {message && (
-          <div
-            className={`rounded-2xl border p-4 text-sm font-bold ${
-              message.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-red-200 bg-red-50 text-red-700"
-            }`}
-          >
-            {message.text}
-          </div>
+          message.type === "success" ? (
+            <SuccessBanner description={message.text} />
+          ) : (
+            <ErrorState description={message.text} />
+          )
         )}
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <ExecutiveCard
             title="إجمالي العضويات"
             value={stats.total}
-            icon={<Users size={24} />}
-            color="blue"
+            icon={<Users size={22} aria-hidden="true" />}
+            tone="primary"
+            progress={stats.total > 0 ? 100 : 0}
           />
-          <StatCard
+          <ExecutiveCard
             title="الحسابات النشطة"
             value={stats.active}
-            icon={<UserCheck size={24} />}
-            color="green"
+            icon={<UserCheck size={22} aria-hidden="true" />}
+            tone="green"
+            progress={stats.total ? Math.round((stats.active / stats.total) * 100) : 0}
           />
-          <StatCard
+          <ExecutiveCard
             title="الإدارة"
             value={stats.admins}
-            icon={<ShieldCheck size={24} />}
-            color="amber"
+            icon={<ShieldCheck size={22} aria-hidden="true" />}
+            tone="gold"
+            progress={stats.total ? Math.round((stats.admins / stats.total) * 100) : 0}
           />
-          <StatCard
+          <ExecutiveCard
             title="المعلمون والطلاب"
             value={stats.teachers + stats.studentsAndParents}
-            icon={<GraduationCap size={24} />}
-            color="violet"
+            icon={<GraduationCap size={22} aria-hidden="true" />}
+            tone="primary"
+            progress={
+              stats.total
+                ? Math.round(
+                    ((stats.teachers + stats.studentsAndParents) / stats.total) *
+                      100,
+                  )
+                : 0
+            }
           />
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 text-[#0f1f3d]">
-            <Filter size={20} />
-            <h2 className="text-xl font-black">البحث والتصفية</h2>
-          </div>
+        <SummaryCard
+          title="ملخص إدارة المستخدمين"
+          description="قراءة تنفيذية لحالة العضويات والأدوار وحسابات الوصول داخل المدارس."
+          tone={stats.inactive > 0 ? "gold" : "green"}
+          items={[
+            { label: "إجمالي العضويات", value: stats.total },
+            { label: "النشطة", value: stats.active },
+            { label: "المعطلة", value: stats.inactive },
+            { label: "الإدارة", value: stats.admins },
+            { label: "المعلمون", value: stats.teachers },
+            {
+              label: "الطلاب وأولياء الأمور",
+              value: stats.studentsAndParents,
+            },
+          ]}
+          footer="هذه الصفحة تدير عضويات school_members، ولا تنشئ حسابات المصادقة داخل Supabase."
+        />
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-100 px-4 py-3 lg:col-span-2">
-              <Search size={18} className="text-slate-500" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث بمعرّف المستخدم أو المدرسة أو الدور..."
-                className="w-full bg-transparent text-sm font-bold outline-none"
-              />
-            </div>
+        <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]">
+          <PageToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "ابحث بمعرّف المستخدم أو المدرسة أو الدور...",
+            }}
+            filters={
+              <>
+                <ToolbarSelect
+                  value={roleFilter}
+                  onChange={(value) =>
+                    setRoleFilter(value as "all" | SchoolRole)
+                  }
+                >
+                  <option value="all">كل الأدوار</option>
+                  {SCHOOL_ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </ToolbarSelect>
 
-            <select
-              value={roleFilter}
-              onChange={(event) =>
-                setRoleFilter(event.target.value as "all" | SchoolRole)
-              }
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
-            >
-              <option value="all">كل الأدوار</option>
-              {SCHOOL_ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
+                <ToolbarSelect
+                  value={statusFilter}
+                  onChange={(value) =>
+                    setStatusFilter(
+                      value as "all" | "active" | "inactive",
+                    )
+                  }
+                >
+                  <option value="all">كل الحالات</option>
+                  <option value="active">نشط</option>
+                  <option value="inactive">معطل</option>
+                </ToolbarSelect>
 
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as "all" | "active" | "inactive")
-              }
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
-            >
-              <option value="all">كل الحالات</option>
-              <option value="active">نشط</option>
-              <option value="inactive">معطل</option>
-            </select>
-
-            {currentRole === "super_admin" && (
-              <select
-                value={schoolFilter}
-                onChange={(event) => setSchoolFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37] lg:col-span-2"
-              >
-                <option value="all">كل المدارس</option>
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.school_name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+                {currentRole === "super_admin" && (
+                  <ToolbarSelect
+                    value={schoolFilter}
+                    onChange={setSchoolFilter}
+                  >
+                    <option value="all">كل المدارس</option>
+                    {schools.map((school) => (
+                      <option key={school.id} value={school.id}>
+                        {school.school_name}
+                      </option>
+                    ))}
+                  </ToolbarSelect>
+                )}
+              </>
+            }
+            onRefresh={() => void loadMembers()}
+            onExportExcel={exportExcel}
+            onExportPDF={exportPDF}
+          />
         </section>
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
+        <section className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--app-border)] p-5">
             <div>
-              <h2 className="text-xl font-black text-[#0f1f3d]">
+              <h2 className="text-xl font-black text-[var(--app-text)]">
                 قائمة المستخدمين
               </h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">
+              <p className="mt-1 text-sm font-bold text-[var(--app-text-muted)]">
                 عدد النتائج: {filteredMembers.length}
               </p>
             </div>
@@ -745,7 +812,7 @@ export default function UsersPage() {
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1050px] text-right">
-              <thead className="bg-slate-50 text-sm text-slate-500">
+              <thead className="bg-[var(--app-card-soft)] text-sm text-[var(--app-text-muted)]">
                 <tr>
                   <th className="p-4">المستخدم</th>
                   <th className="p-4">المدرسة</th>
@@ -758,8 +825,8 @@ export default function UsersPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      جاري تحميل المستخدمين...
+                    <td colSpan={5} className="p-8">
+                      <PageLoader text="جاري تحميل المستخدمين..." />
                     </td>
                   </tr>
                 )}
@@ -768,25 +835,25 @@ export default function UsersPage() {
                   filteredMembers.map((member) => (
                     <tr
                       key={member.id}
-                      className="border-t border-slate-100 transition hover:bg-slate-50"
+                      className="border-t border-[var(--app-border)] transition hover:bg-[var(--app-card-soft)]"
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1f3d]/10">
-                            <KeyRound size={20} className="text-[#0f1f3d]" />
+                          <div className="flex h-11 w-11 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)]">
+                            <KeyRound size={20} className="text-[var(--app-text)]" />
                           </div>
 
                           <div className="min-w-0">
-                            <p className="font-bold text-[#0f1f3d]">
+                            <p className="font-bold text-[var(--app-text)]">
                               {member.auth_user_id.slice(0, 8)}...
                             </p>
 
                             <button
                               type="button"
-                              onClick={() => copyText(member.auth_user_id)}
-                              className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-[#0f1f3d]"
+                              onClick={() => void handleCopyUserId(member.auth_user_id)}
+                              className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-[var(--app-text-subtle)] hover:text-[var(--app-text)]"
                             >
-                              <Copy size={13} />
+                              <Copy size={13} aria-hidden="true" />
                               نسخ معرّف المستخدم
                             </button>
                           </div>
@@ -794,14 +861,14 @@ export default function UsersPage() {
                       </td>
 
                       <td className="p-4">
-                        <div className="font-bold text-slate-700">
+                        <div className="font-bold text-[var(--app-text)]">
                           {member.school_name}
                         </div>
                       </td>
 
                       <td className="p-4">
                         <RoleBadge role={member.role} />
-                        <p className="mt-1 text-xs text-slate-400">
+                        <p className="mt-1 text-xs text-[var(--app-text-subtle)]">
                           {roleDescription(member.role)}
                         </p>
                       </td>
@@ -814,44 +881,40 @@ export default function UsersPage() {
                         <div className="flex flex-wrap gap-2">
                           {canManage && (
                             <>
-                              <button
-                                type="button"
-                                onClick={() => openEditForm(member)}
-                                className="rounded-xl bg-blue-50 p-2 text-blue-700 transition hover:bg-blue-100"
+                              <IconButton
+                                label="تعديل المستخدم"
                                 title="تعديل"
-                              >
-                                <Edit3 size={18} />
-                              </button>
+                                onClick={() => openEditForm(member)}
+                                icon={<Edit3 size={18} aria-hidden="true" />}
+                              />
 
-                              <button
-                                type="button"
-                                onClick={() => void toggleActive(member)}
-                                className={`rounded-xl p-2 transition ${
+                              <IconButton
+                                label={
                                   member.is_active
-                                    ? "bg-red-50 text-red-700 hover:bg-red-100"
-                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                }`}
+                                    ? "تعطيل المستخدم"
+                                    : "تفعيل المستخدم"
+                                }
                                 title={
                                   member.is_active
                                     ? "تعطيل المستخدم"
                                     : "تفعيل المستخدم"
                                 }
-                              >
-                                {member.is_active ? (
-                                  <UserX size={18} />
-                                ) : (
-                                  <UserCheck size={18} />
-                                )}
-                              </button>
+                                onClick={() => void toggleActive(member)}
+                                icon={
+                                  member.is_active ? (
+                                    <UserX size={18} aria-hidden="true" />
+                                  ) : (
+                                    <UserCheck size={18} aria-hidden="true" />
+                                  )
+                                }
+                              />
 
-                              <button
-                                type="button"
-                                onClick={() => void removeMember(member)}
-                                className="rounded-xl bg-rose-50 p-2 text-rose-700 transition hover:bg-rose-100"
+                              <IconButton
+                                label="حذف ربط المستخدم"
                                 title="حذف الربط"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                                onClick={() => void removeMember(member)}
+                                icon={<Trash2 size={18} aria-hidden="true" />}
+                              />
                             </>
                           )}
                         </div>
@@ -861,8 +924,12 @@ export default function UsersPage() {
 
                 {!loading && filteredMembers.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      لا توجد نتائج مطابقة.
+                    <td colSpan={5} className="p-8">
+                      <UiEmptyState
+                        icon={<Users className="h-8 w-8" aria-hidden="true" />}
+                        title="لا توجد نتائج"
+                        description="لا توجد عضويات مطابقة للبحث أو التصفية الحالية."
+                      />
                     </td>
                   </tr>
                 )}
@@ -876,15 +943,14 @@ export default function UsersPage() {
             title={editingMember ? "تعديل صلاحيات المستخدم" : "ربط مستخدم بمدرسة"}
             onClose={closeForm}
           >
-            <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-7 text-blue-800">
+            <div className="mb-5 rounded-[var(--app-radius-lg)] border border-[color-mix(in_srgb,var(--app-primary)_22%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] p-4 text-sm font-bold leading-7 text-[var(--app-text)]">
               هذه الصفحة تدير ربط المستخدمين بالمدارس والصلاحيات. إنشاء حساب
-              المصادقة نفسه يتم من لوحة Supabase أو من API مخصص، ثم يتم ربط
-              معرّف المستخدم هنا.
+              المصادقة يتم من Supabase أو API مخصص، ثم يربط المعرّف هنا.
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-600">
+                <label className="mb-2 block text-sm font-black text-[var(--app-text-muted)]">
                   المدرسة
                 </label>
                 <select
@@ -896,7 +962,7 @@ export default function UsersPage() {
                       school_id: event.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37] disabled:bg-slate-100"
+                  className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] disabled:bg-[var(--app-card-soft)] disabled:text-[var(--app-text-muted)]"
                 >
                   <option value="">اختر المدرسة</option>
                   {schoolOptions.map((school) => (
@@ -921,7 +987,7 @@ export default function UsersPage() {
               />
 
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-600">
+                <label className="mb-2 block text-sm font-black text-[var(--app-text-muted)]">
                   الدور
                 </label>
                 <select
@@ -932,7 +998,7 @@ export default function UsersPage() {
                       role: event.target.value as SchoolRole,
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
+                  className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] disabled:bg-[var(--app-card-soft)] disabled:text-[var(--app-text-muted)]"
                 >
                   {SCHOOL_ROLES.map((role) => (
                     <option key={role.value} value={role.value}>
@@ -943,7 +1009,7 @@ export default function UsersPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-black text-slate-600">
+                <label className="mb-2 block text-sm font-black text-[var(--app-text-muted)]">
                   حالة الوصول
                 </label>
                 <select
@@ -954,7 +1020,7 @@ export default function UsersPage() {
                       is_active: event.target.value === "active",
                     }))
                   }
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
+                  className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] disabled:bg-[var(--app-card-soft)] disabled:text-[var(--app-text-muted)]"
                 >
                   <option value="active">نشط</option>
                   <option value="inactive">معطل</option>
@@ -963,23 +1029,17 @@ export default function UsersPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
-              >
+              <SecondaryButton onClick={closeForm}>
                 إلغاء
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
+              <PrimaryButton
+                icon={<Save size={17} aria-hidden="true" />}
                 onClick={() => void submitForm()}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#162b52] disabled:opacity-60"
+                loading={saving}
               >
-                <Save size={17} />
-                {saving ? "جاري الحفظ..." : "حفظ"}
-              </button>
+                حفظ
+              </PrimaryButton>
             </div>
           </Modal>
         )}
@@ -988,47 +1048,17 @@ export default function UsersPage() {
   );
 }
 
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: ReactNode;
-  color: "blue" | "green" | "amber" | "violet";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    green: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    violet: "bg-violet-50 text-violet-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-500">{title}</p>
-        <div className={colors[color]}>{icon}</div>
-      </div>
-
-      <h2 className="mt-4 text-3xl font-black text-[#0f1f3d]">{value}</h2>
-    </div>
-  );
-}
-
 function RoleBadge({ role }: { role: SchoolRole }) {
   const style =
     role === "super_admin"
-      ? "bg-red-50 text-red-700"
+      ? "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
       : role === "school_admin"
-        ? "bg-orange-50 text-orange-700"
+        ? "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]"
         : role === "teacher"
-          ? "bg-blue-50 text-blue-700"
+          ? "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]"
           : role === "student"
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-slate-100 text-slate-700";
+            ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
+            : "bg-[var(--app-card-soft)] text-[var(--app-text)]";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-bold ${style}`}>
@@ -1041,7 +1071,9 @@ function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-bold ${
-        active ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+        active
+          ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]"
+          : "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]"
       }`}
     >
       {active ? "نشط" : "معطل"}
@@ -1059,18 +1091,17 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[32px] bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[color-mix(in_srgb,var(--app-text)_48%,transparent)] p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-6 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-black text-[#0f1f3d]">{title}</h2>
+          <h2 className="text-2xl font-black text-[var(--app-text)]">{title}</h2>
 
-          <button
-            type="button"
+          <IconButton
+            label="إغلاق"
+            title="إغلاق"
             onClick={onClose}
-            className="rounded-2xl bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} aria-hidden="true" />}
+          />
         </div>
 
         {children}
@@ -1094,7 +1125,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-black text-slate-600">
+      <label className="mb-2 block text-sm font-black text-[var(--app-text-muted)]">
         {label}
       </label>
 
@@ -1103,8 +1134,9 @@ function Field({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37] disabled:bg-slate-100"
+        className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] disabled:bg-[var(--app-card-soft)] disabled:text-[var(--app-text-muted)]"
       />
     </div>
   );
 }
+

@@ -1,15 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
 import PageHeader from "@/components/ui/page/PageHeader";
-import PageToolbar from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -30,7 +37,6 @@ import {
   FileSpreadsheet,
   FileText,
   GraduationCap,
-  Loader2,
   Paperclip,
   Printer,
   RefreshCcw,
@@ -249,10 +255,19 @@ function percentage(value: number, total: number) {
 }
 
 function statusPill(value?: string | null) {
-  if (isApproved(value)) return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (isPending(value)) return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  if (String(value || "").includes("مرفوض")) return "border-red-200 bg-red-50 text-red-700";
-  return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (isApproved(value)) {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (isPending(value)) {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  if (String(value || "").includes("مرفوض")) {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 }
 
 function teacherInitials(name?: string | null) {
@@ -322,14 +337,14 @@ export default function TeacherDetailsPage() {
         performanceResult,
         filesResult,
       ] = await Promise.all([
-        supabase.from("teacher_schedule").select("*").eq("teacher_id", teacherId).order("period_number", { ascending: true }),
-        supabase.from("teacher_waiting_periods").select("*").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
-        supabase.from("teacher_portfolio").select("*").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
-        supabase.from("teacher_subjects").select("*").eq("teacher_id", teacherId),
-        supabase.from("teacher_classes").select("*").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
-        supabase.from("teacher_certificates").select("*").eq("teacher_id", teacherId).order("certificate_date", { ascending: false }),
-        supabase.from("teacher_performance").select("*").eq("teacher_id", teacherId).order("evaluation_date", { ascending: false }),
-        supabase.from("teacher_files").select("*").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
+        supabase.from("teacher_schedule").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("period_number", { ascending: true }),
+        supabase.from("teacher_waiting_periods").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
+        supabase.from("teacher_portfolio").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
+        supabase.from("teacher_subjects").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId),
+        supabase.from("teacher_classes").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
+        supabase.from("teacher_certificates").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("certificate_date", { ascending: false }),
+        supabase.from("teacher_performance").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("evaluation_date", { ascending: false }),
+        supabase.from("teacher_files").select("*").eq("school_id", realSchoolId || "").eq("teacher_id", teacherId).order("created_at", { ascending: false }),
       ]);
 
       const onlySameSchool = <T extends { school_id?: string | null }>(rows: T[] | null) => {
@@ -370,8 +385,16 @@ export default function TeacherDetailsPage() {
   }, [currentSchool?.id, teacherId, showToast]);
 
   useEffect(() => {
-    if (teacherId) void fetchTeacherFile();
-  }, [teacherId, currentSchool?.id, fetchTeacherFile]);
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id || !teacherId) {
+      setTeacher(null);
+      setLoading(false);
+      return;
+    }
+
+    void fetchTeacherFile();
+  }, [currentSchool?.id, fetchTeacherFile, schoolLoading, teacherId]);
 
   const pendingWaiting = useMemo(
     () => waiting.filter((item) => isPending(item.approval_status)).length,
@@ -479,7 +502,7 @@ export default function TeacherDetailsPage() {
       headers: ["المؤشر", "القيمة"],
       rows: exportRows,
       fileName: `${safeFileName(`teacher-final-file-${teacher.full_name}-${today}`)}.xlsx`,
-    } as any);
+    });
 
     showToast("success", "تم تصدير ملف المعلم Excel");
   }
@@ -494,7 +517,7 @@ export default function TeacherDetailsPage() {
       headers: ["المؤشر", "القيمة"],
       rows: exportRows,
       fileName: `${safeFileName(`teacher-final-file-${teacher.full_name}-${today}`)}.pdf`,
-    } as any);
+    });
 
     showToast("success", "تم تجهيز PDF لملف المعلم");
   }
@@ -581,21 +604,21 @@ export default function TeacherDetailsPage() {
   }
 
   const tabs: { key: TabKey; label: string; icon: ReactNode; count?: number }[] = [
-    { key: "overview", label: "النظرة العامة", icon: <ShieldCheck size={16} /> },
-    { key: "schedule", label: "الجدول", icon: <BookOpenCheck size={16} />, count: schedule.length },
-    { key: "waiting", label: "الانتظار", icon: <CalendarCheck size={16} />, count: waiting.length },
-    { key: "portfolio", label: "الشواهد", icon: <Award size={16} />, count: portfolio.length },
-    { key: "subjects", label: "الإسناد", icon: <Users size={16} />, count: teacherSubjects.length + teacherClasses.length },
-    { key: "certificates", label: "الدورات", icon: <FileText size={16} />, count: certificates.length },
-    { key: "performance", label: "الأداء", icon: <ClipboardCheck size={16} />, count: performance.length },
-    { key: "files", label: "المرفقات", icon: <Paperclip size={16} />, count: teacherFiles.length },
+    { key: "overview", label: "النظرة العامة", icon: <ShieldCheck size={16} aria-hidden="true" /> },
+    { key: "schedule", label: "الجدول", icon: <BookOpenCheck size={16} aria-hidden="true" />, count: schedule.length },
+    { key: "waiting", label: "الانتظار", icon: <CalendarCheck size={16} aria-hidden="true" />, count: waiting.length },
+    { key: "portfolio", label: "الشواهد", icon: <Award size={16} aria-hidden="true" />, count: portfolio.length },
+    { key: "subjects", label: "الإسناد", icon: <Users size={16} aria-hidden="true" />, count: teacherSubjects.length + teacherClasses.length },
+    { key: "certificates", label: "الدورات", icon: <FileText size={16} aria-hidden="true" />, count: certificates.length },
+    { key: "performance", label: "الأداء", icon: <ClipboardCheck size={16} aria-hidden="true" />, count: performance.length },
+    { key: "files", label: "المرفقات", icon: <Paperclip size={16} aria-hidden="true" />, count: teacherFiles.length },
   ];
 
   if (schoolLoading || loading) {
     return (
       <RoleGuard allowedRoles={TEACHER_DETAILS_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل ملف المعلم النهائي..." />
+          <PageLoader text="جاري تحميل ملف المعلم النهائي..." />
         </AppShell>
       </RoleGuard>
     );
@@ -605,9 +628,7 @@ export default function TeacherDetailsPage() {
     return (
       <RoleGuard allowedRoles={TEACHER_DETAILS_ROLES}>
         <AppShell>
-          <div className="rounded-[28px] border border-red-100 bg-red-50 p-8 text-center font-bold text-red-700">
-            {errorMsg || "لم يتم العثور على المعلم."}
-          </div>
+          <ErrorState description={errorMsg || "لم يتم العثور على المعلم."} />
         </AppShell>
       </RoleGuard>
     );
@@ -617,14 +638,22 @@ export default function TeacherDetailsPage() {
     <RoleGuard allowedRoles={TEACHER_DETAILS_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title={teacher.full_name}
             description="ملف المعلم 360° يجمع الجدول والنصاب والانتظار والشواهد والإسناد والدورات والأداء والمرفقات في صفحة واحدة."
             badge="ملف المعلم"
-            icon={<GraduationCap size={18} />}
+            icon={<GraduationCap size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "المعلمون", href: "/teachers" },
@@ -637,101 +666,92 @@ export default function TeacherDetailsPage() {
               { label: "القسم", value: teacher.department || "—" },
             ]}
             stats={[
-              { label: "جاهزية الملف", value: `${readinessScore}%`, icon: <ShieldCheck size={20} />, tone: readinessScore >= 80 ? "green" : readinessScore >= 50 ? "gold" : "red" },
-              { label: "الجدول", value: schedule.length, icon: <BookOpenCheck size={20} />, tone: "blue" },
-              { label: "الشواهد", value: portfolio.length, icon: <Award size={20} />, tone: portfolio.length > 0 ? "green" : "gold" },
-              { label: "الأداء", value: performance.length > 0 ? `${averagePerformance}%` : "—", icon: <ClipboardCheck size={20} />, tone: averagePerformance >= 80 ? "green" : "gold" },
+              { label: "جاهزية الملف", value: `${readinessScore}%`, icon: <ShieldCheck size={20} aria-hidden="true" />, tone: readinessScore >= 80 ? "green" : readinessScore >= 50 ? "gold" : "red" },
+              { label: "الجدول", value: schedule.length, icon: <BookOpenCheck size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "الشواهد", value: portfolio.length, icon: <Award size={20} aria-hidden="true" />, tone: portfolio.length > 0 ? "green" : "gold" },
+              { label: "الأداء", value: performance.length > 0 ? `${averagePerformance}%` : "—", icon: <ClipboardCheck size={20} aria-hidden="true" />, tone: averagePerformance >= 80 ? "green" : "gold" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<ArrowRight size={17} aria-hidden="true" />}
                   onClick={() => router.push("/teachers")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <ArrowRight size={17} />
                   رجوع
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileSpreadsheet size={17} aria-hidden="true" />}
                   onClick={() => void exportTeacherExcel()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <FileSpreadsheet size={17} />
                   Excel
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={exportTeacherPDF}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <FileText size={17} />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchTeacherFile()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<Printer size={17} aria-hidden="true" />}
                   onClick={() => window.print()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Printer size={17} />
                   طباعة
-                </button>
+                </SecondaryButton>
               </>
             }
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="grid gap-5 lg:grid-cols-[auto_1fr_auto] lg:items-center">
               <TeacherAvatar teacher={teacher} />
 
               <div>
                 <div className="mb-2 flex flex-wrap gap-2">
                   <MiniBadge tone={readinessScore >= 80 ? "green" : readinessScore >= 50 ? "gold" : "red"}>{readinessLabel}</MiniBadge>
-                  <MiniBadge tone="blue">النصاب: {teacher.weekly_load ?? "—"}</MiniBadge>
+                  <MiniBadge tone="primary">النصاب: {teacher.weekly_load ?? "—"}</MiniBadge>
                   <MiniBadge tone="slate">{teacher.status || "على رأس العمل"}</MiniBadge>
                 </div>
 
-                <h2 className="text-2xl font-black text-[#15445A]">{teacher.full_name}</h2>
-                <p className="mt-2 text-sm leading-7 text-slate-500">
+                <h2 className="text-2xl font-black text-[var(--app-text)]">{teacher.full_name}</h2>
+                <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
                   {teacher.subject || "بدون مادة"} — {teacher.department || "بدون قسم"}
                 </p>
 
-                <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-                  <span className="rounded-full bg-slate-50 px-3 py-1">الجوال: {teacher.phone || "—"}</span>
-                  <span className="rounded-full bg-slate-50 px-3 py-1">البريد: {teacher.email || "—"}</span>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[var(--app-text-muted)]">
+                  <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1">الجوال: {teacher.phone || "—"}</span>
+                  <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1">البريد: {teacher.email || "—"}</span>
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4 text-center">
-                <p className="text-xs font-black text-slate-400">مؤشر الجاهزية</p>
-                <p className="mt-1 text-3xl font-black text-[#15445A]">{readinessScore}%</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{readinessLabel}</p>
+              <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-center">
+                <p className="text-xs font-black text-[var(--app-text-subtle)]">مؤشر الجاهزية</p>
+                <p className="mt-1 text-3xl font-black text-[var(--app-text)]">{readinessScore}%</p>
+                <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">{readinessLabel}</p>
               </div>
             </div>
           </section>
 
           {completionAlerts.length > 0 && (
-            <section className="rounded-[28px] border border-[#C1B489]/40 bg-[#C1B489]/15 p-5 print:hidden">
+            <section className="rounded-[var(--app-radius-xl)] border border-[color-mix(in_srgb,var(--app-accent)_35%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] p-5 print:hidden">
               <div className="mb-3 flex items-center gap-2">
-                <AlertCircle className="text-[#15445A]" size={20} />
-                <h3 className="font-black text-[#15445A]">تنبيهات استكمال الملف</h3>
+                <AlertCircle className="text-[var(--app-text)]" size={20} />
+                <h3 className="font-black text-[var(--app-text)]">تنبيهات استكمال الملف</h3>
               </div>
 
               <div className="grid gap-2 md:grid-cols-2">
                 {completionAlerts.map((alert) => (
-                  <div key={alert} className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                  <div key={alert} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3 text-sm font-bold text-[var(--app-text)]">
                     ⚠️ {alert}
                   </div>
                 ))}
@@ -740,10 +760,10 @@ export default function TeacherDetailsPage() {
           )}
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <ExecutiveCard title="الجدول والنصاب" value={schedule.length} icon={<BookOpenCheck size={22} />} tone="blue" subtitle={`النصاب ${teacher.weekly_load ?? "—"}`} progress={teacher.weekly_load ? percentage(schedule.length, Number(teacher.weekly_load)) : schedule.length ? 100 : 0} />
-            <ExecutiveCard title="الانتظار" value={waiting.length} icon={<CalendarCheck size={22} />} tone={pendingWaiting > 0 ? "gold" : "green"} subtitle={`${pendingWaiting} معلق`} progress={waiting.length ? percentage(waiting.length - pendingWaiting, waiting.length) : 0} />
-            <ExecutiveCard title="ملف الإنجاز" value={portfolio.length} icon={<Award size={22} />} tone="green" subtitle={`${approvedPortfolio} معتمد`} progress={portfolio.length ? percentage(approvedPortfolio, portfolio.length) : 0} />
-            <ExecutiveCard title="الأداء والتطوير" value={performance.length > 0 ? `${averagePerformance}%` : "—"} icon={<ClipboardCheck size={22} />} tone={averagePerformance >= 80 ? "green" : "gold"} subtitle={`${certificates.length} دورة`} progress={averagePerformance} />
+            <ExecutiveCard title="الجدول والنصاب" value={schedule.length} icon={<BookOpenCheck size={22} aria-hidden="true" />} tone="blue" subtitle={`النصاب ${teacher.weekly_load ?? "—"}`} progress={teacher.weekly_load ? percentage(schedule.length, Number(teacher.weekly_load)) : schedule.length ? 100 : 0} />
+            <ExecutiveCard title="الانتظار" value={waiting.length} icon={<CalendarCheck size={22} aria-hidden="true" />} tone={pendingWaiting > 0 ? "gold" : "green"} subtitle={`${pendingWaiting} معلق`} progress={waiting.length ? percentage(waiting.length - pendingWaiting, waiting.length) : 0} />
+            <ExecutiveCard title="ملف الإنجاز" value={portfolio.length} icon={<Award size={22} aria-hidden="true" />} tone="green" subtitle={`${approvedPortfolio} معتمد`} progress={portfolio.length ? percentage(approvedPortfolio, portfolio.length) : 0} />
+            <ExecutiveCard title="الأداء والتطوير" value={performance.length > 0 ? `${averagePerformance}%` : "—"} icon={<ClipboardCheck size={22} aria-hidden="true" />} tone={averagePerformance >= 80 ? "green" : "gold"} subtitle={`${certificates.length} دورة`} progress={averagePerformance} />
           </section>
 
           <SummaryCard
@@ -761,22 +781,22 @@ export default function TeacherDetailsPage() {
             footer={latestPerformance?.rating || "يعتمد المؤشر على اكتمال بيانات المعلم الأساسية والتشغيلية."}
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-3 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-3 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="flex gap-2 overflow-x-auto pb-1">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex shrink-0 items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${
-                    activeTab === tab.key ? "bg-[#15445A] text-white" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  className={`flex shrink-0 items-center gap-2 rounded-[var(--app-radius-lg)] px-4 py-3 text-sm font-black transition ${
+                    activeTab === tab.key ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]" : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
                   }`}
                 >
                   {tab.icon}
                   {tab.label}
 
                   {typeof tab.count === "number" && (
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === tab.key ? "bg-white/20 text-white" : "bg-white text-slate-500"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${activeTab === tab.key ? "bg-[var(--app-card)]/20 text-[var(--app-primary-foreground)]" : "bg-[var(--app-card)] text-[var(--app-text-muted)]"}`}>
                       {tab.count}
                     </span>
                   )}
@@ -789,10 +809,10 @@ export default function TeacherDetailsPage() {
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
               <TeacherInfoCard teacher={teacher} />
 
-              <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm xl:col-span-2">
+              <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
                 <div className="mb-4 flex items-center gap-2">
-                  <ShieldCheck className="text-[#15445A]" size={22} />
-                  <h2 className="text-xl font-black text-[#15445A]">ملخص المعلم التنفيذي</h2>
+                  <ShieldCheck className="text-[var(--app-text)]" size={22} />
+                  <h2 className="text-xl font-black text-[var(--app-text)]">ملخص المعلم التنفيذي</h2>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
@@ -803,9 +823,9 @@ export default function TeacherDetailsPage() {
                   <MiniBox title="المرفقات" value={teacherFiles.length} />
                 </div>
 
-                <div className="mt-5 rounded-[24px] bg-slate-50 p-5">
-                  <h3 className="font-black text-[#15445A]">قراءة سريعة</h3>
-                  <p className="mt-2 leading-7 text-slate-600">
+                <div className="mt-5 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-5">
+                  <h3 className="font-black text-[var(--app-text)]">قراءة سريعة</h3>
+                  <p className="mt-2 leading-7 text-[var(--app-text-muted)]">
                     هذا الملف يجمع بيانات المعلم، جدوله، تكليفات الانتظار، الشواهد، الإسناد، الدورات، تقييم الأداء، والمرفقات في صفحة واحدة.
                   </p>
                 </div>
@@ -934,10 +954,16 @@ export default function TeacherDetailsPage() {
 
 function TeacherAvatar({ teacher }: { teacher: Teacher }) {
   return (
-    <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[28px] bg-[#15445A] text-3xl font-black text-[#C1B489]">
+    <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] text-3xl font-black text-[var(--app-accent)]">
       {teacher.photo_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={teacher.photo_url} alt={teacher.full_name} loading="lazy" className="h-full w-full object-cover" />
+        <Image
+          src={teacher.photo_url}
+          alt={teacher.full_name}
+          width={96}
+          height={96}
+          className="h-full w-full object-cover"
+          unoptimized
+        />
       ) : (
         teacherInitials(teacher.full_name)
       )}
@@ -947,10 +973,10 @@ function TeacherAvatar({ teacher }: { teacher: Teacher }) {
 
 function TeacherInfoCard({ teacher }: { teacher: Teacher }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4 flex items-center gap-2">
-        <GraduationCap className="text-[#15445A]" size={22} />
-        <h2 className="text-xl font-black text-[#15445A]">بيانات المعلم</h2>
+        <GraduationCap className="text-[var(--app-text)]" size={22} />
+        <h2 className="text-xl font-black text-[var(--app-text)]">بيانات المعلم</h2>
       </div>
 
       <div className="space-y-3">
@@ -982,14 +1008,14 @@ function TeacherFilesPanel({
   onDelete: (file: TeacherFile) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <Paperclip className="text-[#C1B489]" size={22} />
+          <Paperclip className="text-[var(--app-accent)]" size={22} />
 
           <div>
-            <h2 className="text-xl font-black text-[#15445A]">مرفقات المعلم</h2>
-            <p className="mt-1 text-sm text-slate-500">شهادات، خطابات، ملفات إنجاز، أو أي مستندات خاصة بالمعلم.</p>
+            <h2 className="text-xl font-black text-[var(--app-text)]">مرفقات المعلم</h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">شهادات، خطابات، ملفات إنجاز، أو أي مستندات خاصة بالمعلم.</p>
           </div>
         </div>
 
@@ -1003,40 +1029,42 @@ function TeacherFilesPanel({
           }}
         />
 
-        <button
-          type="button"
-          disabled={uploadingFile}
+        <PrimaryButton
+          icon={<UploadCloud className="h-4 w-4" aria-hidden="true" />}
           onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+          loading={uploadingFile}
         >
-          {uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-          {uploadingFile ? "جاري الرفع..." : "رفع مرفق"}
-        </button>
+          رفع مرفق
+        </PrimaryButton>
       </div>
 
       {files.length === 0 ? (
-        <div className="rounded-[24px] bg-slate-50 p-8 text-center text-slate-500">لا توجد مرفقات لهذا المعلم</div>
+        <UiEmptyState
+          icon={<Paperclip className="h-8 w-8" aria-hidden="true" />}
+          title="لا توجد مرفقات"
+          description="لم يتم رفع مرفقات لهذا المعلم بعد."
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {files.map((file) => (
-            <div key={file.id} className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+            <div key={file.id} className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-bold text-[#C1B489]">{file.file_category || "عام"}</p>
-                  <h3 className="mt-2 font-black text-[#15445A]">{file.file_title || file.file_name}</h3>
+                  <p className="text-xs font-bold text-[var(--app-accent)]">{file.file_category || "عام"}</p>
+                  <h3 className="mt-2 font-black text-[var(--app-text)]">{file.file_title || file.file_name}</h3>
                 </div>
 
-                <FileText className="shrink-0 text-slate-400" size={20} />
+                <FileText className="shrink-0 text-[var(--app-text-subtle)]" size={20} />
               </div>
 
-              <div className="space-y-2 text-sm text-slate-500">
+              <div className="space-y-2 text-sm text-[var(--app-text-muted)]">
                 <p>اسم الملف: {file.file_name || "-"}</p>
                 <p>النوع: {file.file_type || "-"}</p>
                 <p>الحجم: {formatFileSize(file.file_size)}</p>
                 <p>تاريخ الرفع: {formatDate(file.created_at)}</p>
               </div>
 
-              {file.notes && <p className="mt-3 rounded-2xl bg-white p-3 text-sm leading-7 text-slate-600">{file.notes}</p>}
+              {file.notes && <p className="mt-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-3 text-sm leading-7 text-[var(--app-text-muted)]">{file.notes}</p>}
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {file.file_url && (
@@ -1044,21 +1072,19 @@ function TeacherFilesPanel({
                     href={file.file_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-4 py-2 text-sm font-bold text-white"
+                    className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-4 py-2 text-sm font-bold text-[var(--app-primary-foreground)]"
                   >
-                    <ExternalLink size={15} />
+                    <ExternalLink size={15} aria-hidden="true" />
                     فتح الملف
                   </a>
                 )}
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<Trash2 size={15} aria-hidden="true" />}
                   onClick={() => onDelete(file)}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100"
                 >
-                  <Trash2 size={15} />
                   حذف
-                </button>
+                </SecondaryButton>
               </div>
             </div>
           ))}
@@ -1080,14 +1106,14 @@ function SimpleDataTable({
   rows: SimpleTableRow[];
 }) {
   return (
-    <div className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
-      <div className="border-b border-slate-100 p-5">
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+    <div className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
+      <div className="border-b border-[var(--app-border)] p-5">
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-right">
-          <thead className="bg-slate-50 text-sm text-slate-500">
+          <thead className="bg-[var(--app-card-soft)] text-sm text-[var(--app-text-muted)]">
             <tr>
               {headers.map((header) => (
                 <th key={header} className="p-4">
@@ -1100,9 +1126,9 @@ function SimpleDataTable({
           <tbody>
             {rows.length > 0 ? (
               rows.map((row, index) => (
-                <tr key={index} className="border-t border-slate-100">
+                <tr key={index} className="border-t border-[var(--app-border)]">
                   {row.map((cell, cellIndex) => (
-                    <td key={cellIndex} className="p-4 text-sm text-slate-700">
+                    <td key={cellIndex} className="p-4 text-sm text-[var(--app-text)]">
                       {cell}
                     </td>
                   ))}
@@ -1110,8 +1136,11 @@ function SimpleDataTable({
               ))
             ) : (
               <tr>
-                <td colSpan={headers.length} className="p-8 text-center text-slate-500">
-                  {emptyText}
+                <td colSpan={headers.length} className="p-6">
+                  <UiEmptyState
+                    title="لا توجد بيانات"
+                    description={emptyText}
+                  />
                 </td>
               </tr>
             )}
@@ -1124,18 +1153,18 @@ function SimpleDataTable({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
-      <span className="shrink-0 text-sm text-slate-500">{label}</span>
-      <span className="break-words text-left font-bold text-[#15445A]">{value}</span>
+    <div className="flex items-center justify-between gap-4 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <span className="shrink-0 text-sm text-[var(--app-text-muted)]">{label}</span>
+      <span className="break-words text-left font-bold text-[var(--app-text)]">{value}</span>
     </div>
   );
 }
 
 function MiniBox({ title, value }: { title: string; value: string | number }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-sm text-slate-500">{title}</p>
-      <h3 className="mt-2 font-black text-[#15445A]">{value}</h3>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-sm text-[var(--app-text-muted)]">{title}</p>
+      <h3 className="mt-2 font-black text-[var(--app-text)]">{value}</h3>
     </div>
   );
 }
@@ -1145,37 +1174,21 @@ function MiniBadge({
   tone = "slate",
 }: {
   children: ReactNode;
-  tone?: "slate" | "blue" | "green" | "gold" | "red";
+  tone?: "slate" | "primary" | "green" | "gold" | "red";
 }) {
   const tones = {
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-    blue: "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]",
-    gold: "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]",
-    red: "border-red-200 bg-red-50 text-red-700",
+    slate:
+      "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text)]",
+    primary:
+      "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]",
+    green:
+      "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]",
+    gold:
+      "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
   };
 
   return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${tones[tone]}`}>{children}</span>;
 }
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] bg-white p-6 text-center text-slate-500 shadow-sm">
-      <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-      {toast.message}
-    </div>
-  );
-}

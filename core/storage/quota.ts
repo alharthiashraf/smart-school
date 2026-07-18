@@ -27,3 +27,4 @@ export function isQuotaExceeded(usage: StorageQuotaUsage, maxMB: number) {
 }
 
 export const StorageQuota = { calculate: calculateBucketUsage, isExceeded: isQuotaExceeded };
+

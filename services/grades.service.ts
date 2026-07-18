@@ -9,7 +9,7 @@ import {
 } from "./gradingValidation";
 import { buildGradeAnalytics, type GradeAnalyticsInput } from "./gradingAnalytics";
 import { GradingWorkflow } from "./gradingWorkflow";
-import ReportBuilder, { type ReportFormat } from "./reportBuilder";
+import { ReportBuilder, type ReportFormat } from "./reportBuilder";
 
 export type GradeBookStatus =
   | "draft"
@@ -848,3 +848,4 @@ export const GradesService = {
     return ok((all.data ?? []).filter((item) => item.student_id === params.studentId));
   },
 };
+

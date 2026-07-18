@@ -10,3 +10,4 @@ import MonthlyAttendancePage from "../monthly/page";
 export default function WeeklyAttendancePage() {
   return <MonthlyAttendancePage />;
 }
+

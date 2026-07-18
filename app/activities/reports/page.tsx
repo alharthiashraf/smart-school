@@ -1171,3 +1171,4 @@ function InfoBox({
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
@@ -8,8 +8,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { supabase } from "@/lib/supabase";
+import type { SchoolRole } from "@/lib/permissions";
 import { useSchool } from "@/contexts/SchoolContext";
 import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
@@ -23,7 +29,6 @@ import {
   FileText,
   GraduationCap,
   HeartPulse,
-  Loader2,
   RefreshCcw,
   ShieldCheck,
   UserRound,
@@ -63,7 +68,40 @@ type StatusKey =
   | "clinic"
   | "unknown";
 
-const STUDENT_ROLES = ["super_admin", "school_admin", "student"] as any;
+type AttendanceSessionRow = {
+  id: string;
+  attendance_date?: string | null;
+  period_number?: number | null;
+  subject_name?: string | null;
+};
+
+type AttendanceRecordRow = {
+  id: string;
+  student_id: string;
+  session_id: string;
+  status?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+};
+
+const STUDENT_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "student",
+];
+
+const EXPORT_HEADERS = [
+  "#",
+  "اسم الطالب",
+  "رقم الهوية",
+  "الصف",
+  "الفصل",
+  "التاريخ",
+  "الحالة",
+  "الحصة",
+  "المادة",
+  "ملاحظات",
+];
 
 function getCurrentMonth() {
   const date = new Date();
@@ -135,13 +173,27 @@ function statusLabel(status?: string | null) {
 function statusClass(status?: string | null) {
   const key = normalizeStatus(status);
 
-  if (key === "present") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (key === "absent") return "border-red-200 bg-red-50 text-red-700";
-  if (key === "late") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  if (key === "excused") return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (key === "clinic") return "border-purple-200 bg-purple-50 text-purple-700";
+  if (key === "present") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  if (key === "absent") {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (key === "late") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  if (key === "excused") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (key === "clinic") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]";
+  }
+
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function percentage(value: number, total: number) {
@@ -149,23 +201,13 @@ function percentage(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
-async function safeSingleStudentQuery(query: any) {
-  const { data, error } = await query.limit(1);
-
-  if (error) throw error;
-
-  return Array.isArray(data) && data.length ? (data[0] as Student) : null;
-}
-
 export default function StudentAttendancePage() {
-  const schoolContext = useSchool() as any;
+  const {
+    currentSchool,
+    loading: schoolLoading,
+  } = useSchool();
 
-  const schoolId =
-    schoolContext?.currentSchool?.id ||
-    schoolContext?.schoolId ||
-    schoolContext?.school?.id ||
-    schoolContext?.selectedSchool?.id ||
-    null;
+  const schoolId = currentSchool?.id || null;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -179,39 +221,56 @@ export default function StudentAttendancePage() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [search, setSearch] = useState("");
 
-  async function findStudentForCurrentUser(userId: string, email: string) {
-    const baseSelect =
-      "id, full_name, email, student_email, national_id, grade_name, classroom_name, status, user_id, auth_user_id";
+  const findStudentForCurrentUser = useCallback(
+    async (userId: string, email: string): Promise<Student | null> => {
+      const baseSelect =
+        "id, full_name, email, student_email, national_id, grade_name, classroom_name, status, user_id, auth_user_id";
 
-    const applySchool = (query: any) => {
-      if (schoolId) return query.eq("school_id", schoolId);
-      return query;
-    };
+      const lookup = async (column: string, value: string) => {
+        let query = supabase
+          .from("students")
+          .select(baseSelect)
+          .eq(column, value);
 
-    const attempts = [
-      () => safeSingleStudentQuery(applySchool(supabase.from("students").select(baseSelect).eq("auth_user_id", userId))),
-      () => safeSingleStudentQuery(applySchool(supabase.from("students").select(baseSelect).eq("user_id", userId))),
-      () => safeSingleStudentQuery(applySchool(supabase.from("students").select(baseSelect).eq("email", email))),
-      () => safeSingleStudentQuery(applySchool(supabase.from("students").select(baseSelect).eq("student_email", email))),
-    ];
+        if (schoolId) {
+          query = query.eq("school_id", schoolId);
+        }
 
-    for (const attempt of attempts) {
-      try {
-        const result = await attempt();
-        if (result) return result;
-      } catch {
-        // بعض الأعمدة قد لا تكون موجودة في كل نسخة من قاعدة البيانات.
+        const { data, error: queryError } = await query.limit(1);
+
+        if (queryError) throw queryError;
+
+        return Array.isArray(data) && data.length > 0
+          ? (data[0] as Student)
+          : null;
+      };
+
+      const attempts: Array<[string, string]> = [
+        ["auth_user_id", userId],
+        ["user_id", userId],
+        ["email", email],
+        ["student_email", email],
+      ];
+
+      for (const [column, value] of attempts) {
+        try {
+          const result = await lookup(column, value);
+          if (result) return result;
+        } catch {
+          // بعض الأعمدة قد لا تكون موجودة في كل نسخة من قاعدة البيانات.
+        }
       }
-    }
 
-    return null;
-  }
+      return null;
+    },
+    [schoolId],
+  );
 
-  async function loadAttendanceFromSimpleTable(
+  const loadAttendanceFromSimpleTable = useCallback(async (
     studentId: string,
     startText: string,
     endText: string,
-  ) {
+  ) => {
     let query = supabase
       .from("attendance")
       .select("id, student_id, attendance_date, status, notes, created_at, period_number, subject_name")
@@ -227,13 +286,13 @@ export default function StudentAttendancePage() {
     if (attendanceError) throw attendanceError;
 
     return (data || []) as AttendanceRow[];
-  }
+  }, [schoolId]);
 
-  async function loadAttendanceFromSessionTables(
+  const loadAttendanceFromSessionTables = useCallback(async (
     studentId: string,
     startText: string,
     endText: string,
-  ) {
+  ) => {
     let sessionsQuery = supabase
       .from("student_attendance_sessions")
       .select("id, attendance_date, period_number, subject_name")
@@ -246,7 +305,7 @@ export default function StudentAttendancePage() {
 
     if (sessionsError) throw sessionsError;
 
-    const sessionList = (sessions || []) as any[];
+    const sessionList = (sessions || []) as AttendanceSessionRow[];
     if (!sessionList.length) return [];
 
     const sessionIds = sessionList.map((item) => item.id);
@@ -259,10 +318,10 @@ export default function StudentAttendancePage() {
 
     if (recordsError) throw recordsError;
 
-    const sessionMap = new Map<string, any>();
+    const sessionMap = new Map<string, AttendanceSessionRow>();
     sessionList.forEach((session) => sessionMap.set(session.id, session));
 
-    return ((records || []) as any[])
+    return ((records || []) as AttendanceRecordRow[])
       .map((record) => {
         const session = sessionMap.get(record.session_id);
 
@@ -279,19 +338,23 @@ export default function StudentAttendancePage() {
       })
       .filter((row) => row.attendance_date)
       .sort((a, b) => b.attendance_date.localeCompare(a.attendance_date));
-  }
+  }, [schoolId]);
 
-  async function loadStudentAttendance(studentId: string) {
+  const loadStudentAttendance = useCallback(async (studentId: string) => {
     const { startText, endText } = getMonthRange(month);
 
     try {
       return await loadAttendanceFromSimpleTable(studentId, startText, endText);
     } catch {
-      return await loadAttendanceFromSessionTables(studentId, startText, endText);
+      return await loadAttendanceFromSessionTables(
+        studentId,
+        startText,
+        endText,
+      );
     }
-  }
+  }, [loadAttendanceFromSessionTables, loadAttendanceFromSimpleTable, month]);
 
-  async function loadData(isRefresh = false) {
+  const loadData = useCallback(async (isRefresh = false) => {
     try {
       setError("");
 
@@ -329,20 +392,25 @@ export default function StudentAttendancePage() {
 
       const rows = await loadStudentAttendance(currentStudent.id);
       setAttendanceRows(rows);
-    } catch (err: any) {
-      setError(err?.message || "حدث خطأ أثناء تحميل سجل الحضور.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "حدث خطأ أثناء تحميل سجل الحضور.";
+
+      setError(message);
       setStudent(null);
       setAttendanceRows([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [findStudentForCurrentUser, loadStudentAttendance]);
 
   useEffect(() => {
+    if (schoolLoading) return;
     void loadData(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId, month]);
+  }, [loadData, schoolLoading]);
 
   const filteredRows = useMemo(() => {
     const text = search.trim().toLowerCase();
@@ -383,35 +451,66 @@ export default function StudentAttendancePage() {
     };
   }, [filteredRows]);
 
-  const exportRows = useMemo(() => {
-    return filteredRows.map((row, index) => ({
-      "#": index + 1,
-      "اسم الطالب": student?.full_name || "—",
-      "رقم الهوية": student?.national_id || "—",
-      "الصف": student?.grade_name || "—",
-      "الفصل": student?.classroom_name || "—",
-      "التاريخ": formatDate(row.attendance_date),
-      "الحالة": statusLabel(row.status),
-      "الحصة": row.period_number || "—",
-      "المادة": row.subject_name || "—",
-      "ملاحظات": row.notes || "—",
-    }));
+  const exportRows = useMemo<(string | number | null | undefined)[][]>(() => {
+    return filteredRows.map((row, index) => [
+      index + 1,
+      student?.full_name || "—",
+      student?.national_id || "—",
+      student?.grade_name || "—",
+      student?.classroom_name || "—",
+      formatDate(row.attendance_date),
+      statusLabel(row.status),
+      row.period_number || "—",
+      row.subject_name || "—",
+      row.notes || "—",
+    ]);
   }, [filteredRows, student]);
 
   function handleExportPDF() {
     exportTableToPDF({
       title: "تقرير حضور الطالب",
-      fileName: "student-attendance-report.pdf",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `سجل حضور الطالب: ${student.full_name}`
+        : "سجل حضور الطالب",
+      headers: EXPORT_HEADERS,
       rows: exportRows,
-    } as any);
+      fileName: "student-attendance-report.pdf",
+    });
   }
 
-  function handleExportExcel() {
-    exportTableToExcel({
+  async function handleExportExcel() {
+    await exportTableToExcel({
+      title: "تقرير حضور الطالب",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `سجل حضور الطالب: ${student.full_name}`
+        : "سجل حضور الطالب",
+      headers: EXPORT_HEADERS,
+      rows: exportRows,
       fileName: "student-attendance-report.xlsx",
       sheetName: "Attendance",
-      rows: exportRows,
-    } as any);
+    });
+  }
+
+  if (schoolLoading) {
+    return (
+      <RoleGuard allowedRoles={STUDENT_ROLES}>
+        <AppShell>
+          <PageLoader text="جاري تحميل بيانات المدرسة..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={STUDENT_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
+        </AppShell>
+      </RoleGuard>
+    );
   }
 
   return (
@@ -423,7 +522,7 @@ export default function StudentAttendancePage() {
             title="سجل الحضور والغياب"
             description="متابعة حضورك وغيابك وتأخرك خلال الشهر، مع نسب الحضور والتنبيهات والتصدير."
             badge="بوابة الطالب"
-            icon={<GraduationCap size={18} />}
+            icon={<GraduationCap size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة الطالب", href: "/student-portal" },
@@ -436,71 +535,70 @@ export default function StudentAttendancePage() {
               { label: "النتائج المعروضة", value: filteredRows.length },
             ]}
             stats={[
-              { label: "السجلات", value: stats.total, icon: <CalendarDays size={20} />, tone: "blue" },
-              { label: "نسبة الحضور", value: `${stats.attendanceRate}%`, icon: <CheckCircle2 size={20} />, tone: stats.attendanceRate >= 85 ? "green" : "gold" },
-              { label: "غياب", value: stats.absent, icon: <XCircle size={20} />, tone: stats.absent > 0 ? "red" : "green" },
-              { label: "تأخر", value: stats.late, icon: <Clock3 size={20} />, tone: stats.late > 0 ? "gold" : "green" },
+              { label: "السجلات", value: stats.total, icon: <CalendarDays size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "نسبة الحضور", value: `${stats.attendanceRate}%`, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: stats.attendanceRate >= 85 ? "green" : "gold" },
+              { label: "غياب", value: stats.absent, icon: <XCircle size={20} aria-hidden="true" />, tone: stats.absent > 0 ? "red" : "green" },
+              { label: "تأخر", value: stats.late, icon: <Clock3 size={20} aria-hidden="true" />, tone: stats.late > 0 ? "gold" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw className="h-4 w-4" aria-hidden="true" />}
                   onClick={() => void loadData(true)}
-                  disabled={refreshing}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={refreshing}
                 >
-                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                   onClick={handleExportPDF}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileText className="h-4 w-4" />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
+                <ExportButton
+                  icon={
+                    <FileSpreadsheet
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  }
+                  onClick={() => void handleExportExcel()}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
                   Excel
-                </button>
+                </ExportButton>
               </>
             }
           />
 
           {student && (
-            <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-[#15445A] text-white">
-                    <UserRound className="h-7 w-7" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
+                    <UserRound className="h-7 w-7" aria-hidden="true" />
                   </div>
 
                   <div>
-                    <h2 className="text-lg font-black text-[#15445A]">
+                    <h2 className="text-lg font-black text-[var(--app-text)]">
                       {student.full_name || "طالب بدون اسم"}
                     </h2>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                       {student.grade_name || "—"} / {student.classroom_name || "—"}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 font-semibold text-[var(--app-text-muted)]">
                     الهوية: {student.national_id || "—"}
                   </span>
 
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 font-semibold text-[var(--app-text-muted)]">
                     الحالة: {student.status || "نشط"}
                   </span>
                 </div>
@@ -513,8 +611,8 @@ export default function StudentAttendancePage() {
               title="إجمالي السجلات"
               value={stats.total}
               subtitle="حسب الفلاتر الحالية"
-              icon={<CalendarDays size={22} />}
-              tone="blue"
+              icon={<CalendarDays size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
@@ -522,7 +620,7 @@ export default function StudentAttendancePage() {
               title="حضور"
               value={stats.present}
               subtitle={`${stats.attendanceRate}% نسبة الحضور`}
-              icon={<CheckCircle2 size={22} />}
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
               tone="green"
               progress={stats.attendanceRate}
             />
@@ -531,7 +629,7 @@ export default function StudentAttendancePage() {
               title="غياب"
               value={stats.absent}
               subtitle={`${stats.absenceRate}% نسبة الغياب`}
-              icon={<XCircle size={22} />}
+              icon={<XCircle size={22} aria-hidden="true" />}
               tone={stats.absent > 0 ? "red" : "green"}
               progress={stats.absenceRate}
             />
@@ -540,7 +638,7 @@ export default function StudentAttendancePage() {
               title="تأخر"
               value={stats.late}
               subtitle={`${stats.lateRate}% نسبة التأخر`}
-              icon={<Clock3 size={22} />}
+              icon={<Clock3 size={22} aria-hidden="true" />}
               tone={stats.late > 0 ? "gold" : "green"}
               progress={stats.lateRate}
             />
@@ -549,8 +647,8 @@ export default function StudentAttendancePage() {
               title="بعذر"
               value={stats.excused}
               subtitle="أعذار واستئذان"
-              icon={<ShieldCheck size={22} />}
-              tone="teal"
+              icon={<ShieldCheck size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.total ? percentage(stats.excused, stats.total) : 0}
             />
 
@@ -558,7 +656,7 @@ export default function StudentAttendancePage() {
               title="تحويل صحي"
               value={stats.clinic}
               subtitle="تحويل للعيادة"
-              icon={<HeartPulse size={22} />}
+              icon={<HeartPulse size={22} aria-hidden="true" />}
               tone={stats.clinic > 0 ? "gold" : "green"}
               progress={stats.total ? percentage(stats.clinic, stats.total) : 0}
             />
@@ -579,8 +677,7 @@ export default function StudentAttendancePage() {
             footer="يتم عرض البيانات حسب حساب الطالب المرتبط بالبريد أو معرف المستخدم."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-            <PageToolbar
+          <PageToolbar
               search={{
                 value: search,
                 onChange: setSearch,
@@ -604,60 +701,49 @@ export default function StudentAttendancePage() {
                     type="month"
                     value={month}
                     onChange={(event) => setMonth(event.target.value)}
-                    className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                    className="h-11 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                   />
                 </>
               }
               onRefresh={() => void loadData(true)}
               onExportPDF={handleExportPDF}
-              onExportExcel={handleExportExcel}
-            />
-          </section>
+            onExportExcel={() => void handleExportExcel()}
+          />
 
-          {error && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-4 text-sm leading-7 text-red-700">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-1 h-5 w-5 shrink-0" />
-                <div>
-                  <p className="font-bold">تعذر تحميل البيانات</p>
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {error && <ErrorState description={error} />}
 
           {loading ? (
-            <LoadingBox />
+            <PageLoader text="جاري تحميل سجل الحضور..." />
           ) : !student ? (
-            <EmptyState
-              icon={<UserRound className="h-9 w-9" />}
+            <UiEmptyState
+              icon={<UserRound className="h-9 w-9" aria-hidden="true" />}
               title="لم يتم العثور على حساب طالب مرتبط"
               description="تأكد أن حساب الطالب مرتبط في جدول students عبر auth_user_id أو user_id أو email أو student_email."
             />
           ) : !filteredRows.length ? (
-            <EmptyState
-              icon={<CalendarDays className="h-9 w-9" />}
+            <UiEmptyState
+              icon={<CalendarDays className="h-9 w-9" aria-hidden="true" />}
               title="لا توجد سجلات حضور مطابقة"
               description="جرّب تغيير الشهر أو الفلاتر الحالية لعرض سجلات أخرى."
             />
           ) : (
-            <section className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <section className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
+              <div className="flex flex-col gap-2 border-b border-[var(--app-border)] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-[#15445A]">تفاصيل الحضور</h2>
-                  <p className="text-sm text-slate-500">
+                  <h2 className="text-lg font-black text-[var(--app-text)]">تفاصيل الحضور</h2>
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عدد النتائج: {filteredRows.length}
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+                <div className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2 text-sm font-bold text-[var(--app-text-muted)]">
                   التصدير حسب النتائج المعروضة
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px] text-right text-sm">
-                  <thead className="bg-[#15445A] text-white">
+                  <thead className="bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
                     <tr>
                       <th className="px-4 py-3 font-bold">التاريخ</th>
                       <th className="px-4 py-3 font-bold">الحالة</th>
@@ -667,10 +753,10 @@ export default function StudentAttendancePage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--app-border)]">
                     {filteredRows.map((row) => (
-                      <tr key={row.id} className="hover:bg-slate-50/80">
-                        <td className="px-4 py-3 text-slate-700">
+                      <tr key={row.id} className="hover:bg-[var(--app-card-soft)]/80">
+                        <td className="px-4 py-3 text-[var(--app-text)]">
                           {formatDate(row.attendance_date)}
                         </td>
 
@@ -680,15 +766,15 @@ export default function StudentAttendancePage() {
                           </span>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
+                        <td className="px-4 py-3 text-[var(--app-text)]">
                           {row.period_number ? `الحصة ${row.period_number}` : "—"}
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
+                        <td className="px-4 py-3 text-[var(--app-text)]">
                           {row.subject_name || "—"}
                         </td>
 
-                        <td className="max-w-[360px] px-4 py-3 text-slate-600">
+                        <td className="max-w-[360px] px-4 py-3 text-[var(--app-text-muted)]">
                           <p className="line-clamp-2">
                             {row.notes || "لا توجد ملاحظات"}
                           </p>
@@ -706,38 +792,4 @@ export default function StudentAttendancePage() {
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white">
-      <div className="flex flex-col items-center gap-3 text-slate-600">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-        <p className="text-sm font-bold">جاري تحميل سجل الحضور...</p>
-      </div>
-    </div>
-  );
-}
 
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white p-6 text-center shadow-sm">
-      <div className="mx-auto max-w-md">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          {icon}
-        </div>
-
-        <h2 className="mt-4 text-xl font-black text-[#15445A]">{title}</h2>
-        <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
-      </div>
-    </div>
-  );
-}

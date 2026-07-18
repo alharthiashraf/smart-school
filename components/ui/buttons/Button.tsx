@@ -26,10 +26,10 @@ const variants: Record<ButtonVariant, string> = {
     "border-[var(--app-primary)]",
     "bg-[var(--app-primary)]",
     "text-[var(--app-text-inverse)]",
-    "shadow-[var(--app-shadow-sm)]",
+    "shadow-(--app-shadow-sm)",
     "hover:border-[var(--app-primary-hover)]",
     "hover:bg-[var(--app-primary-hover)]",
-    "hover:shadow-[var(--app-shadow-md)]",
+    "hover:shadow-(--app-shadow-md)",
     "active:border-[var(--app-primary-active)]",
     "active:bg-[var(--app-primary-active)]",
   ].join(" "),
@@ -38,7 +38,7 @@ const variants: Record<ButtonVariant, string> = {
     "border-[var(--app-border)]",
     "bg-[var(--app-card)]",
     "text-[var(--app-text)]",
-    "shadow-[var(--app-shadow-sm)]",
+    "shadow-(--app-shadow-sm)",
     "hover:border-[var(--app-accent-border)]",
     "hover:bg-[var(--app-card-soft)]",
     "hover:text-[var(--app-accent)]",
@@ -48,9 +48,9 @@ const variants: Record<ButtonVariant, string> = {
     "border-[var(--app-destructive)]",
     "bg-[var(--app-destructive)]",
     "text-white",
-    "shadow-[var(--app-shadow-sm)]",
+    "shadow-(--app-shadow-sm)",
     "hover:opacity-90",
-    "hover:shadow-[var(--app-shadow-md)]",
+    "hover:shadow-(--app-shadow-md)",
   ].join(" "),
 
   ghost: [
@@ -75,11 +75,11 @@ const variants: Record<ButtonVariant, string> = {
     "border-[var(--app-accent-border)]",
     "bg-[var(--app-accent-soft)]",
     "text-[var(--app-accent)]",
-    "shadow-[var(--app-shadow-sm)]",
+    "shadow-(--app-shadow-sm)",
     "hover:border-[var(--app-accent)]",
     "hover:bg-[var(--app-accent)]",
     "hover:text-[var(--app-accent-foreground)]",
-    "hover:shadow-[var(--app-shadow-gold)]",
+    "hover:shadow-(--app-shadow-gold)",
   ].join(" "),
 };
 
@@ -124,7 +124,9 @@ export default function Button({
         variants[variant],
         sizes[size],
         className,
-      ].join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
       {...props}
     >
       {loading ? (

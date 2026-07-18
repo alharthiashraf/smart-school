@@ -39,3 +39,4 @@ export const ScheduleImportService = {
       .filter((row) => row.teacherName && row.subjectName && row.dayName && Number.isFinite(row.periodNumber) && row.periodNumber > 0);
   },
 };
+

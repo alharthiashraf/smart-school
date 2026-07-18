@@ -29,3 +29,4 @@ export async function optimizeImage(file: File, options: ImageOptimizeOptions = 
 }
 
 export const ImageOptimizer = { optimize: optimizeImage };
+

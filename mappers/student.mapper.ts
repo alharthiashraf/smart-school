@@ -34,3 +34,4 @@ export function mapStudent(row: Raw): Student {
 export function mapStudents(rows: Raw[]): Student[] {
   return rows.map(mapStudent);
 }
+

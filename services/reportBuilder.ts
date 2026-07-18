@@ -812,4 +812,4 @@ export const ReportBuilder = {
   },
 };
 
-export default ReportBuilder;
+

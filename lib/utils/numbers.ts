@@ -3,3 +3,4 @@ export function average(values: number[]) {
   if (!valid.length) return 0;
   return valid.reduce((sum, value) => sum + value, 0) / valid.length;
 }
+

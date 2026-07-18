@@ -35,12 +35,14 @@ export default function Radio({
     ? `${radioId}-error`
     : undefined;
 
+  const describedBy = [descriptionId, errorId]
+    .filter(Boolean)
+    .join(" ") || undefined;
+
   return (
     <div
-      className={[
-        "w-full",
-        className,
-      ]
+      data-invalid={error ? "true" : undefined}
+      className={["w-full", className]
         .filter(Boolean)
         .join(" ")}
     >
@@ -60,8 +62,7 @@ export default function Radio({
             checked={checked}
             disabled={disabled}
             required={required}
-            aria-invalid={Boolean(error)}
-            aria-describedby={error ? errorId : descriptionId}
+            aria-describedby={describedBy}
             className="peer sr-only"
             {...props}
           />
@@ -100,7 +101,10 @@ export default function Radio({
                 {label}
 
                 {required && (
-                  <span className="mr-1 text-[var(--app-destructive)]">
+                  <span
+                    aria-hidden="true"
+                    className="mr-1 text-[var(--app-destructive)]"
+                  >
                     *
                   </span>
                 )}

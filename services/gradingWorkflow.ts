@@ -1,12 +1,13 @@
 import { supabase } from "@/lib/supabase";
 import type { SchoolRole } from "@/lib/permissions";
+
 import { canGrade } from "./gradingPermissions";
 import {
   hasBlockingIssues,
   validateGradeBookForAction,
   type GradeComponent,
-  type GradeValueMap,
   type GradeValidationIssue,
+  type GradeValueMap,
 } from "./gradingValidation";
 
 export type GradeBookStatus =
@@ -59,6 +60,15 @@ export type WorkflowValidationResult = {
   issues: GradeValidationIssue[];
 };
 
+type WorkflowStatusUpdatePayload = {
+  status: GradeBookStatus;
+  updated_at: string;
+  submitted_at?: string;
+  approved_at?: string;
+  locked_at?: string;
+  reopened_at?: string;
+};
+
 const TRANSITIONS: Record<GradeBookStatus, GradeBookStatus[]> = {
   draft: ["submitted"],
   submitted: ["approved", "reopened"],
@@ -74,30 +84,35 @@ const ACTION_TARGET_STATUS: Record<WorkflowAction, GradeBookStatus> = {
   reopen: "reopened",
 };
 
-const ACTION_PERMISSION: Record<WorkflowAction, Parameters<typeof canGrade>[1]> =
-  {
-    submit: "edit",
-    approve: "approve",
-    lock: "lock",
-    reopen: "reopen",
-  };
+const ACTION_PERMISSION: Record<
+  WorkflowAction,
+  Parameters<typeof canGrade>[1]
+> = {
+  submit: "edit",
+  approve: "approve",
+  lock: "lock",
+  reopen: "reopen",
+};
 
-function nowIso() {
+function nowIso(): string {
   return new Date().toISOString();
 }
 
-function workflowError(message: string) {
+function workflowError(message: string): Error {
   return new Error(message);
 }
 
 function isValidTransition(
   currentStatus: GradeBookStatus,
   nextStatus: GradeBookStatus,
-) {
+): boolean {
   return TRANSITIONS[currentStatus]?.includes(nextStatus) ?? false;
 }
 
-function assertPermission(action: WorkflowAction, actor?: WorkflowActor) {
+function assertPermission(
+  action: WorkflowAction,
+  actor?: WorkflowActor,
+): void {
   const role = actor?.role ?? null;
   const permission = ACTION_PERMISSION[action];
 
@@ -109,7 +124,7 @@ function assertPermission(action: WorkflowAction, actor?: WorkflowActor) {
 function assertTransition(
   currentStatus: GradeBookStatus,
   nextStatus: GradeBookStatus,
-) {
+): void {
   if (!isValidTransition(currentStatus, nextStatus)) {
     throw workflowError(
       `لا يمكن نقل سجل الدرجات من حالة "${currentStatus}" إلى "${nextStatus}".`,
@@ -117,18 +132,25 @@ function assertTransition(
   }
 }
 
-function normalizeComponents(value?: GradeComponent[] | null): GradeComponent[] {
+function normalizeComponents(
+  value?: GradeComponent[] | null,
+): GradeComponent[] {
   return Array.isArray(value) ? value : [];
 }
 
-async function getGradeBook(gradeBookId: string): Promise<GradeBookWorkflowRow> {
+async function getGradeBook(
+  gradeBookId: string,
+): Promise<GradeBookWorkflowRow> {
   const { data, error } = await supabase
     .from("grade_books")
     .select("*")
     .eq("id", gradeBookId)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   return data as GradeBookWorkflowRow;
 }
 
@@ -140,7 +162,10 @@ async function getGradeEntries(
     .select("*")
     .eq("grade_book_id", gradeBookId);
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+
   return (data ?? []) as GradeEntryWorkflowRow[];
 }
 
@@ -162,7 +187,12 @@ function validateWorkflowAction(input: {
     });
   }
 
-  if (input.action === "submit" || input.action === "approve" || input.action === "lock") {
+  const requiresBookValidation =
+    input.action === "submit" ||
+    input.action === "approve" ||
+    input.action === "lock";
+
+  if (requiresBookValidation) {
     issues.push(
       ...validateGradeBookForAction({
         action: input.action,
@@ -206,7 +236,7 @@ async function writeWorkflowLog(input: {
   note?: string | null;
   affectedCount?: number;
   issues?: GradeValidationIssue[];
-}) {
+}): Promise<void> {
   const payload = {
     grade_book_id: input.book.id,
     school_id: input.book.school_id ?? null,
@@ -222,7 +252,9 @@ async function writeWorkflowLog(input: {
     issues: input.issues ?? [],
   };
 
-  const { error } = await supabase.from("grade_workflow_logs").insert(payload);
+  const { error } = await supabase
+    .from("grade_workflow_logs")
+    .insert(payload);
 
   if (error) {
     console.warn("grade_workflow_logs insert failed:", error.message);
@@ -233,7 +265,7 @@ async function updateStatus(input: {
   gradeBookId: string;
   action: WorkflowAction;
   context?: WorkflowContext;
-}) {
+}): Promise<GradeBookWorkflowRow> {
   const book = await getGradeBook(input.gradeBookId);
   const nextStatus = ACTION_TARGET_STATUS[input.action];
 
@@ -250,23 +282,38 @@ async function updateStatus(input: {
   });
 
   if (!validation.allowed) {
-    const firstIssue = validation.issues.find((issue) => issue.level === "error");
+    const firstIssue = validation.issues.find(
+      (issue) => issue.level === "error",
+    );
+
     throw workflowError(
-      firstIssue?.message || "لا يمكن تنفيذ الإجراء بسبب وجود أخطاء في سجل الدرجات.",
+      firstIssue?.message ??
+        "لا يمكن تنفيذ الإجراء بسبب وجود أخطاء في سجل الدرجات.",
     );
   }
 
   const timestamp = nowIso();
 
-  const payload: Record<string, unknown> = {
+  const payload: WorkflowStatusUpdatePayload = {
     status: nextStatus,
     updated_at: timestamp,
   };
 
-  if (nextStatus === "submitted") payload.submitted_at = timestamp;
-  if (nextStatus === "approved") payload.approved_at = timestamp;
-  if (nextStatus === "locked") payload.locked_at = timestamp;
-  if (nextStatus === "reopened") payload.reopened_at = timestamp;
+  if (nextStatus === "submitted") {
+    payload.submitted_at = timestamp;
+  }
+
+  if (nextStatus === "approved") {
+    payload.approved_at = timestamp;
+  }
+
+  if (nextStatus === "locked") {
+    payload.locked_at = timestamp;
+  }
+
+  if (nextStatus === "reopened") {
+    payload.reopened_at = timestamp;
+  }
 
   const { data, error } = await supabase
     .from("grade_books")
@@ -275,7 +322,9 @@ async function updateStatus(input: {
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   await writeWorkflowLog({
     book,
@@ -297,24 +346,52 @@ export const GradingWorkflow = {
     book: GradeBookWorkflowRow;
     entries: GradeEntryWorkflowRow[];
     expectedStudentCount?: number;
-  }) {
+  }): WorkflowValidationResult {
     return validateWorkflowAction(input);
   },
 
-  submit(gradeBookId: string, context?: WorkflowContext) {
-    return updateStatus({ gradeBookId, action: "submit", context });
+  submit(
+    gradeBookId: string,
+    context?: WorkflowContext,
+  ): Promise<GradeBookWorkflowRow> {
+    return updateStatus({
+      gradeBookId,
+      action: "submit",
+      context,
+    });
   },
 
-  approve(gradeBookId: string, context?: WorkflowContext) {
-    return updateStatus({ gradeBookId, action: "approve", context });
+  approve(
+    gradeBookId: string,
+    context?: WorkflowContext,
+  ): Promise<GradeBookWorkflowRow> {
+    return updateStatus({
+      gradeBookId,
+      action: "approve",
+      context,
+    });
   },
 
-  lock(gradeBookId: string, context?: WorkflowContext) {
-    return updateStatus({ gradeBookId, action: "lock", context });
+  lock(
+    gradeBookId: string,
+    context?: WorkflowContext,
+  ): Promise<GradeBookWorkflowRow> {
+    return updateStatus({
+      gradeBookId,
+      action: "lock",
+      context,
+    });
   },
 
-  reopen(gradeBookId: string, context?: WorkflowContext) {
-    return updateStatus({ gradeBookId, action: "reopen", context });
+  reopen(
+    gradeBookId: string,
+    context?: WorkflowContext,
+  ): Promise<GradeBookWorkflowRow> {
+    return updateStatus({
+      gradeBookId,
+      action: "reopen",
+      context,
+    });
   },
 
   async logs(gradeBookId: string) {
@@ -324,9 +401,10 @@ export const GradingWorkflow = {
       .eq("grade_book_id", gradeBookId)
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
+
     return data ?? [];
   },
 };
-
-export default GradingWorkflow;

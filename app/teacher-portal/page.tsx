@@ -16,8 +16,12 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
-import { PageLoader } from "@/components/ui/loading";
-import { EmptyState } from "@/components/ui/empty-state";
+import Image from "next/image";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
 import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
 import ErrorState from "@/components/ui/feedback/ErrorState";
 
@@ -29,14 +33,11 @@ import { exportTableToExcel } from "@/lib/exports/excel";
 
 import {
   AlertCircle,
-  ArrowRight,
   Award,
   BadgeCheck,
-  BarChart3,
   Bell,
   BookOpenCheck,
   CalendarDays,
-  CheckCircle2,
   ClipboardCheck,
   Clock,
   Download,
@@ -50,7 +51,6 @@ import {
   Timer,
   UserCheck,
   UserRoundCheck,
-  UsersRound,
 } from "lucide-react";
 
 type Teacher = {
@@ -175,7 +175,7 @@ type QuickLink = {
   description: string;
   href: string;
   icon: ElementType;
-  tone: "blue" | "green" | "gold" | "red" | "teal" | "slate";
+  tone: "primary" | "green" | "gold" | "red" | "slate";
 };
 
 type QueryResult<T> = {
@@ -213,14 +213,14 @@ const QUICK_LINKS: QuickLink[] = [
     description: "تحضير حصص اليوم وقوالب جاهزة.",
     href: "/teacher/preparations",
     icon: BookOpenCheck,
-    tone: "blue",
+    tone: "primary",
   },
   {
     title: "جدولي",
     description: "عرض الجدول الأسبوعي والحصة القادمة.",
     href: "/teacher/schedule",
     icon: CalendarDays,
-    tone: "teal",
+    tone: "primary",
   },
   {
     title: "حصص الانتظار",
@@ -352,13 +352,11 @@ async function safeQuery<T>(
     const result = await Promise.race([query, timeout]);
 
     if (result.error) {
-      console.warn(`Teacher portal query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`Teacher portal query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -372,18 +370,18 @@ function statusPill(value?: string | null) {
   const status = String(value || "").trim().toLowerCase();
 
   if (isApproved(status) || status.includes("تم")) {
-    return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
   }
 
   if (isPending(status)) {
-    return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
   }
 
   if (status.includes("مرفوض") || status.includes("متأخر")) {
-    return "border-red-200 bg-red-50 text-red-700";
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
   }
 
-  return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 }
 
 function sortByPeriod<T extends { period_number?: number | null }>(items: T[]) {
@@ -798,7 +796,7 @@ export default function TeacherPortalPage() {
     });
   }, [attendanceSessions, todayPreparations, todaySchedule]);
 
-  function getExportRows() {
+  function getExportRows(): (string | number | null | undefined)[][] {
     if (!teacher) return [];
 
     return [
@@ -830,7 +828,7 @@ export default function TeacherPortalPage() {
       rows: getExportRows(),
       fileName: `teacher-portal-${teacher.full_name}-${today}.xlsx`,
       sheetName: "Teacher Portal",
-    } as any);
+    });
 
     showToast("success", "تم تصدير تقرير بوابة المعلم Excel");
   }
@@ -845,7 +843,7 @@ export default function TeacherPortalPage() {
       headers: ["المؤشر", "القيمة"],
       rows: getExportRows(),
       fileName: `teacher-portal-${teacher.full_name}-${today}.pdf`,
-    } as any);
+    });
 
     showToast("success", "تم تجهيز PDF لبوابة المعلم");
   }
@@ -854,7 +852,7 @@ export default function TeacherPortalPage() {
     return (
       <RoleGuard allowedRoles={TEACHER_PORTAL_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل بوابة المعلم..." />
+          <PageLoader text="جاري تحميل بوابة المعلم..." />
         </AppShell>
       </RoleGuard>
     );
@@ -868,7 +866,7 @@ export default function TeacherPortalPage() {
             title="تعذر تحميل بوابة المعلم"
             description={errorMsg || "لا توجد مدرسة مرتبطة بالمستخدم الحالي."}
             tone="red"
-            icon={<AlertCircle size={22} />}
+            icon={<AlertCircle size={22} aria-hidden="true" />}
           />
         </AppShell>
       </RoleGuard>
@@ -879,14 +877,22 @@ export default function TeacherPortalPage() {
     <RoleGuard allowedRoles={TEACHER_PORTAL_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState title="حدث خطأ" description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title={`أهلًا، ${teacher.full_name}`}
             description="بوابة يومية موحدة للمعلم تجمع الحصة الحالية، التحضير، الحضور، الجدول، الانتظار، الدرجات، التنبيهات، وجاهزية ملف الإنجاز."
             badge="بوابة المعلم"
-            icon={<GraduationCap size={18} />}
+            icon={<GraduationCap size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة المعلم" },
@@ -898,10 +904,10 @@ export default function TeacherPortalPage() {
               { label: "جاهزية اليوم", value: `${dailyReadiness}%` },
             ]}
             stats={[
-              { label: "حصص اليوم", value: todaySchedule.length, icon: <CalendarDays size={20} />, tone: "blue" },
-              { label: "تحاضير اليوم", value: todayPreparations.length, icon: <BookOpenCheck size={20} />, tone: todayPreparations.length >= todaySchedule.length && todaySchedule.length > 0 ? "green" : "gold" },
-              { label: "جلسات الحضور", value: attendanceSessions.length, icon: <UserCheck size={20} />, tone: attendanceSessions.length >= todaySchedule.length && todaySchedule.length > 0 ? "green" : "teal" },
-              { label: "التنبيهات", value: unreadNotifications, icon: <Bell size={20} />, tone: unreadNotifications > 0 ? "gold" : "green" },
+              { label: "حصص اليوم", value: todaySchedule.length, icon: <CalendarDays size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "تحاضير اليوم", value: todayPreparations.length, icon: <BookOpenCheck size={20} aria-hidden="true" />, tone: todayPreparations.length >= todaySchedule.length && todaySchedule.length > 0 ? "green" : "gold" },
+              { label: "جلسات الحضور", value: attendanceSessions.length, icon: <UserCheck size={20} aria-hidden="true" />, tone: attendanceSessions.length >= todaySchedule.length && todaySchedule.length > 0 ? "green" : "primary" },
+              { label: "التنبيهات", value: unreadNotifications, icon: <Bell size={20} aria-hidden="true" />, tone: unreadNotifications > 0 ? "gold" : "green" },
             ]}
             actions={
               <>
@@ -909,7 +915,8 @@ export default function TeacherPortalPage() {
                   <select
                     value={teacher?.id || selectedTeacherId}
                     onChange={(event) => setSelectedTeacherId(event.target.value)}
-                    className="h-11 min-w-[230px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] outline-none"
+                    className="h-11 min-w-[230px] rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] outline-none focus:border-[var(--app-primary)]"
+                    aria-label="اختيار المعلم"
                   >
                     {allTeachers.map((item) => (
                       <option key={item.id} value={item.id}>
@@ -919,41 +926,34 @@ export default function TeacherPortalPage() {
                   </select>
                 )}
 
-                <Link
-                  href="/teacher/daily"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#0DA9A6] hover:shadow-md"
+                <PrimaryButton
+                  icon={<UserCheck size={17} aria-hidden="true" />}
+                  onClick={() => window.location.assign("/teacher/daily")}
                 >
-                  <UserCheck size={17} />
                   متابعة الحصة
-                </Link>
+                </PrimaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
                   onClick={() => void exportTeacherPortalExcel()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Download size={17} />
                   Excel
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={exportTeacherPortalPDF}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <FileText size={17} />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchTeacherPortal()}
-                  disabled={loading}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
                   تحديث
-                </button>
+                </SecondaryButton>
               </>
             }
           />
@@ -963,8 +963,8 @@ export default function TeacherPortalPage() {
               title="حصص اليوم"
               value={todaySchedule.length}
               subtitle={`${todayName}`}
-              icon={<CalendarDays size={22} />}
-              tone="blue"
+              icon={<CalendarDays size={22} aria-hidden="true" />}
+              tone="primary"
               progress={todaySchedule.length > 0 ? 100 : 0}
             />
 
@@ -972,7 +972,7 @@ export default function TeacherPortalPage() {
               title="تحاضير اليوم"
               value={todayPreparations.length}
               subtitle="تحاضير محفوظة"
-              icon={<BookOpenCheck size={22} />}
+              icon={<BookOpenCheck size={22} aria-hidden="true" />}
               tone={todayPreparations.length >= todaySchedule.length && todaySchedule.length > 0 ? "green" : "gold"}
               progress={todaySchedule.length ? percentage(todayPreparations.length, todaySchedule.length) : 0}
             />
@@ -981,7 +981,7 @@ export default function TeacherPortalPage() {
               title="حضور اليوم"
               value={attendanceSessions.length}
               subtitle="جلسات محفوظة"
-              icon={<UserCheck size={22} />}
+              icon={<UserCheck size={22} aria-hidden="true" />}
               tone={attendanceSessions.length >= todaySchedule.length && todaySchedule.length > 0 ? "green" : "teal"}
               progress={todaySchedule.length ? percentage(attendanceSessions.length, todaySchedule.length) : 0}
             />
@@ -990,7 +990,7 @@ export default function TeacherPortalPage() {
               title="حصص انتظار"
               value={todayWaiting.length}
               subtitle="لهذا اليوم"
-              icon={<ClipboardCheck size={22} />}
+              icon={<ClipboardCheck size={22} aria-hidden="true" />}
               tone={todayWaiting.length > 0 ? "gold" : "green"}
               progress={todayWaiting.length ? 100 : 0}
             />
@@ -999,7 +999,7 @@ export default function TeacherPortalPage() {
               title="الشواهد"
               value={`${completionPercent}%`}
               subtitle={readinessLabel}
-              icon={<BadgeCheck size={22} />}
+              icon={<BadgeCheck size={22} aria-hidden="true" />}
               tone={completionPercent >= 75 ? "green" : "gold"}
               progress={completionPercent}
             />
@@ -1008,7 +1008,7 @@ export default function TeacherPortalPage() {
               title="جاهزية اليوم"
               value={`${dailyReadiness}%`}
               subtitle="تحضير + حضور"
-              icon={<Sparkles size={22} />}
+              icon={<Sparkles size={22} aria-hidden="true" />}
               tone={dailyReadiness >= 80 ? "green" : "gold"}
               progress={dailyReadiness}
             />
@@ -1029,12 +1029,18 @@ export default function TeacherPortalPage() {
             footer="تعتمد المؤشرات على البيانات المسجلة في الجداول الحالية دون إنشاء أي جداول جديدة."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="grid gap-5 xl:grid-cols-[auto_1fr_auto] xl:items-center">
-              <div className="flex h-24 w-24 items-center justify-center rounded-[28px] bg-[#15445A] text-3xl font-black text-[#C1B489]">
+              <div className="flex h-24 w-24 items-center justify-center rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] text-3xl font-black text-[var(--app-accent)]">
                 {teacher.photo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={teacher.photo_url} alt={teacher.full_name} className="h-full w-full rounded-[28px] object-cover" />
+                  <Image
+                    src={teacher.photo_url}
+                    alt={teacher.full_name}
+                    width={96}
+                    height={96}
+                    className="h-full w-full rounded-[var(--app-radius-xl)] object-cover"
+                    unoptimized
+                  />
                 ) : (
                   teacherInitials(teacher.full_name)
                 )}
@@ -1042,24 +1048,24 @@ export default function TeacherPortalPage() {
 
               <div>
                 <div className="mb-2 flex flex-wrap gap-2">
-                  <MiniBadge tone="blue">{teacher.subject || teacher.specialization || "معلم"}</MiniBadge>
+                  <MiniBadge tone="primary">{teacher.subject || teacher.specialization || "معلم"}</MiniBadge>
                   <MiniBadge tone={completionPercent >= 70 ? "green" : "gold"}>الشواهد: {readinessLabel}</MiniBadge>
                   <MiniBadge tone={dailyReadiness >= 75 ? "green" : "gold"}>جاهزية اليوم: {dailyReadiness}%</MiniBadge>
                 </div>
 
-                <h2 className="text-2xl font-black text-[#15445A]">{teacher.full_name}</h2>
+                <h2 className="text-2xl font-black text-[var(--app-text)]">{teacher.full_name}</h2>
 
-                <p className="mt-2 text-sm leading-7 text-slate-500">
+                <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
                   {teacher.department || "قسم غير محدد"} • النصاب الأسبوعي: {weeklyLoad || "—"} • الفصول المسندة: {teacherClasses.length}
                 </p>
               </div>
 
-              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
-                <p className="text-xs font-black text-slate-400">الحصة الأقرب</p>
-                <h3 className="mt-2 text-lg font-black text-[#15445A]">
+              <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+                <p className="text-xs font-black text-[var(--app-text-subtle)]">الحصة الأقرب</p>
+                <h3 className="mt-2 text-lg font-black text-[var(--app-text)]">
                   {currentLesson ? lessonSubject(currentLesson, teacher) : "لا توجد حصة اليوم"}
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   {currentLesson ? `${periodLabel(currentLesson.period_number)} — ${lessonClass(currentLesson)}` : "اليوم بدون حصص مجدولة"}
                 </p>
               </div>
@@ -1067,43 +1073,43 @@ export default function TeacherPortalPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_.95fr]">
-            <Panel title="الحصة الحالية" icon={<Clock size={24} />}>
+            <Panel title="الحصة الحالية" icon={<Clock size={24} aria-hidden="true" />}>
               {!currentLesson ? (
-                <EmptyBox text="لا توجد حصص مجدولة اليوم." />
+                <UiEmptyState title="لا توجد حصص" description="لا توجد حصص مجدولة اليوم." />
               ) : (
-                <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-5">
+                <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5">
                   <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-[#3D7EB9]/10 px-3 py-1 text-xs font-black text-[#3D7EB9]">
+                    <span className="rounded-full bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
                       {periodLabel(currentLesson.period_number)}
                     </span>
 
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                    <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
                       {lessonSubject(currentLesson, teacher)}
                     </span>
 
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">
+                    <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]">
                       {lessonClass(currentLesson)}
                     </span>
                   </div>
 
-                  <h3 className="text-2xl font-black text-[#15445A]">
+                  <h3 className="text-2xl font-black text-[var(--app-text)]">
                     {lessonSubject(currentLesson, teacher)}
                   </h3>
 
-                  <p className="mt-2 text-sm leading-7 text-slate-500">
+                  <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
                     القاعة: {currentLesson.room || "—"}
                   </p>
 
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <ActionLink href="/teacher/daily" label="متابعة الحصة" icon={<UserCheck size={16} />} gold />
-                    <ActionLink href="/teacher/preparations" label="التحضير" icon={<BookOpenCheck size={16} />} dark />
-                    <ActionLink href="/grades" label="الدرجات" icon={<Award size={16} />} />
+                    <ActionLink href="/teacher/daily" label="متابعة الحصة" icon={<UserCheck size={16} aria-hidden="true" />} gold />
+                    <ActionLink href="/teacher/preparations" label="التحضير" icon={<BookOpenCheck size={16} aria-hidden="true" />} dark />
+                    <ActionLink href="/grades" label="الدرجات" icon={<Award size={16} aria-hidden="true" />} />
                   </div>
                 </div>
               )}
             </Panel>
 
-            <Panel title="الحصة القادمة والتنبيهات" icon={<Bell size={24} />}>
+            <Panel title="الحصة القادمة والتنبيهات" icon={<Bell size={24} aria-hidden="true" />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <InfoRow label="الحصة القادمة" value={nextLesson ? `${periodLabel(nextLesson.period_number)} — ${lessonSubject(nextLesson, teacher)}` : "لا توجد"} />
                 <InfoRow label="الفصل القادم" value={nextLesson ? lessonClass(nextLesson) : "—"} />
@@ -1133,32 +1139,32 @@ export default function TeacherPortalPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <Panel title="خط اليوم الدراسي" icon={<LayoutDashboard size={24} />}>
+            <Panel title="خط اليوم الدراسي" icon={<LayoutDashboard size={24} aria-hidden="true" />}>
               {timelineItems.length === 0 ? (
-                <EmptyBox text="لا توجد حصص اليوم." />
+                <UiEmptyState title="لا توجد حصص" description="لا توجد حصص اليوم." />
               ) : (
-                <div className="relative space-y-3 before:absolute before:right-5 before:top-0 before:h-full before:w-px before:bg-slate-200">
+                <div className="relative space-y-3 before:absolute before:right-5 before:top-0 before:h-full before:w-px before:bg-[var(--app-border)]">
                   {timelineItems.slice(0, 7).map((item) => (
                     <div key={item.id} className="relative pr-12">
-                      <div className="absolute right-0 top-3 flex h-10 w-10 items-center justify-center rounded-2xl border border-[#0DA9A6]/20 bg-[#0DA9A6]/10 text-[#0DA9A6]">
-                        <Clock size={16} />
+                      <div className="absolute right-0 top-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] border border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
+                        <Clock size={16} aria-hidden="true" />
                       </div>
 
-                      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className="font-black text-[#15445A]">{lessonSubject(item, teacher)}</h3>
-                            <p className="mt-1 text-sm text-slate-500">
+                            <h3 className="font-black text-[var(--app-text)]">{lessonSubject(item, teacher)}</h3>
+                            <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                               {periodLabel(item.period_number)} — {lessonClass(item)}
                             </p>
                           </div>
 
                           <div className="flex flex-col gap-1">
-                            <span className={`rounded-full px-2 py-1 text-[11px] font-black ${item.hasPreparation ? "bg-[#07A869]/10 text-[#07A869]" : "bg-[#C1B489]/20 text-[#15445A]"}`}>
+                            <span className={`rounded-full px-2 py-1 text-[11px] font-black ${item.hasPreparation ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[#07A869]" : "bg-[var(--app-accent)]/20 text-[var(--app-text)]"}`}>
                               {item.hasPreparation ? "محضرة" : "تحتاج تحضير"}
                             </span>
 
-                            <span className={`rounded-full px-2 py-1 text-[11px] font-black ${item.hasAttendance ? "bg-[#07A869]/10 text-[#07A869]" : "bg-slate-100 text-slate-500"}`}>
+                            <span className={`rounded-full px-2 py-1 text-[11px] font-black ${item.hasAttendance ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[#07A869]" : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]"}`}>
                               {item.hasAttendance ? "حضور محفوظ" : "لم يحفظ الحضور"}
                             </span>
                           </div>
@@ -1170,9 +1176,9 @@ export default function TeacherPortalPage() {
               )}
             </Panel>
 
-            <Panel title="التحاضير الأخيرة" icon={<FileText size={24} />}>
+            <Panel title="التحاضير الأخيرة" icon={<FileText size={24} aria-hidden="true" />}>
               {preparations.length === 0 ? (
-                <EmptyBox text="لم يتم تسجيل تحاضير بعد." />
+                <UiEmptyState title="لا توجد تحاضير" description="لم يتم تسجيل تحاضير بعد." />
               ) : (
                 <div className="space-y-3">
                   {preparations.slice(0, 6).map((item) => (
@@ -1187,21 +1193,30 @@ export default function TeacherPortalPage() {
               )}
             </Panel>
 
-            <Panel title="ملف الإنجاز والشواهد" icon={<ShieldCheck size={24} />}>
-              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+            <Panel title="ملف الإنجاز والشواهد" icon={<ShieldCheck size={24} aria-hidden="true" />}>
+              <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                 <div className="mb-2 flex items-center justify-between text-sm font-black">
-                  <span className="text-slate-500">جاهزية الشواهد</span>
-                  <span className="text-[#15445A]">{completionPercent}%</span>
+                  <span className="text-[var(--app-text-muted)]">جاهزية الشواهد</span>
+                  <span className="text-[var(--app-text)]">{completionPercent}%</span>
                 </div>
 
-                <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                <div className="h-3 overflow-hidden rounded-full bg-[var(--app-border)]">
                   <div
-                    className={`h-full rounded-full ${completionPercent >= 70 ? "bg-[#07A869]" : "bg-[#C1B489]"}`}
+                    role="progressbar"
+                    aria-label="جاهزية الشواهد"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={completionPercent}
+                    className={`h-full rounded-full ${
+                      completionPercent >= 70
+                        ? "bg-[var(--app-success)]"
+                        : "bg-[var(--app-accent)]"
+                    }`}
                     style={{ width: `${completionPercent}%` }}
                   />
                 </div>
 
-                <p className="mt-3 text-sm font-bold text-slate-500">
+                <p className="mt-3 text-sm font-bold text-[var(--app-text-muted)]">
                   {uploadedRequiredCount} من {requiredEvidence.length || portfolio.length} شاهد مكتمل.
                 </p>
               </div>
@@ -1215,18 +1230,18 @@ export default function TeacherPortalPage() {
 
               <Link
                 href={`/teachers/${teacher.id}/portfolio`}
-                className="mt-4 flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] text-sm font-black text-white"
+                className="mt-4 flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-sm font-black text-white"
               >
-                <Award size={17} />
+                <Award size={17} aria-hidden="true" />
                 فتح ملف الإنجاز
               </Link>
             </Panel>
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <Panel title="جدول اليوم" icon={<BookOpenCheck size={24} />}>
+            <Panel title="جدول اليوم" icon={<BookOpenCheck size={24} aria-hidden="true" />}>
               {todaySchedule.length === 0 ? (
-                <EmptyBox text="لا توجد حصص اليوم." />
+                <UiEmptyState title="لا توجد حصص" description="لا توجد حصص اليوم." />
               ) : (
                 <div className="space-y-3">
                   {todaySchedule.slice(0, 6).map((item) => (
@@ -1241,9 +1256,9 @@ export default function TeacherPortalPage() {
               )}
             </Panel>
 
-            <Panel title="حصص الانتظار" icon={<Timer size={24} />}>
+            <Panel title="حصص الانتظار" icon={<Timer size={24} aria-hidden="true" />}>
               {waiting.length === 0 ? (
-                <EmptyBox text="لا توجد حصص انتظار مسندة." />
+                <UiEmptyState title="لا توجد حصص انتظار" description="لا توجد حصص انتظار مسندة." />
               ) : (
                 <div className="space-y-3">
                   {waiting.slice(0, 5).map((item) => (
@@ -1258,7 +1273,7 @@ export default function TeacherPortalPage() {
               )}
             </Panel>
 
-            <Panel title="بيانات مختصرة" icon={<UserRoundCheck size={24} />}>
+            <Panel title="بيانات مختصرة" icon={<UserRoundCheck size={24} aria-hidden="true" />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <InfoRow label="المعلم" value={teacher.full_name || "-"} />
                 <InfoRow label="المادة" value={teacher.subject || teacher.specialization || "-"} />
@@ -1285,13 +1300,13 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
           {icon}
         </div>
 
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
 
       {children}
@@ -1309,16 +1324,16 @@ function LessonCard({
   desc: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-black text-[#15445A]">{title}</h3>
+        <h3 className="font-black text-[var(--app-text)]">{title}</h3>
 
-        <span className="rounded-full bg-[#C1B489]/15 px-3 py-1 text-xs font-black text-[#15445A]">
+        <span className="rounded-full bg-[var(--app-accent)]/15 px-3 py-1 text-xs font-black text-[var(--app-text)]">
           الحصة {period}
         </span>
       </div>
 
-      <p className="mt-2 text-sm text-slate-500">{desc}</p>
+      <p className="mt-2 text-sm text-[var(--app-text-muted)]">{desc}</p>
     </div>
   );
 }
@@ -1329,20 +1344,20 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
   return (
     <Link
       href={link.href}
-      className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-[#0DA9A6]/30 hover:shadow-lg"
+      className="group rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:-translate-y-1 hover:border-[color-mix(in_srgb,var(--app-primary)_30%,var(--app-border))] hover:shadow-[var(--app-shadow-lg)]"
     >
-      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${toneClasses(link.tone)}`}>
+      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] ${toneClasses(link.tone)}`}>
         <Icon size={24} />
       </div>
 
-      <h3 className="text-lg font-black text-[#15445A]">{link.title}</h3>
+      <h3 className="text-lg font-black text-[var(--app-text)]">{link.title}</h3>
 
-      <p className="mt-2 line-clamp-2 text-sm leading-7 text-slate-500">
+      <p className="mt-2 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
         {link.description}
       </p>
 
-      <div className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-2 text-xs font-black text-[#15445A] transition group-hover:bg-[#15445A] group-hover:text-white">
-        <Eye size={15} />
+      <div className="mt-5 inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text)] transition group-hover:bg-[var(--app-primary)] group-hover:text-white">
+        <Eye size={15} aria-hidden="true" />
         فتح
       </div>
     </Link>
@@ -1351,12 +1366,15 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
 
 function toneClasses(tone: QuickLink["tone"]) {
   const tones: Record<QuickLink["tone"], string> = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-    gold: "bg-[#C1B489]/20 text-[#15445A]",
-    red: "bg-red-50 text-red-700",
-    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-    slate: "bg-slate-100 text-slate-700",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    slate: "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -1364,9 +1382,9 @@ function toneClasses(tone: QuickLink["tone"]) {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 line-clamp-1 font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 line-clamp-1 font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1381,25 +1399,25 @@ function MiniItem({
   status: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="line-clamp-1 font-black text-[#15445A]">{title}</h3>
+        <h3 className="line-clamp-1 font-black text-[var(--app-text)]">{title}</h3>
 
         <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusPill(status)}`}>
           {status}
         </span>
       </div>
 
-      <p className="text-sm text-slate-500">{desc}</p>
+      <p className="text-sm text-[var(--app-text-muted)]">{desc}</p>
     </div>
   );
 }
 
 function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 transition hover:bg-white">
-      <span className="text-sm font-bold text-slate-500">{label}</span>
-      <span className="text-xl font-black text-[#15445A]">{value}</span>
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 transition hover:bg-[var(--app-card)]">
+      <span className="text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
+      <span className="text-xl font-black text-[var(--app-text)]">{value}</span>
     </div>
   );
 }
@@ -1409,14 +1427,19 @@ function MiniBadge({
   tone = "slate",
 }: {
   children: ReactNode;
-  tone?: "slate" | "blue" | "green" | "gold" | "red";
+  tone?: "slate" | "primary" | "green" | "gold" | "red";
 }) {
   const tones = {
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-    blue: "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]",
-    gold: "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]",
-    red: "border-red-200 bg-red-50 text-red-700",
+    slate:
+      "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text)]",
+    primary:
+      "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]",
+    green:
+      "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]",
+    gold:
+      "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
   };
 
   return (
@@ -1440,15 +1463,15 @@ function ActionLink({
   gold?: boolean;
 }) {
   const style = dark
-    ? "bg-[#15445A] text-white"
+    ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]"
     : gold
-      ? "bg-[#C1B489] text-[#15445A]"
-      : "bg-white text-[#15445A]";
+      ? "bg-[var(--app-accent)] text-[var(--app-accent-foreground)]"
+      : "border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)]";
 
   return (
     <Link
       href={href}
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${style}`}
+      className={`inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] px-4 text-sm font-black shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)] ${style}`}
     >
       {icon}
       {label}
@@ -1456,29 +1479,4 @@ function ActionLink({
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <EmptyState
-      title="لا توجد بيانات"
-      description={text}
-    />
-  );
-}
 
-function LoadingBox({ text }: { text: string }) {
-  return <PageLoader text={text} />;
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  if (toast.type === "success") {
-    return <SuccessBanner description={toast.message} className="print:hidden" />;
-  }
-
-  return (
-    <ErrorState
-      title="حدث خطأ"
-      description={toast.message}
-      className="print:hidden"
-    />
-  );
-}

@@ -8,3 +8,4 @@ export async function copyStorageFile(input: StorageCopyInput) {
 }
 
 export const StorageCopy = { copy: copyStorageFile };
+

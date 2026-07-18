@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import RoleGuard from "@/components/auth/RoleGuard";
@@ -8,8 +8,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { supabase } from "@/lib/supabase";
+import type { SchoolRole } from "@/lib/permissions";
 import { useSchool } from "@/contexts/SchoolContext";
 import { exportTableToPDF } from "@/lib/exports/pdf";
 import { exportTableToExcel } from "@/lib/exports/excel";
@@ -23,7 +29,6 @@ import {
   FileSpreadsheet,
   FileText,
   GraduationCap,
-  Loader2,
   RefreshCcw,
   ShieldCheck,
   TrendingDown,
@@ -67,12 +72,51 @@ type GradeRow = {
   created_at?: string | null;
 };
 
-type RawScore = Record<string, any>;
-type SubjectRow = Record<string, any>;
-type PeriodRow = Record<string, any>;
+type UnknownRow = Record<string, unknown>;
+type RawScore = UnknownRow;
+type SubjectRow = UnknownRow & { id?: string | number | null };
+type PeriodRow = UnknownRow & { id?: string | number | null };
 type LevelKey = "all" | "excellent" | "very_good" | "good" | "pass" | "risk";
+type StudentQueryResult = {
+  data: Student[] | null;
+  error: { message?: string } | null;
+};
 
-const STUDENT_ROLES = ["super_admin", "school_admin", "student"] as any;
+type StudentQuery = {
+  limit: (count: number) => PromiseLike<StudentQueryResult>;
+};
+
+type FilterableStudentQuery = {
+  eq: (column: string, value: string) => FilterableStudentQuery;
+} & StudentQuery;
+
+const STUDENT_ROLES: SchoolRole[] = [
+  "super_admin",
+  "school_admin",
+  "student",
+];
+
+const EXPORT_HEADERS = [
+  "#",
+  "اسم الطالب",
+  "رقم الهوية",
+  "الصف",
+  "الفصل",
+  "المادة",
+  "الفترة",
+  "الفصل الدراسي",
+  "العام الدراسي",
+  "الواجبات",
+  "المشاركة",
+  "الاختبارات القصيرة",
+  "نصف الفصل",
+  "النهائي",
+  "المجموع",
+  "النسبة",
+  "التقدير",
+  "الحالة",
+  "ملاحظات",
+];
 
 function currentAcademicYear() {
   const now = new Date();
@@ -80,7 +124,7 @@ function currentAcademicYear() {
   return `${year}-${year + 1}`;
 }
 
-function toNumber(value: any): number | null {
+function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
@@ -138,24 +182,39 @@ function levelFromPercentage(percentage: number | null | undefined): LevelKey {
 
 function gradeBadgeClass(percentage: number | null | undefined) {
   if (percentage === null || percentage === undefined) {
-    return "border-slate-200 bg-slate-50 text-slate-600";
+    return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
   }
 
-  if (percentage >= 90) return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (percentage >= 80) return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (percentage >= 70) return "border-[#0DA9A6]/20 bg-[#0DA9A6]/10 text-[#0DA9A6]";
-  if (percentage >= 60) return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (percentage >= 90) {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
 
-  return "border-red-200 bg-red-50 text-red-700";
+  if (percentage >= 80) {
+    return "border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (percentage >= 70) {
+    return "border-[color-mix(in_srgb,var(--app-primary)_22%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (percentage >= 60) {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
 }
 
 function progressClass(percentage: number | null | undefined) {
-  if (percentage === null || percentage === undefined) return "bg-slate-300";
-  if (percentage >= 90) return "bg-[#07A869]";
-  if (percentage >= 80) return "bg-[#3D7EB9]";
-  if (percentage >= 70) return "bg-[#0DA9A6]";
-  if (percentage >= 60) return "bg-[#C1B489]";
-  return "bg-red-600";
+  if (percentage === null || percentage === undefined) {
+    return "bg-[var(--app-text-subtle)]";
+  }
+
+  if (percentage >= 90) return "bg-[var(--app-success)]";
+  if (percentage >= 80) return "bg-[var(--app-primary)]";
+  if (percentage >= 70) return "bg-[var(--app-primary)]";
+  if (percentage >= 60) return "bg-[var(--app-accent)]";
+
+  return "bg-[var(--app-danger)]";
 }
 
 function safePercent(value: number | null | undefined) {
@@ -218,15 +277,25 @@ function getMaxScore(row: RawScore) {
 
 function subjectTitle(subject?: SubjectRow | null) {
   if (!subject) return "مادة غير محددة";
-  return subject.subject_name || subject.name || subject.title || subject.course_name || "مادة غير محددة";
+
+  return pickText(
+    subject,
+    ["subject_name", "name", "title", "course_name"],
+    "مادة غير محددة",
+  );
 }
 
 function periodTitle(period?: PeriodRow | null) {
   if (!period) return "فترة غير محددة";
-  return period.period_name || period.name || period.title || period.exam_name || "فترة غير محددة";
+
+  return pickText(
+    period,
+    ["period_name", "name", "title", "exam_name"],
+    "فترة غير محددة",
+  );
 }
 
-async function safeSingleStudentQuery(query: any) {
+async function safeSingleStudentQuery(query: StudentQuery) {
   const { data, error } = await query.limit(1);
 
   if (error) throw error;
@@ -234,7 +303,7 @@ async function safeSingleStudentQuery(query: any) {
   return Array.isArray(data) && data.length ? (data[0] as Student) : null;
 }
 
-async function selectWithOptionalSchool(table: string, schoolId: string | null) {
+async function selectWithOptionalSchool(table: string, schoolId: string | null): Promise<UnknownRow[]> {
   if (schoolId) {
     const withSchool = await supabase.from(table).select("*").eq("school_id", schoolId);
 
@@ -249,14 +318,12 @@ async function selectWithOptionalSchool(table: string, schoolId: string | null) 
 }
 
 export default function StudentGradesPage() {
-  const schoolContext = useSchool() as any;
+  const {
+    currentSchool,
+    loading: schoolLoading,
+  } = useSchool();
 
-  const schoolId =
-    schoolContext?.currentSchool?.id ||
-    schoolContext?.schoolId ||
-    schoolContext?.school?.id ||
-    schoolContext?.selectedSchool?.id ||
-    null;
+  const schoolId = currentSchool?.id || null;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -271,8 +338,8 @@ export default function StudentGradesPage() {
   const [selectedLevel, setSelectedLevel] = useState<LevelKey>("all");
   const [search, setSearch] = useState("");
 
-  async function findStudentForCurrentUser(userId: string, email: string) {
-    const applySchool = (query: any) => {
+  const findStudentForCurrentUser = useCallback(async (userId: string, email: string) => {
+    const applySchool = (query: FilterableStudentQuery) => {
       if (schoolId) return query.eq("school_id", schoolId);
       return query;
     };
@@ -294,33 +361,33 @@ export default function StudentGradesPage() {
     }
 
     return null;
-  }
+  }, [schoolId]);
 
-  async function loadSubjects() {
+  const loadSubjects = useCallback(async () => {
     try {
       const data = await selectWithOptionalSchool("school_grade_subjects", schoolId);
       return data as SubjectRow[];
     } catch {
       return [];
     }
-  }
+  }, [schoolId]);
 
-  async function loadPeriods() {
+  const loadPeriods = useCallback(async () => {
     try {
       const data = await selectWithOptionalSchool("school_grade_periods", schoolId);
       return data as PeriodRow[];
     } catch {
       return [];
     }
-  }
+  }, [schoolId]);
 
   function mapProfessionalScore(
     row: RawScore,
     subjectMap: Map<string, SubjectRow>,
     periodMap: Map<string, PeriodRow>,
   ): GradeRow {
-    const subjectId = row.subject_id || row.grade_subject_id || row.school_grade_subject_id || null;
-    const periodId = row.period_id || row.grade_period_id || row.school_grade_period_id || null;
+    const subjectId = pickText(row, ["subject_id", "grade_subject_id", "school_grade_subject_id"], "") || null;
+    const periodId = pickText(row, ["period_id", "grade_period_id", "school_grade_period_id"], "") || null;
 
     const subject = subjectId ? subjectMap.get(String(subjectId)) : null;
     const period = periodId ? periodMap.get(String(periodId)) : null;
@@ -330,14 +397,14 @@ export default function StudentGradesPage() {
     const maxScore = getMaxScore(row);
 
     return {
-      id: String(row.id),
-      student_id: String(row.student_id),
+      id: pickText(row, ["id"], ""),
+      student_id: pickText(row, ["student_id"], ""),
       subject_id: subjectId,
       period_id: periodId,
       subject_name: pickText(row, ["subject_name", "subject", "course_name"], subjectTitle(subject)),
       period_name: pickText(row, ["period_name", "period", "exam_name"], periodTitle(period)),
-      semester: pickText(row, ["semester", "term"], period?.semester || "غير محدد"),
-      academic_year: pickText(row, ["academic_year", "year"], period?.academic_year || currentAcademicYear()),
+      semester: pickText(row, ["semester", "term"], pickText(period || {}, ["semester"], "غير محدد")),
+      academic_year: pickText(row, ["academic_year", "year"], pickText(period || {}, ["academic_year"], currentAcademicYear())),
       homework_score: pickNumber(row, ["homework_score", "homework", "assignments_score"]),
       participation_score: pickNumber(row, ["participation_score", "participation", "classwork_score"]),
       quiz_score: pickNumber(row, ["quiz_score", "quiz", "quizzes_score"]),
@@ -348,8 +415,8 @@ export default function StudentGradesPage() {
       percentage: percentageValue,
       grade_label: pickText(row, ["grade_label"], getGradeLabel(percentageValue)),
       result_status: pickText(row, ["result_status"], getResultStatus(percentageValue)),
-      notes: row.notes || row.teacher_notes || null,
-      created_at: row.created_at || null,
+      notes: pickText(row, ["notes", "teacher_notes"], "") || null,
+      created_at: pickText(row, ["created_at"], "") || null,
     };
   }
 
@@ -358,10 +425,10 @@ export default function StudentGradesPage() {
     const total = calculateTotal(row);
 
     return {
-      id: String(row.id),
-      student_id: String(row.student_id),
-      subject_id: row.subject_id || null,
-      period_id: row.period_id || null,
+      id: pickText(row, ["id"], ""),
+      student_id: pickText(row, ["student_id"], ""),
+      subject_id: pickText(row, ["subject_id"], "") || null,
+      period_id: pickText(row, ["period_id"], "") || null,
       subject_name: pickText(row, ["subject_name", "subject", "course_name"], "مادة غير محددة"),
       period_name: pickText(row, ["period_name", "period", "exam_name"], "فترة غير محددة"),
       semester: pickText(row, ["semester", "term"], "غير محدد"),
@@ -376,12 +443,12 @@ export default function StudentGradesPage() {
       percentage: percentageValue,
       grade_label: pickText(row, ["grade_label"], getGradeLabel(percentageValue)),
       result_status: pickText(row, ["result_status"], getResultStatus(percentageValue)),
-      notes: row.notes || row.teacher_notes || null,
-      created_at: row.created_at || null,
+      notes: pickText(row, ["notes", "teacher_notes"], "") || null,
+      created_at: pickText(row, ["created_at"], "") || null,
     };
   }
 
-  async function loadProfessionalGrades(studentId: string) {
+  const loadProfessionalGrades = useCallback(async (studentId: string) => {
     let response = schoolId
       ? await supabase.from("student_period_scores").select("*").eq("student_id", studentId).eq("school_id", schoolId)
       : await supabase.from("student_period_scores").select("*").eq("student_id", studentId);
@@ -407,9 +474,10 @@ export default function StudentGradesPage() {
     return ((response.data || []) as RawScore[]).map((row) =>
       mapProfessionalScore(row, subjectMap, periodMap),
     );
-  }
+  }, [loadPeriods, loadSubjects, schoolId]);
 
-  async function loadSimpleGradesFromTable(tableName: string, studentId: string) {
+  const loadSimpleGradesFromTable = useCallback(
+    async (tableName: string, studentId: string) => {
     let response = schoolId
       ? await supabase.from(tableName).select("*").eq("student_id", studentId).eq("school_id", schoolId)
       : await supabase.from(tableName).select("*").eq("student_id", studentId);
@@ -421,9 +489,11 @@ export default function StudentGradesPage() {
     if (response.error) throw response.error;
 
     return ((response.data || []) as RawScore[]).map(mapSimpleScore);
-  }
+    },
+    [schoolId],
+  );
 
-  async function loadStudentGrades(studentId: string) {
+  const loadStudentGrades = useCallback(async (studentId: string) => {
     try {
       const professionalRows = await loadProfessionalGrades(studentId);
       if (professionalRows.length) return professionalRows;
@@ -443,9 +513,9 @@ export default function StudentGradesPage() {
     } catch {
       return [];
     }
-  }
+  }, [loadProfessionalGrades, loadSimpleGradesFromTable]);
 
-  async function loadData(isRefresh = false) {
+  const loadData = useCallback(async (isRefresh = false) => {
     try {
       setError("");
 
@@ -490,20 +560,25 @@ export default function StudentGradesPage() {
           return a.period_name.localeCompare(b.period_name, "ar");
         }),
       );
-    } catch (err: any) {
-      setError(err?.message || "حدث خطأ أثناء تحميل بيانات الدرجات.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "حدث خطأ أثناء تحميل بيانات الدرجات.";
+
+      setError(message);
       setStudent(null);
       setGrades([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [findStudentForCurrentUser, loadStudentGrades]);
 
   useEffect(() => {
+    if (schoolLoading) return;
     void loadData(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolId]);
+  }, [loadData, schoolLoading]);
 
   const subjectOptions = useMemo(() => {
     const set = new Set<string>();
@@ -570,44 +645,75 @@ export default function StudentGradesPage() {
     };
   }, [filteredGrades]);
 
-  const exportRows = useMemo(() => {
-    return filteredGrades.map((row, index) => ({
-      "#": index + 1,
-      "اسم الطالب": student?.full_name || "—",
-      "رقم الهوية": student?.national_id || "—",
-      "الصف": student?.grade_name || "—",
-      "الفصل": student?.classroom_name || "—",
-      "المادة": row.subject_name || "—",
-      "الفترة": row.period_name || "—",
-      "الفصل الدراسي": row.semester || "—",
-      "العام الدراسي": row.academic_year || "—",
-      "الواجبات": row.homework_score ?? "—",
-      "المشاركة": row.participation_score ?? "—",
-      "الاختبارات القصيرة": row.quiz_score ?? "—",
-      "نصف الفصل": row.midterm_score ?? "—",
-      "النهائي": row.final_score ?? "—",
-      "المجموع": row.total_score ?? "—",
-      "النسبة": row.percentage !== null ? `${row.percentage}%` : "—",
-      "التقدير": row.grade_label,
-      "الحالة": row.result_status,
-      "ملاحظات": row.notes || "—",
-    }));
+  const exportRows = useMemo<(string | number | null | undefined)[][]>(() => {
+    return filteredGrades.map((row, index) => [
+      index + 1,
+      student?.full_name || "—",
+      student?.national_id || "—",
+      student?.grade_name || "—",
+      student?.classroom_name || "—",
+      row.subject_name || "—",
+      row.period_name || "—",
+      row.semester || "—",
+      row.academic_year || "—",
+      row.homework_score ?? "—",
+      row.participation_score ?? "—",
+      row.quiz_score ?? "—",
+      row.midterm_score ?? "—",
+      row.final_score ?? "—",
+      row.total_score ?? "—",
+      row.percentage !== null ? `${row.percentage}%` : "—",
+      row.grade_label,
+      row.result_status,
+      row.notes || "—",
+    ]);
   }, [filteredGrades, student]);
 
   function handleExportPDF() {
     exportTableToPDF({
       title: "تقرير درجات الطالب",
-      fileName: "student-grades-report.pdf",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `درجات الطالب: ${student.full_name}`
+        : "تقرير درجات الطالب",
+      headers: EXPORT_HEADERS,
       rows: exportRows,
-    } as any);
+      fileName: "student-grades-report.pdf",
+    });
   }
 
-  function handleExportExcel() {
-    exportTableToExcel({
+  async function handleExportExcel() {
+    await exportTableToExcel({
+      title: "تقرير درجات الطالب",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `درجات الطالب: ${student.full_name}`
+        : "تقرير درجات الطالب",
+      headers: EXPORT_HEADERS,
+      rows: exportRows,
       fileName: "student-grades-report.xlsx",
       sheetName: "Grades",
-      rows: exportRows,
-    } as any);
+    });
+  }
+
+  if (schoolLoading) {
+    return (
+      <RoleGuard allowedRoles={STUDENT_ROLES}>
+        <AppShell>
+          <PageLoader text="جاري تحميل بيانات المدرسة..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={STUDENT_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
+        </AppShell>
+      </RoleGuard>
+    );
   }
 
   return (
@@ -619,7 +725,7 @@ export default function StudentGradesPage() {
             title="درجاتي"
             description="متابعة درجاتك حسب المواد والفترات الدراسية، مع مؤشرات الأداء والتقدير والحالة الأكاديمية."
             badge="بوابة الطالب"
-            icon={<GraduationCap size={18} />}
+            icon={<GraduationCap size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة الطالب", href: "/student-portal" },
@@ -632,71 +738,70 @@ export default function StudentGradesPage() {
               { label: "النتائج المعروضة", value: filteredGrades.length },
             ]}
             stats={[
-              { label: "السجلات", value: stats.totalRows, icon: <BookOpenCheck size={20} />, tone: "blue" },
-              { label: "متوسط الأداء", value: stats.average !== null ? `${stats.average}%` : "—", icon: <BarChart3 size={20} />, tone: stats.average !== null && stats.average >= 80 ? "green" : "gold" },
-              { label: "ممتاز", value: stats.excellent, icon: <Award size={20} />, tone: "green" },
-              { label: "يحتاج متابعة", value: stats.risk, icon: <TrendingDown size={20} />, tone: stats.risk > 0 ? "red" : "green" },
+              { label: "السجلات", value: stats.totalRows, icon: <BookOpenCheck size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "متوسط الأداء", value: stats.average !== null ? `${stats.average}%` : "—", icon: <BarChart3 size={20} aria-hidden="true" />, tone: stats.average !== null && stats.average >= 80 ? "green" : "gold" },
+              { label: "ممتاز", value: stats.excellent, icon: <Award size={20} aria-hidden="true" />, tone: "green" },
+              { label: "يحتاج متابعة", value: stats.risk, icon: <TrendingDown size={20} aria-hidden="true" />, tone: stats.risk > 0 ? "red" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw className="h-4 w-4" aria-hidden="true" />}
                   onClick={() => void loadData(true)}
-                  disabled={refreshing}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={refreshing}
                 >
-                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                   onClick={handleExportPDF}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileText className="h-4 w-4" />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
+                <ExportButton
+                  icon={
+                    <FileSpreadsheet
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  }
+                  onClick={() => void handleExportExcel()}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
                   Excel
-                </button>
+                </ExportButton>
               </>
             }
           />
 
           {student && (
-            <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-[#15445A] text-white">
-                    <UserRound className="h-7 w-7" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
+                    <UserRound className="h-7 w-7" aria-hidden="true" />
                   </div>
 
                   <div>
-                    <h2 className="text-lg font-black text-[#15445A]">
+                    <h2 className="text-lg font-black text-[var(--app-text)]">
                       {student.full_name || "طالب بدون اسم"}
                     </h2>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                       {student.grade_name || "—"} / {student.classroom_name || "—"}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 font-semibold text-[var(--app-text-muted)]">
                     الهوية: {student.national_id || "—"}
                   </span>
 
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-600">
+                  <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 font-semibold text-[var(--app-text-muted)]">
                     الحالة: {student.status || "نشط"}
                   </span>
                 </div>
@@ -709,8 +814,8 @@ export default function StudentGradesPage() {
               title="سجلات الدرجات"
               value={stats.totalRows}
               subtitle="حسب الفلاتر الحالية"
-              icon={<BookOpenCheck size={22} />}
-              tone="blue"
+              icon={<BookOpenCheck size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.totalRows > 0 ? 100 : 0}
             />
 
@@ -718,7 +823,7 @@ export default function StudentGradesPage() {
               title="مكتملة"
               value={stats.completed}
               subtitle="لها نسبة أو درجة"
-              icon={<CheckCircle2 size={22} />}
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
               tone="green"
               progress={stats.totalRows ? percentage(stats.completed, stats.totalRows) : 0}
             />
@@ -727,7 +832,7 @@ export default function StudentGradesPage() {
               title="متوسط الأداء"
               value={stats.average !== null ? `${stats.average}%` : "—"}
               subtitle={getGradeLabel(stats.average)}
-              icon={<BarChart3 size={22} />}
+              icon={<BarChart3 size={22} aria-hidden="true" />}
               tone={stats.average !== null && stats.average >= 80 ? "green" : "gold"}
               progress={stats.average || 0}
             />
@@ -736,7 +841,7 @@ export default function StudentGradesPage() {
               title="ممتاز"
               value={stats.excellent}
               subtitle="90% فأعلى"
-              icon={<Award size={22} />}
+              icon={<Award size={22} aria-hidden="true" />}
               tone="green"
               progress={stats.totalRows ? percentage(stats.excellent, stats.totalRows) : 0}
             />
@@ -745,8 +850,8 @@ export default function StudentGradesPage() {
               title="أعلى نتيجة"
               value={stats.highest !== null ? `${stats.highest}%` : "—"}
               subtitle="ضمن النتائج المعروضة"
-              icon={<TrendingUp size={22} />}
-              tone="teal"
+              icon={<TrendingUp size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.highest || 0}
             />
 
@@ -754,7 +859,7 @@ export default function StudentGradesPage() {
               title="يحتاج متابعة"
               value={stats.risk}
               subtitle="أقل من 60%"
-              icon={<TrendingDown size={22} />}
+              icon={<TrendingDown size={22} aria-hidden="true" />}
               tone={stats.risk > 0 ? "red" : "green"}
               progress={stats.totalRows ? percentage(stats.risk, stats.totalRows) : 0}
             />
@@ -775,8 +880,7 @@ export default function StudentGradesPage() {
             footer="يتم عرض البيانات حسب حساب الطالب المرتبط بالبريد أو معرف المستخدم."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-            <PageToolbar
+          <PageToolbar
               search={{
                 value: search,
                 onChange: setSearch,
@@ -817,54 +921,43 @@ export default function StudentGradesPage() {
               }
               onRefresh={() => void loadData(true)}
               onExportPDF={handleExportPDF}
-              onExportExcel={handleExportExcel}
-            />
-          </section>
+            onExportExcel={() => void handleExportExcel()}
+          />
 
-          {error && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-4 text-sm leading-7 text-red-700">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-1 h-5 w-5 shrink-0" />
-                <div>
-                  <p className="font-bold">تعذر تحميل البيانات</p>
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          )}
+          {error && <ErrorState description={error} />}
 
           {loading ? (
-            <LoadingBox />
+            <PageLoader text="جاري تحميل سجل الدرجات..." />
           ) : !student ? (
-            <EmptyState
-              icon={<UserRound className="h-9 w-9" />}
+            <UiEmptyState
+              icon={<UserRound className="h-9 w-9" aria-hidden="true" />}
               title="لم يتم العثور على حساب طالب مرتبط"
               description="تأكد أن حساب الطالب مرتبط في جدول students عبر auth_user_id أو user_id أو email أو student_email."
             />
           ) : !filteredGrades.length ? (
-            <EmptyState
-              icon={<GraduationCap className="h-9 w-9" />}
+            <UiEmptyState
+              icon={<GraduationCap className="h-9 w-9" aria-hidden="true" />}
               title="لا توجد درجات مطابقة"
               description="جرّب تغيير الفلاتر الحالية، أو تأكد من وجود درجات مرتبطة بحساب الطالب."
             />
           ) : (
-            <section className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <section className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
+              <div className="flex flex-col gap-2 border-b border-[var(--app-border)] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-[#15445A]">تفاصيل الدرجات</h2>
-                  <p className="text-sm text-slate-500">
+                  <h2 className="text-lg font-black text-[var(--app-text)]">تفاصيل الدرجات</h2>
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عدد النتائج: {filteredGrades.length}
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+                <div className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2 text-sm font-bold text-[var(--app-text-muted)]">
                   التصدير حسب النتائج المعروضة
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1120px] text-right text-sm">
-                  <thead className="bg-[#15445A] text-white">
+                  <thead className="bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
                     <tr>
                       <th className="px-4 py-3 font-bold">المادة</th>
                       <th className="px-4 py-3 font-bold">الفترة</th>
@@ -880,7 +973,7 @@ export default function StudentGradesPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--app-border)]">
                     {filteredGrades.map((row) => {
                       const workScores = [
                         row.homework_score,
@@ -893,35 +986,42 @@ export default function StudentGradesPage() {
                         : null;
 
                       return (
-                        <tr key={row.id} className="hover:bg-slate-50/80">
+                        <tr key={row.id} className="hover:bg-[var(--app-card-soft)]/80">
                           <td className="px-4 py-3">
-                            <p className="font-bold text-[#15445A]">{row.subject_name}</p>
-                            <p className="mt-1 text-xs text-slate-500">{row.academic_year}</p>
+                            <p className="font-bold text-[var(--app-text)]">{row.subject_name}</p>
+                            <p className="mt-1 text-xs text-[var(--app-text-muted)]">{row.academic_year}</p>
                           </td>
 
-                          <td className="px-4 py-3 text-slate-700">{row.period_name}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.semester}</td>
-                          <td className="px-4 py-3 text-slate-700">{workTotal ?? "—"}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.midterm_score ?? "—"}</td>
-                          <td className="px-4 py-3 text-slate-700">{row.final_score ?? "—"}</td>
+                          <td className="px-4 py-3 text-[var(--app-text)]">{row.period_name}</td>
+                          <td className="px-4 py-3 text-[var(--app-text)]">{row.semester}</td>
+                          <td className="px-4 py-3 text-[var(--app-text)]">{workTotal ?? "—"}</td>
+                          <td className="px-4 py-3 text-[var(--app-text)]">{row.midterm_score ?? "—"}</td>
+                          <td className="px-4 py-3 text-[var(--app-text)]">{row.final_score ?? "—"}</td>
 
                           <td className="px-4 py-3">
-                            <span className="font-black text-[#15445A]">{row.total_score ?? "—"}</span>
-                            <span className="text-xs text-slate-400"> / {row.max_score || 100}</span>
+                            <span className="font-black text-[var(--app-text)]">{row.total_score ?? "—"}</span>
+                            <span className="text-xs text-[var(--app-text-subtle)]"> / {row.max_score || 100}</span>
                           </td>
 
                           <td className="px-4 py-3">
                             <div className="min-w-[120px]">
                               <div className="mb-1 flex items-center justify-between text-xs">
-                                <span className="font-bold text-[#15445A]">
+                                <span className="font-bold text-[var(--app-text)]">
                                   {row.percentage !== null ? `${row.percentage}%` : "—"}
                                 </span>
                               </div>
 
-                              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-2 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
                                 <div
+                                  role="progressbar"
+                                  aria-label={`نسبة ${row.subject_name}`}
+                                  aria-valuemin={0}
+                                  aria-valuemax={100}
+                                  aria-valuenow={safePercent(row.percentage)}
                                   className={`h-full rounded-full ${progressClass(row.percentage)}`}
-                                  style={{ width: `${safePercent(row.percentage)}%` }}
+                                  style={{
+                                    width: `${safePercent(row.percentage)}%`,
+                                  }}
                                 />
                               </div>
                             </div>
@@ -939,10 +1039,10 @@ export default function StudentGradesPage() {
                             </span>
                           </td>
 
-                          <td className="max-w-[260px] px-4 py-3 text-slate-600">
+                          <td className="max-w-[260px] px-4 py-3 text-[var(--app-text-muted)]">
                             <p className="line-clamp-2">{row.notes || "لا توجد ملاحظات"}</p>
                             {row.created_at && (
-                              <p className="mt-1 text-[11px] text-slate-400">
+                              <p className="mt-1 text-[11px] text-[var(--app-text-subtle)]">
                                 آخر تحديث: {formatDate(row.created_at)}
                               </p>
                             )}
@@ -961,38 +1061,4 @@ export default function StudentGradesPage() {
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white">
-      <div className="flex flex-col items-center gap-3 text-slate-600">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-        <p className="text-sm font-bold">جاري تحميل سجل الدرجات...</p>
-      </div>
-    </div>
-  );
-}
 
-function EmptyState({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white p-6 text-center shadow-sm">
-      <div className="mx-auto max-w-md">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          {icon}
-        </div>
-
-        <h2 className="mt-4 text-xl font-black text-[#15445A]">{title}</h2>
-        <p className="mt-2 text-sm leading-7 text-slate-500">{description}</p>
-      </div>
-    </div>
-  );
-}

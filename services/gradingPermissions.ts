@@ -43,3 +43,4 @@ export function canTeacherEditBook(input: {
   if (input.role !== "teacher") return false;
   return !!input.bookTeacherId && !!input.currentTeacherId && input.bookTeacherId === input.currentTeacherId;
 }
+

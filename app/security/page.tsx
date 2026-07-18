@@ -20,6 +20,9 @@ import { PageLoader } from "@/components/ui/loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
 import ErrorState from "@/components/ui/feedback/ErrorState";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import IconButton from "@/components/ui/buttons/IconButton";
 
 import { useSchool } from "@/contexts/SchoolContext";
 import { supabase } from "@/lib/supabase";
@@ -47,7 +50,7 @@ import {
 
 type AnyRow = Record<string, unknown>;
 
-type SecurityTone = "green" | "gold" | "red" | "blue" | "teal";
+type SecurityTone = "primary" | "green" | "gold" | "red" | "neutral";
 
 type Toast = {
   type: "success" | "error";
@@ -160,11 +163,16 @@ function formatDate(value?: string | null) {
 
 function insightTone(tone: SecurityTone) {
   const tones: Record<SecurityTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -172,11 +180,11 @@ function insightTone(tone: SecurityTone) {
 
 function progressTone(tone: SecurityTone) {
   const tones: Record<SecurityTone, string> = {
-    green: "bg-[var(--app-green)]",
+    primary: "bg-[var(--app-primary)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -187,26 +195,24 @@ function severityTone(
 ): SecurityTone {
   if (severity === "critical") return "red";
   if (severity === "high") return "gold";
-  if (severity === "medium") return "blue";
+  if (severity === "medium") return "primary";
   return "green";
 }
 
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`security-center query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`security-center query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -215,7 +221,21 @@ function normalizeEvent(
   row: AnyRow,
   category: SecurityEvent["category"],
 ): SecurityEvent {
-  const id = textValue(row, ["id"], `${category}-${Math.random()}`);
+  const createdAtKey = textValue(
+    row,
+    ["created_at", "occurred_at", "logged_at", "last_seen_at"],
+    "unknown-time",
+  );
+  const actorKey = textValue(
+    row,
+    ["actor_name", "user_name", "email", "user_email", "performed_by"],
+    "unknown-actor",
+  );
+  const id = textValue(
+    row,
+    ["id"],
+    `${category}-${createdAtKey}-${actorKey}`,
+  );
   const action = textValue(
     row,
     ["action", "event_type", "type", "activity", "description"],
@@ -476,7 +496,7 @@ export default function SecurityCenterPage() {
         title: "محاولات دخول فاشلة",
         description: `تم رصد ${metrics.failedLogins} محاولة دخول فاشلة.`,
         tone: "red",
-        icon: <UserRoundX className="h-5 w-5" />,
+        icon: <UserRoundX className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -485,7 +505,7 @@ export default function SecurityCenterPage() {
         title: "حسابات غير نشطة",
         description: `يوجد ${metrics.inactiveMembers} عضو غير نشط يحتاج مراجعة.`,
         tone: "gold",
-        icon: <Users className="h-5 w-5" />,
+        icon: <Users className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -493,8 +513,8 @@ export default function SecurityCenterPage() {
       items.push({
         title: "جاهزية MFA غير مكتملة",
         description: `نسبة تفعيل المصادقة المتعددة ${metrics.mfaReady}%.`,
-        tone: "blue",
-        icon: <Fingerprint className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Fingerprint className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -503,8 +523,8 @@ export default function SecurityCenterPage() {
         title: "سياسات الأمان غير موثقة",
         description:
           "لا توجد سجلات في جدول security_policies. راجع سياسات RLS يدويًا.",
-        tone: "teal",
-        icon: <DatabaseZap className="h-5 w-5" />,
+        tone: "primary",
+        icon: <DatabaseZap className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -513,7 +533,7 @@ export default function SecurityCenterPage() {
         title: "الوضع الأمني مستقر",
         description: "لا توجد مؤشرات أمنية حرجة في البيانات الحالية.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -528,8 +548,8 @@ export default function SecurityCenterPage() {
         description:
           "تتبع العمليات الحساسة والتعديلات والحذف والإجراءات الإدارية.",
         badge: `${metrics.auditLogs} سجل`,
-        tone: "blue",
-        icon: <Activity className="h-6 w-6" />,
+        tone: "primary",
+        icon: <Activity className="h-6 w-6" aria-hidden="true" />,
       },
       {
         id: "login",
@@ -538,7 +558,7 @@ export default function SecurityCenterPage() {
           "مراقبة تسجيلات الدخول الناجحة والفاشلة والمصادر غير المعتادة.",
         badge: `${metrics.failedLogins} فاشلة`,
         tone: metrics.failedLogins > 0 ? "red" : "green",
-        icon: <KeyRound className="h-6 w-6" />,
+        icon: <KeyRound className="h-6 w-6" aria-hidden="true" />,
       },
       {
         id: "sessions",
@@ -546,8 +566,8 @@ export default function SecurityCenterPage() {
         description:
           "مراجعة الجلسات النشطة والأجهزة وتوقيت آخر نشاط.",
         badge: `${metrics.activeSessions} نشطة`,
-        tone: "teal",
-        icon: <Laptop2 className="h-6 w-6" />,
+        tone: "primary",
+        icon: <Laptop2 className="h-6 w-6" aria-hidden="true" />,
       },
       {
         id: "permissions",
@@ -556,7 +576,7 @@ export default function SecurityCenterPage() {
           "فحص الأدوار والصلاحيات والحسابات ذات الامتيازات العالية.",
         badge: `${metrics.permissionsRows} صلاحية`,
         tone: "gold",
-        icon: <ShieldCheck className="h-6 w-6" />,
+        icon: <ShieldCheck className="h-6 w-6" aria-hidden="true" />,
       },
       {
         id: "rls",
@@ -564,8 +584,8 @@ export default function SecurityCenterPage() {
         description:
           "مؤشر توثيقي لحالة سياسات الصفوف على جداول المنصة.",
         badge: `${metrics.policiesCount} سياسة`,
-        tone: "blue",
-        icon: <DatabaseZap className="h-6 w-6" />,
+        tone: "primary",
+        icon: <DatabaseZap className="h-6 w-6" aria-hidden="true" />,
       },
       {
         id: "mfa",
@@ -574,7 +594,7 @@ export default function SecurityCenterPage() {
           "قياس جاهزية المصادقة المتعددة للحسابات الحساسة.",
         badge: `${metrics.mfaReady}%`,
         tone: metrics.mfaReady >= 80 ? "green" : "gold",
-        icon: <Fingerprint className="h-6 w-6" />,
+        icon: <Fingerprint className="h-6 w-6" aria-hidden="true" />,
       },
     ],
     [metrics],
@@ -611,7 +631,7 @@ export default function SecurityCenterPage() {
       <AppShell>
         <main className="space-y-6 pb-10" dir="rtl">
           {toast && (
-            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))]">
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
               {toast.type === "success" ? (
                 <SuccessBanner description={toast.message} />
               ) : (
@@ -625,7 +645,7 @@ export default function SecurityCenterPage() {
             title="مركز الأمان"
             description="مركز موحد لمراقبة سجل التدقيق، تسجيلات الدخول، الجلسات، الأدوار، الصلاحيات، سياسات RLS، وجاهزية المصادقة المتعددة."
             badge="Security Center Enterprise V3"
-            icon={<ShieldCheck size={18} />}
+            icon={<ShieldCheck size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "مركز الأمان" },
@@ -652,52 +672,48 @@ export default function SecurityCenterPage() {
               {
                 label: "سجل التدقيق",
                 value: metrics.auditLogs,
-                icon: <Activity size={20} />,
-                tone: "blue",
+                icon: <Activity size={20} aria-hidden="true" />,
+                tone: "primary",
               },
               {
                 label: "دخول فاشل",
                 value: metrics.failedLogins,
-                icon: <UserRoundX size={20} />,
+                icon: <UserRoundX size={20} aria-hidden="true" />,
                 tone: metrics.failedLogins > 0 ? "red" : "green",
               },
               {
                 label: "جلسات نشطة",
                 value: metrics.activeSessions,
-                icon: <Laptop2 size={20} />,
-                tone: "teal",
+                icon: <Laptop2 size={20} aria-hidden="true" />,
+                tone: "primary",
               },
               {
                 label: "MFA",
                 value: `${metrics.mfaReady}%`,
-                icon: <Fingerprint size={20} />,
+                icon: <Fingerprint size={20} aria-hidden="true" />,
                 tone: metrics.mfaReady >= 80 ? "green" : "gold",
               },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void loadSecurityData()}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A]"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
-                  onClick={() => {
+                <PrimaryButton
+                  icon={<BadgeCheck size={17} aria-hidden="true" />}
+                  onClick={() =>
                     showToast(
                       "success",
                       "تم تنفيذ فحص أمني محلي للبيانات المتاحة",
-                    );
-                  }}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white"
+                    )
+                  }
                 >
-                  <BadgeCheck size={17} />
                   تشغيل الفحص
-                </button>
+                </PrimaryButton>
               </>
             }
           />
@@ -707,7 +723,7 @@ export default function SecurityCenterPage() {
               title="Security Score"
               value={`${metrics.securityScore}%`}
               subtitle={`المستوى: ${metrics.riskLevel}`}
-              icon={<Gauge size={24} />}
+              icon={<Gauge size={24} aria-hidden="true" />}
               tone={
                 metrics.securityScore >= 80
                   ? "green"
@@ -722,7 +738,7 @@ export default function SecurityCenterPage() {
               title="محاولات دخول فاشلة"
               value={metrics.failedLogins}
               subtitle="تحتاج مراجعة عند التكرار"
-              icon={<UserRoundX size={24} />}
+              icon={<UserRoundX size={24} aria-hidden="true" />}
               tone={metrics.failedLogins > 0 ? "red" : "green"}
               progress={Math.min(100, metrics.failedLogins * 10)}
             />
@@ -731,8 +747,8 @@ export default function SecurityCenterPage() {
               title="الحسابات المميزة"
               value={metrics.privilegedMembers}
               subtitle="سوبر أدمن ومديرو المدارس والوكلاء"
-              icon={<UserCheck size={24} />}
-              tone="blue"
+              icon={<UserCheck size={24} aria-hidden="true" />}
+              tone="primary"
               progress={percentage(
                 metrics.privilegedMembers,
                 Math.max(1, members.length),
@@ -743,8 +759,8 @@ export default function SecurityCenterPage() {
               title="سياسات الأمان"
               value={metrics.policiesCount}
               subtitle="سجلات توثيق السياسات"
-              icon={<DatabaseZap size={24} />}
-              tone={metrics.policiesCount > 0 ? "teal" : "gold"}
+              icon={<DatabaseZap size={24} aria-hidden="true" />}
+              tone={metrics.policiesCount > 0 ? "primary" : "gold"}
               progress={Math.min(100, metrics.policiesCount * 10)}
             />
           </section>
@@ -789,11 +805,11 @@ export default function SecurityCenterPage() {
             {modules.map((module) => (
               <div
                 key={module.id}
-                className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm"
+                className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${insightTone(module.tone)}`}
+                    className={`flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(module.tone)}`}
                   >
                     {module.icon}
                   </div>
@@ -812,7 +828,7 @@ export default function SecurityCenterPage() {
             ))}
           </section>
 
-          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -839,7 +855,7 @@ export default function SecurityCenterPage() {
                 <EmptyState
                   title="لا توجد أحداث أمنية"
                   description="قد تكون الجداول الأمنية غير موجودة بعد، أو لا توجد أحداث مسجلة."
-                  icon={<Search className="h-8 w-8" />}
+                  icon={<Search className="h-8 w-8" aria-hidden="true" />}
                 />
               ) : (
                 <div className="space-y-3">
@@ -848,12 +864,12 @@ export default function SecurityCenterPage() {
                       key={event.id}
                       type="button"
                       onClick={() => setSelectedEvent(event)}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-right transition hover:-translate-y-0.5"
+                      className="flex w-full items-start gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-right transition hover:-translate-y-0.5"
                     >
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(severityTone(event.severity))}`}
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(severityTone(event.severity))}`}
                       >
-                        <LockKeyhole size={18} />
+                        <LockKeyhole size={18} aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -896,7 +912,7 @@ function SecurityExecutiveAnalytics({
   metrics: SecurityMetric;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
         Security Executive Analytics
       </h2>
@@ -908,7 +924,7 @@ function SecurityExecutiveAnalytics({
         <SecurityMetricCard
           label="Security Score"
           value={`${metrics.securityScore}%`}
-          icon={<Gauge size={18} />}
+          icon={<Gauge size={18} aria-hidden="true" />}
           tone={
             metrics.securityScore >= 80
               ? "green"
@@ -920,20 +936,20 @@ function SecurityExecutiveAnalytics({
         <SecurityMetricCard
           label="Failed Logins"
           value={metrics.failedLogins}
-          icon={<UserRoundX size={18} />}
+          icon={<UserRoundX size={18} aria-hidden="true" />}
           tone={metrics.failedLogins > 0 ? "red" : "green"}
         />
         <SecurityMetricCard
           label="Active Sessions"
           value={metrics.activeSessions}
-          icon={<Laptop2 size={18} />}
-          tone="blue"
+          icon={<Laptop2 size={18} aria-hidden="true" />}
+          tone="primary"
         />
         <SecurityMetricCard
           label="MFA Readiness"
           value={`${metrics.mfaReady}%`}
-          icon={<Fingerprint size={18} />}
-          tone="teal"
+          icon={<Fingerprint size={18} aria-hidden="true" />}
+          tone="primary"
         />
       </div>
     </section>
@@ -946,9 +962,9 @@ function SecuritySmartInsights({
   insights: SecurityInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <BrainCircuit size={20} />
+        <BrainCircuit size={20} aria-hidden="true" />
         AI Security Insights
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -959,10 +975,10 @@ function SecuritySmartInsights({
         {insights.map((insight) => (
           <div
             key={insight.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
             <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(insight.tone)}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(insight.tone)}`}
             >
               {insight.icon}
             </div>
@@ -987,7 +1003,7 @@ function SecurityHealthPanel({
   metrics: SecurityMetric;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
         Security Health
       </h2>
@@ -1004,12 +1020,12 @@ function SecurityHealthPanel({
         <SecurityProgress
           label="MFA Readiness"
           value={metrics.mfaReady}
-          tone="teal"
+          tone="primary"
         />
         <SecurityProgress
           label="RLS Documentation"
           value={Math.min(100, metrics.policiesCount * 10)}
-          tone="blue"
+          tone="primary"
         />
         <SecurityProgress
           label="Audit Coverage"
@@ -1035,9 +1051,9 @@ function PermissionAuditPanel({
   ).length;
 
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <ShieldCheck size={20} />
+        <ShieldCheck size={20} aria-hidden="true" />
         Permission Audit
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1060,16 +1076,16 @@ function RlsHealthPanel({
   metrics: SecurityMetric;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <DatabaseZap size={20} />
+        <DatabaseZap size={20} aria-hidden="true" />
         RLS Health
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         قراءة توثيقية لحالة سياسات حماية الصفوف.
       </p>
 
-      <div className="mt-5 rounded-3xl bg-[var(--app-card-soft)] p-5">
+      <div className="mt-5 rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-5">
         <p className="text-xs font-bold text-[var(--app-text-muted)]">
           السياسات المسجلة
         </p>
@@ -1078,7 +1094,7 @@ function RlsHealthPanel({
         </p>
       </div>
 
-      <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-6 text-amber-800">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] p-4 text-xs leading-6 text-[var(--app-accent-foreground)]">
         لا يمكن للواجهة وحدها فحص سياسات PostgreSQL الفعلية ما لم تُنشأ
         View أو RPC مخصصة. هذه البطاقة تعرض الجداول المتاحة فقط.
       </div>
@@ -1094,30 +1110,29 @@ function SecurityEventDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-text)_44%,transparent)] backdrop-blur-sm print:hidden">
       <button
         type="button"
         className="flex-1"
         onClick={onClose}
         aria-label="إغلاق"
       />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto border-r border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">
+            <p className="text-xs font-black text-[var(--app-accent)]">
               Security Event
             </p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {event.title}
             </h2>
           </div>
-          <button
-            type="button"
+          <IconButton
+            label="إغلاق لوحة الحدث الأمني"
+            title="إغلاق"
             onClick={onClose}
-            className="rounded-xl bg-slate-100 p-2 text-slate-600"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} aria-hidden="true" />}
+          />
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -1162,9 +1177,9 @@ function SecurityMetricCard({
   tone: SecurityTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
       <div
-        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}
+        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}
       >
         {icon}
       </div>
@@ -1195,8 +1210,13 @@ function SecurityProgress({
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
         <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.max(0, Math.min(100, value))}
           className={`h-full rounded-full ${progressTone(tone)}`}
-          style={{ width: `${Math.max(4, Math.min(100, value))}%` }}
+          style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
         />
       </div>
     </div>
@@ -1211,7 +1231,7 @@ function SecurityInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">
         {label}
       </span>
@@ -1230,9 +1250,9 @@ function SecurityDrawerMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-base font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1245,11 +1265,11 @@ function SecurityDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">
             {item}
           </p>
         ))}
@@ -1257,3 +1277,4 @@ function SecurityDrawerSection({
     </div>
   );
 }
+

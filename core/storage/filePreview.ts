@@ -13,3 +13,4 @@ export async function getStoragePreviewUrl(input: StoragePreviewInput) {
 }
 
 export const StoragePreview = { getUrl: getStoragePreviewUrl };
+

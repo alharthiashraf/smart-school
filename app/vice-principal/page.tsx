@@ -9,6 +9,16 @@ import {
 } from "react";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -21,19 +31,16 @@ import {
   AlertTriangle,
   BarChart3,
   Target,
-  CheckCircle2,
   ClipboardCheck,
   Download,
   FileText,
   HeartPulse,
-  Loader2,
   RefreshCcw,
   Search,
   ShieldAlert,
   TrendingUp,
   UserCheck,
   Users,
-  XCircle,
 } from "lucide-react";
 
 type Student = {
@@ -213,22 +220,37 @@ function getRiskLevel(score: number): RiskStudent["riskLevel"] {
 }
 
 function getRiskStyle(level: RiskStudent["riskLevel"]) {
-  if (level === "حرج") return "bg-red-100 text-red-800";
-  if (level === "مرتفع") return "bg-orange-50 text-orange-700";
-  if (level === "متوسط") return "bg-amber-50 text-amber-700";
-  return "bg-emerald-50 text-emerald-700";
+  if (level === "حرج") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_16%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (level === "مرتفع") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (level === "متوسط") {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
 }
 
 function getStatusStyle(status?: string | null) {
   const value = String(status || "");
 
-  if (!isOpenStatus(value)) return "bg-emerald-50 text-emerald-700";
-  if (value.includes("بانتظار")) return "bg-amber-50 text-amber-700";
-  if (value.includes("حرج") || value.includes("مرتفع")) {
-    return "bg-red-50 text-red-700";
+  if (!isOpenStatus(value)) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
   }
 
-  return "bg-blue-50 text-blue-700";
+  if (value.includes("بانتظار")) {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  if (value.includes("حرج") || value.includes("مرتفع")) {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  }
+
+  return "bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 }
 export default function VicePrincipalPage() {
   const { currentSchool, loading: schoolLoading } = useSchool();
@@ -252,10 +274,13 @@ export default function VicePrincipalPage() {
   const today = getTodayDate();
   const last30Days = getDateDaysAgo(30);
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+      window.setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
   const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
@@ -539,7 +564,7 @@ export default function VicePrincipalPage() {
     riskStudents,
   ]);
 
-  function getExportHeaders() {
+  function getExportHeaders(): string[] {
     return [
       "الطالب",
       "الفصل",
@@ -609,7 +634,7 @@ export default function VicePrincipalPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل لوحة الوكيل التنفيذية..." />
         </AppShell>
       </RoleGuard>
     );
@@ -619,113 +644,179 @@ export default function VicePrincipalPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <div className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
-
-          <section className="rounded-[30px] bg-[#0f1f3d] p-6 text-white shadow-sm">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="mb-2 text-sm font-bold text-[#d4af37]">
-                  منصة المدرسة الذكية
-                </p>
-                <h1 className="text-4xl font-black">لوحة الوكيل التنفيذية</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
-                  متابعة فورية للحضور والغياب، الإحالات، التدخلات، المخالفات،
-                  والحالات الصحية مع مؤشر خطر موحد للطلاب المحتاجين للمتابعة.
-                </p>
-              </div>
-
-              <div className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-                <button
-                  onClick={() => void fetchData()}
-                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#d4af37] px-5 text-sm font-black text-[#0f1f3d]"
-                >
-                  <RefreshCcw size={17} />
-                  تحديث
-                </button>
-
-                <button
-                  onClick={() => void exportExcel()}
-                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-white/10 px-5 text-sm font-black text-white"
-                >
-                  <Download size={17} />
-                  Excel
-                </button>
-
-                <button
-                  onClick={exportPDF}
-                  className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-[#0f1f3d]"
-                >
-                  <FileText size={17} />
-                  PDF
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
             </div>
           )}
 
+          <PageHeader
+            variant="hero"
+            title="لوحة الوكيل التنفيذية"
+            description="متابعة الحضور والغياب والإحالات والتدخلات والمخالفات والحالات الصحية مع مؤشر خطر موحد."
+            badge="الإدارة التنفيذية"
+            icon={<ShieldAlert size={18} aria-hidden="true" />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "لوحة الوكيل" },
+            ]}
+            meta={[
+              { label: "المدرسة", value: currentSchool?.school_name || "—" },
+              { label: "الطلاب", value: summaryStats.totalStudents },
+              { label: "الحضور اليوم", value: summaryStats.presentToday },
+              { label: "بحاجة متابعة", value: summaryStats.urgentStudents },
+            ]}
+            stats={[
+              {
+                label: "الغياب اليوم",
+                value: summaryStats.absentToday,
+                icon: <AlertTriangle size={20} aria-hidden="true" />,
+                tone: summaryStats.absentToday > 0 ? "gold" : "green",
+              },
+              {
+                label: "الإحالات المفتوحة",
+                value: summaryStats.openReferrals,
+                icon: <ClipboardCheck size={20} aria-hidden="true" />,
+                tone: summaryStats.openReferrals > 0 ? "gold" : "green",
+              },
+              {
+                label: "تدخلات حرجة",
+                value: summaryStats.criticalInterventions,
+                icon: <ShieldAlert size={20} aria-hidden="true" />,
+                tone: summaryStats.criticalInterventions > 0 ? "red" : "green",
+              },
+              {
+                label: "حالات صحية نشطة",
+                value: summaryStats.activeHealthCases,
+                icon: <HeartPulse size={20} aria-hidden="true" />,
+                tone: summaryStats.activeHealthCases > 0 ? "gold" : "green",
+              },
+            ]}
+            actions={
+              <>
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
+                  onClick={() => void fetchData()}
+                  loading={loading}
+                >
+                  تحديث
+                </SecondaryButton>
+
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
+                  onClick={() => void exportExcel()}
+                  disabled={!filteredRiskStudents.length}
+                >
+                  Excel
+                </ExportButton>
+
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
+                  onClick={exportPDF}
+                  disabled={!filteredRiskStudents.length}
+                >
+                  PDF
+                </ExportButton>
+              </>
+            }
+          />
+
+          {errorMsg && (
+            <ErrorState description={errorMsg} />
+          )}
+
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
+            <ExecutiveCard
               title="إجمالي الطلاب"
               value={summaryStats.totalStudents}
-              icon={<Users size={22} />}
-              color="blue"
+              icon={<Users size={22} aria-hidden="true" />}
+              tone="primary"
             />
-            <StatCard
+            <ExecutiveCard
               title="الحضور اليوم"
               value={summaryStats.presentToday}
-              icon={<UserCheck size={22} />}
-              color="emerald"
+              icon={<UserCheck size={22} aria-hidden="true" />}
+              tone="green"
+              progress={
+                summaryStats.totalStudents
+                  ? Math.round(
+                      (summaryStats.presentToday /
+                        summaryStats.totalStudents) *
+                        100,
+                    )
+                  : 0
+              }
             />
-            <StatCard
+            <ExecutiveCard
               title="الغياب اليوم"
               value={summaryStats.absentToday}
-              icon={<AlertTriangle size={22} />}
-              color="red"
+              icon={<AlertTriangle size={22} aria-hidden="true" />}
+              tone={summaryStats.absentToday > 0 ? "red" : "green"}
             />
-            <StatCard
+            <ExecutiveCard
               title="التأخر اليوم"
               value={summaryStats.lateToday}
-              icon={<TrendingUp size={22} />}
-              color="amber"
+              icon={<TrendingUp size={22} aria-hidden="true" />}
+              tone={summaryStats.lateToday > 0 ? "gold" : "green"}
             />
-            <StatCard
+            <ExecutiveCard
               title="الإحالات المفتوحة"
               value={summaryStats.openReferrals}
-              icon={<ClipboardCheck size={22} />}
-              color="blue"
+              icon={<ClipboardCheck size={22} aria-hidden="true" />}
+              tone={summaryStats.openReferrals > 0 ? "gold" : "green"}
             />
-            <StatCard
+            <ExecutiveCard
               title="تدخلات حرجة"
               value={summaryStats.criticalInterventions}
-              icon={<ShieldAlert size={22} />}
-              color="red"
+              icon={<ShieldAlert size={22} aria-hidden="true" />}
+              tone={summaryStats.criticalInterventions > 0 ? "red" : "green"}
             />
-            <StatCard
+            <ExecutiveCard
               title="حالات صحية نشطة"
               value={summaryStats.activeHealthCases}
-              icon={<HeartPulse size={22} />}
-              color="amber"
+              icon={<HeartPulse size={22} aria-hidden="true" />}
+              tone={summaryStats.activeHealthCases > 0 ? "gold" : "green"}
             />
-            <StatCard
+            <ExecutiveCard
               title="طلاب بحاجة متابعة"
               value={summaryStats.urgentStudents}
-              icon={<Activity size={22} />}
-              color="red"
+              icon={<Activity size={22} aria-hidden="true" />}
+              tone={summaryStats.urgentStudents > 0 ? "red" : "green"}
             />
           </section>
+
+          <SummaryCard
+            title="الملخص التنفيذي للوكيل"
+            description="قراءة سريعة لحالة الحضور والإحالات والتدخلات والحالات الصحية والطلاب ذوي الخطورة المرتفعة."
+            tone={summaryStats.urgentStudents > 0 ? "gold" : "green"}
+            items={[
+              { label: "إجمالي الطلاب", value: summaryStats.totalStudents },
+              { label: "الحضور اليوم", value: summaryStats.presentToday },
+              { label: "الغياب اليوم", value: summaryStats.absentToday },
+              { label: "الإحالات المفتوحة", value: summaryStats.openReferrals },
+              {
+                label: "تدخلات حرجة",
+                value: summaryStats.criticalInterventions,
+              },
+              {
+                label: "طلاب بحاجة متابعة",
+                value: summaryStats.urgentStudents,
+              },
+            ]}
+            footer="يعتمد مؤشر الخطر على بيانات آخر 30 يومًا من الحضور والسلوك والإحالات والتدخلات والحالات الصحية."
+          />
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <DashboardPanel
               title="أحدث الإحالات"
-              icon={<ClipboardCheck size={20} />}
+              icon={<ClipboardCheck size={20} aria-hidden="true" />}
             >
               {recentReferrals.length === 0 ? (
-                <EmptySmall text="لا توجد إحالات." />
+                <UiEmptyState title="لا توجد إحالات" description="لا توجد إحالات حديثة." />
               ) : (
                 <div className="space-y-2">
                   {recentReferrals.map((item) => {
@@ -753,10 +844,10 @@ export default function VicePrincipalPage() {
 
             <DashboardPanel
               title="أحدث التدخلات"
-              icon={<Target size={20} />}
+              icon={<Target size={20} aria-hidden="true" />}
             >
               {recentInterventions.length === 0 ? (
-                <EmptySmall text="لا توجد تدخلات." />
+                <UiEmptyState title="لا توجد تدخلات" description="لا توجد تدخلات حديثة." />
               ) : (
                 <div className="space-y-2">
                   {recentInterventions.map((item) => {
@@ -780,10 +871,10 @@ export default function VicePrincipalPage() {
 
             <DashboardPanel
               title="أحدث المخالفات"
-              icon={<AlertTriangle size={20} />}
+              icon={<AlertTriangle size={20} aria-hidden="true" />}
             >
               {recentBehaviors.length === 0 ? (
-                <EmptySmall text="لا توجد مخالفات." />
+                <UiEmptyState title="لا توجد مخالفات" description="لا توجد مخالفات حديثة." />
               ) : (
                 <div className="space-y-2">
                   {recentBehaviors.map((item) => {
@@ -809,10 +900,10 @@ export default function VicePrincipalPage() {
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <DashboardPanel
               title="أحدث الحالات الصحية"
-              icon={<HeartPulse size={20} />}
+              icon={<HeartPulse size={20} aria-hidden="true" />}
             >
               {recentHealthCases.length === 0 ? (
-                <EmptySmall text="لا توجد حالات صحية." />
+                <UiEmptyState title="لا توجد حالات صحية" description="لا توجد حالات صحية حديثة." />
               ) : (
                 <div className="space-y-2">
                   {recentHealthCases.map((item) => {
@@ -836,10 +927,10 @@ export default function VicePrincipalPage() {
 
             <DashboardPanel
               title="أحدث تواصل مع أولياء الأمور"
-              icon={<FileText size={20} />}
+              icon={<FileText size={20} aria-hidden="true" />}
             >
               {recentParentCommunications.length === 0 ? (
-                <EmptySmall text="لا توجد سجلات تواصل." />
+                <UiEmptyState title="لا توجد سجلات تواصل" description="لا توجد سجلات تواصل حديثة." />
               ) : (
                 <div className="space-y-2">
                   {recentParentCommunications.map((item) => {
@@ -862,57 +953,58 @@ export default function VicePrincipalPage() {
             </DashboardPanel>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+            <div className="mb-5">
+              <div className="mb-4">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="text-[#0f1f3d]" size={22} />
-                  <h2 className="text-2xl font-black text-[#0f1f3d]">
+                  <BarChart3
+                    className="text-[var(--app-primary)]"
+                    size={22}
+                    aria-hidden="true"
+                  />
+                  <h2 className="text-2xl font-black text-[var(--app-text)]">
                     مركز متابعة الطلاب حسب مؤشر الخطر
                   </h2>
                 </div>
-                <p className="mt-2 text-sm text-slate-500">
-                  يتم احتساب المؤشر من الغياب، التأخر، المخالفات، الإحالات،
-                  التدخلات عالية الخطورة، والحالات الصحية النشطة خلال آخر 30 يومًا.
+                <p className="mt-2 text-sm text-[var(--app-text-muted)]">
+                  يتم احتساب المؤشر من الغياب والتأخر والمخالفات والإحالات
+                  والتدخلات عالية الخطورة والحالات الصحية النشطة خلال آخر 30 يومًا.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <select
-                  value={riskFilter}
-                  onChange={(event) => setRiskFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#d4af37]"
-                >
-                  <option value="الكل">كل مستويات الخطر</option>
-                  <option value="حرج">حرج</option>
-                  <option value="مرتفع">مرتفع</option>
-                  <option value="متوسط">متوسط</option>
-                  <option value="منخفض">منخفض</option>
-                </select>
-
-                <div className="relative">
-                  <Search
-                    size={18}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="بحث عن طالب..."
-                    className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 text-sm outline-none focus:border-[#d4af37] lg:w-72"
-                  />
-                </div>
-              </div>
+              <PageToolbar
+                search={{
+                  value: search,
+                  onChange: setSearch,
+                  placeholder: "ابحث عن طالب...",
+                }}
+                filters={
+                  <ToolbarSelect value={riskFilter} onChange={setRiskFilter}>
+                    <option value="الكل">كل مستويات الخطر</option>
+                    <option value="حرج">حرج</option>
+                    <option value="مرتفع">مرتفع</option>
+                    <option value="متوسط">متوسط</option>
+                    <option value="منخفض">منخفض</option>
+                  </ToolbarSelect>
+                }
+                onRefresh={() => void fetchData()}
+                onExportExcel={() => void exportExcel()}
+                onExportPDF={exportPDF}
+              />
             </div>
 
             {filteredRiskStudents.length === 0 ? (
-              <EmptyBox text="لا توجد حالات خطورة حسب الفلاتر الحالية." />
+              <UiEmptyState
+                icon={<ShieldAlert className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد حالات خطورة"
+                description="لا توجد حالات مطابقة للبحث أو مستوى الخطر المحدد."
+              />
             ) : (
               <div className="space-y-3">
                 {filteredRiskStudents.map((item) => (
                   <div
                     key={item.student.id}
-                    className="rounded-3xl border border-slate-100 bg-slate-50 p-5"
+                    className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5"
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="flex-1">
@@ -925,16 +1017,16 @@ export default function VicePrincipalPage() {
                             {item.riskLevel}
                           </span>
 
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600">
+                          <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
                             درجة الخطر: {item.riskScore}
                           </span>
                         </div>
 
-                        <h3 className="text-xl font-black text-[#0f1f3d]">
+                        <h3 className="text-xl font-black text-[var(--app-text)]">
                           {item.student.full_name || "طالب غير معروف"}
                         </h3>
 
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                           الفصل:{" "}
                           {item.student.classroom ||
                             item.student.class_name ||
@@ -970,7 +1062,7 @@ export default function VicePrincipalPage() {
                             {item.reasons.map((reason) => (
                               <span
                                 key={reason}
-                                className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600"
+                                className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-bold text-[var(--app-text-muted)]"
                               >
                                 {reason}
                               </span>
@@ -978,7 +1070,7 @@ export default function VicePrincipalPage() {
                           </div>
                         )}
 
-                        <p className="mt-3 text-sm text-slate-500">
+                        <p className="mt-3 text-sm text-[var(--app-text-muted)]">
                           ولي الأمر: {item.student.guardian_name || "—"} | الجوال:{" "}
                           {item.student.guardian_phone || "—"}
                         </p>
@@ -995,37 +1087,6 @@ export default function VicePrincipalPage() {
   );
 }
 
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: number;
-  icon: ReactNode;
-  color: "blue" | "amber" | "red" | "emerald";
-}) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-700",
-    amber: "bg-amber-50 text-amber-700",
-    red: "bg-red-50 text-red-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-  };
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color]}`}
-      >
-        {icon}
-      </div>
-      <p className="text-sm text-slate-500">{title}</p>
-      <h2 className="mt-2 text-4xl font-black text-[#0f1f3d]">{value}</h2>
-    </div>
-  );
-}
-
 function DashboardPanel({
   title,
   icon,
@@ -1036,12 +1097,12 @@ function DashboardPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-[#0f1f3d]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] text-[var(--app-text)]">
           {icon}
         </div>
-        <h2 className="text-lg font-black text-[#0f1f3d]">{title}</h2>
+        <h2 className="text-lg font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </div>
@@ -1060,17 +1121,17 @@ function MiniRecord({
   date?: string | null;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="font-black text-[#0f1f3d]">{title}</p>
+        <p className="font-black text-[var(--app-text)]">{title}</p>
         <span className={`rounded-full px-3 py-1 text-xs font-black ${getStatusStyle(badge)}`}>
           {badge}
         </span>
       </div>
-      <p className="line-clamp-2 text-sm leading-6 text-slate-600">
+      <p className="line-clamp-2 text-sm leading-6 text-[var(--app-text-muted)]">
         {subtitle}
       </p>
-      <p className="mt-1 text-xs font-bold text-slate-400">{formatDate(date)}</p>
+      <p className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">{formatDate(date)}</p>
     </div>
   );
 }
@@ -1083,53 +1144,11 @@ function MiniInfo({
   value?: string | number | null;
 }) {
   return (
-    <div className="rounded-2xl bg-white px-4 py-3 text-sm">
-      <p className="mb-1 text-xs font-bold text-slate-400">{label}</p>
-      <p className="font-black text-slate-700">{value ?? "—"}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3 text-sm">
+      <p className="mb-1 text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="font-black text-[var(--app-text)]">{value ?? "—"}</p>
     </div>
   );
 }
 
-function EmptySmall({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm text-slate-500">
-      {text}
-    </div>
-  );
-}
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed bg-slate-50 p-8 text-center text-sm text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-xl ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? (
-        <CheckCircle2 size={18} />
-      ) : (
-        <XCircle size={18} />
-      )}
-      {toast.message}
-    </div>
-  );
-}
-
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-[#0f1f3d]" />
-        جاري تحميل لوحة الوكيل التنفيذية...
-      </div>
-    </div>
-  );
-}

@@ -28,3 +28,4 @@ export function mapAttendance(row: Raw): AttendanceRecord {
 export function mapAttendanceList(rows: Raw[]): AttendanceRecord[] {
   return rows.map(mapAttendance);
 }
+

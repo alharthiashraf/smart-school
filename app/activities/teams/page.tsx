@@ -840,3 +840,4 @@ function InfoBox({
     </div>
   );
 }
+

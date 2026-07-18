@@ -125,3 +125,4 @@ export type StorageListOptions = {
 };
 
 export type StorageClientUploadOptions = Pick<FileOptions, "cacheControl" | "contentType" | "upsert">;
+

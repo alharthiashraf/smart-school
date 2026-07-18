@@ -39,3 +39,4 @@ export function validateStorageFile(
 }
 
 export const StorageFileValidator = { validate: validateStorageFile };
+

@@ -24,3 +24,4 @@ export function mapEvidence(row: Raw): QualityEvidence {
 export function mapEvidences(rows: Raw[]): QualityEvidence[] {
   return rows.map(mapEvidence);
 }
+

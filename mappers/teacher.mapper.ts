@@ -29,3 +29,4 @@ export function mapTeacher(row: Raw): Teacher {
 export function mapTeachers(rows: Raw[]): Teacher[] {
   return rows.map(mapTeacher);
 }
+

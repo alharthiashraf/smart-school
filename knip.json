@@ -1,0 +1,17 @@
+{
+  "project": [
+    "**/*.{ts,tsx}",
+    "!node_modules/**",
+    "!.next/**",
+    "!dist/**",
+    "!build/**",
+    "!coverage/**"
+  ],
+  "ignoreDependencies": [
+    "@supabase/ssr",
+    "clsx",
+    "tailwind-merge",
+    "zod"
+  ],
+  "ignoreExportsUsedInFile": true
+}

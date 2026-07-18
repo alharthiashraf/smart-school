@@ -1115,7 +1115,7 @@ export default function GradesPage() {
               </SecondaryButton>
 
               {editEnabled && activeTab === "subjects" ? (
-                <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-bold text-[var(--app-text)] shadow-[var(--app-shadow-[var(--app-shadow-sm)])] transition hover:border-[var(--app-accent-border)] hover:bg-[var(--app-card-soft)] focus-within:ring-2 focus-within:ring-[var(--app-primary)]">
+                <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-bold text-[var(--app-text)] shadow-[var(--app-shadow-sm)] transition hover:border-[var(--app-accent-border)] hover:bg-[var(--app-card-soft)] focus-within:ring-2 focus-within:ring-[var(--app-primary)]">
                   <Upload size={17} aria-hidden="true" />
                   استيراد
                   <input
@@ -2614,3 +2614,4 @@ function GradeDrawerSection({
     </div>
   );
 }
+

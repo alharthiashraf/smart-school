@@ -42,3 +42,4 @@ export const ValidationEngine = {
     return { valid: !clean.some((issue) => issue.severity === "error"), issues: clean };
   },
 };
+

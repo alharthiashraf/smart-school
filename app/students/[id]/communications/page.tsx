@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import AppShell from "@/components/layout/AppShell";
@@ -9,6 +9,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -22,7 +30,6 @@ import {
   CheckCircle2,
   Download,
   FileText,
-  Loader2,
   MessageCircle,
   Phone,
   Plus,
@@ -82,6 +89,17 @@ const COMMUNICATION_ROLES: SchoolRole[] = [
   "teacher",
 ];
 
+const EXPORT_HEADERS = [
+  "#",
+  "اسم الطالب",
+  "ولي الأمر",
+  "طريقة التواصل",
+  "موضوع التواصل",
+  "النتيجة",
+  "ملاحظات",
+  "التاريخ",
+];
+
 const COMMUNICATION_METHODS = [
   "اتصال هاتفي",
   "واتساب",
@@ -110,16 +128,28 @@ function formatDate(value?: string | null) {
 }
 
 function methodTone(method?: string | null) {
-  if (method === "اتصال هاتفي") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (method === "واتساب") return "border-[#0DA9A6]/20 bg-[#0DA9A6]/10 text-[#0DA9A6]";
-  if (method === "اجتماع") return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (method === "زيارة") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  return "border-slate-200 bg-slate-50 text-slate-700";
+  if (method === "اتصال هاتفي") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (method === "واتساب") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (method === "اجتماع") {
+    return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_8%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (method === "زيارة") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[var(--app-border)] bg-[var(--app-card-soft)] text-[var(--app-text)]";
 }
 
 function methodIcon(method?: string | null) {
-  if (method === "اتصال هاتفي") return <Phone size={14} />;
-  return <MessageCircle size={14} />;
+  if (method === "اتصال هاتفي") return <Phone size={14} aria-hidden="true" />;
+  return <MessageCircle size={14} aria-hidden="true" />;
 }
 
 function percentage(value: number, total: number) {
@@ -158,17 +188,15 @@ export default function StudentCommunicationsPage() {
 
   const [form, setForm] = useState<CommunicationForm>(buildInitialForm());
 
-  useEffect(() => {
-    if (studentId) void fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId, currentSchool?.id]);
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+      window.setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!studentId) return;
 
     setLoading(true);
@@ -190,6 +218,7 @@ export default function StudentCommunicationsPage() {
       const communicationsResult = await supabase
         .from("parent_communications")
         .select("*")
+        .eq("school_id", realSchoolId || "")
         .eq("student_id", studentId)
         .order("communication_date", { ascending: false });
 
@@ -211,7 +240,20 @@ export default function StudentCommunicationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentSchool?.id, showToast, studentId]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id || !studentId) {
+      setLoading(false);
+      setStudent(null);
+      setCommunications([]);
+      return;
+    }
+
+    void fetchData();
+  }, [currentSchool?.id, fetchData, schoolLoading, studentId]);
 
   const filteredCommunications = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -347,25 +389,31 @@ export default function StudentCommunicationsPage() {
     }
   }
 
-  const exportRows = useMemo(() => {
-    return filteredCommunications.map((item, index) => ({
-      "#": index + 1,
-      "اسم الطالب": student?.full_name || "—",
-      "ولي الأمر": item.guardian_name || "—",
-      "طريقة التواصل": item.communication_method || "—",
-      "موضوع التواصل": item.topic || "—",
-      "النتيجة": item.result || "—",
-      "ملاحظات": item.notes || "—",
-      "التاريخ": formatDate(item.communication_date || item.created_at),
-    }));
+  const exportRows = useMemo<(string | number | null | undefined)[][]>(() => {
+    return filteredCommunications.map((item, index) => [
+      index + 1,
+      student?.full_name || "—",
+      item.guardian_name || "—",
+      item.communication_method || "—",
+      item.topic || "—",
+      item.result || "—",
+      item.notes || "—",
+      formatDate(item.communication_date || item.created_at),
+    ]);
   }, [filteredCommunications, student]);
 
   async function exportExcel() {
     await exportTableToExcel({
+      title: "سجل التواصل مع ولي الأمر",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `سجل تواصل الطالب: ${student.full_name}`
+        : "سجل التواصل مع ولي الأمر",
+      headers: EXPORT_HEADERS,
+      rows: exportRows,
       fileName: `parent-communications-${student?.full_name || "student"}.xlsx`,
       sheetName: "Communications",
-      rows: exportRows,
-    } as any);
+    });
 
     showToast("success", "تم تصدير سجل التواصل Excel");
   }
@@ -373,9 +421,14 @@ export default function StudentCommunicationsPage() {
   function exportPDF() {
     exportTableToPDF({
       title: "سجل التواصل مع ولي الأمر",
-      fileName: `parent-communications-${student?.full_name || "student"}.pdf`,
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: student?.full_name
+        ? `سجل تواصل الطالب: ${student.full_name}`
+        : "سجل التواصل مع ولي الأمر",
+      headers: EXPORT_HEADERS,
       rows: exportRows,
-    } as any);
+      fileName: `parent-communications-${student?.full_name || "student"}.pdf`,
+    });
 
     showToast("success", "تم تجهيز PDF");
   }
@@ -384,7 +437,17 @@ export default function StudentCommunicationsPage() {
     return (
       <RoleGuard allowedRoles={COMMUNICATION_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل سجل التواصل مع ولي الأمر..." />
+          <PageLoader text="جاري تحميل سجل التواصل مع ولي الأمر..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={COMMUNICATION_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -394,9 +457,11 @@ export default function StudentCommunicationsPage() {
     return (
       <RoleGuard allowedRoles={COMMUNICATION_ROLES}>
         <AppShell>
-          <div className="rounded-[28px] border border-red-100 bg-red-50 p-8 text-center font-bold text-red-700">
-            لم يتم العثور على الطالب.
-          </div>
+          <UiEmptyState
+            icon={<Users className="h-9 w-9" aria-hidden="true" />}
+            title="لم يتم العثور على الطالب"
+            description="تعذر العثور على الطالب ضمن المدرسة الحالية."
+          />
         </AppShell>
       </RoleGuard>
     );
@@ -406,14 +471,22 @@ export default function StudentCommunicationsPage() {
     <RoleGuard allowedRoles={COMMUNICATION_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title="سجل التواصل مع ولي الأمر"
             description="توثيق جميع محاولات التواصل مع ولي الأمر، ونتائج التواصل، والملاحظات المرتبطة بالطالب."
             badge="ملف الطالب"
-            icon={<MessageCircle size={18} />}
+            icon={<MessageCircle size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الطلاب", href: "/students" },
@@ -427,59 +500,49 @@ export default function StudentCommunicationsPage() {
               { label: "ولي الأمر", value: student.guardian_name || "—" },
             ]}
             stats={[
-              { label: "إجمالي التواصل", value: stats.total, icon: <MessageCircle size={20} />, tone: "blue" },
-              { label: "اتصال هاتفي", value: stats.phone, icon: <Phone size={20} />, tone: "green" },
-              { label: "واتساب", value: stats.whatsapp, icon: <MessageCircle size={20} />, tone: "teal" },
-              { label: "اجتماعات", value: stats.meetings, icon: <Users size={20} />, tone: "gold" },
+              { label: "إجمالي التواصل", value: stats.total, icon: <MessageCircle size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "اتصال هاتفي", value: stats.phone, icon: <Phone size={20} aria-hidden="true" />, tone: "green" },
+              { label: "واتساب", value: stats.whatsapp, icon: <MessageCircle size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "اجتماعات", value: stats.meetings, icon: <Users size={20} aria-hidden="true" />, tone: "gold" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<ArrowRight size={17} aria-hidden="true" />}
                   onClick={() => router.push(`/students/${student.id}`)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <ArrowRight size={17} />
                   رجوع
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Plus size={17} aria-hidden="true" />}
                   onClick={openCreateDrawer}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Plus size={17} />
                   إضافة تواصل
-                </button>
+                </PrimaryButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchData()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
                   onClick={() => void exportExcel()}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <Download size={17} />
                   Excel
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={exportPDF}
                   disabled={!exportRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileText size={17} />
                   PDF
-                </button>
+                </ExportButton>
               </>
             }
           />
@@ -488,8 +551,8 @@ export default function StudentCommunicationsPage() {
             <ExecutiveCard
               title="إجمالي التواصل"
               value={stats.total}
-              icon={<MessageCircle size={22} />}
-              tone="blue"
+              icon={<MessageCircle size={22} aria-hidden="true" />}
+              tone="primary"
               subtitle="كل السجلات"
               progress={stats.total > 0 ? 100 : 0}
             />
@@ -497,7 +560,7 @@ export default function StudentCommunicationsPage() {
             <ExecutiveCard
               title="اتصال هاتفي"
               value={stats.phone}
-              icon={<Phone size={22} />}
+              icon={<Phone size={22} aria-hidden="true" />}
               tone="green"
               subtitle="تواصل مباشر"
               progress={percentage(stats.phone, stats.total)}
@@ -506,8 +569,8 @@ export default function StudentCommunicationsPage() {
             <ExecutiveCard
               title="واتساب"
               value={stats.whatsapp}
-              icon={<MessageCircle size={22} />}
-              tone="teal"
+              icon={<MessageCircle size={22} aria-hidden="true" />}
+              tone="primary"
               subtitle="رسائل فورية"
               progress={percentage(stats.whatsapp, stats.total)}
             />
@@ -515,7 +578,7 @@ export default function StudentCommunicationsPage() {
             <ExecutiveCard
               title="اجتماعات"
               value={stats.meetings}
-              icon={<Users size={22} />}
+              icon={<Users size={22} aria-hidden="true" />}
               tone="gold"
               subtitle="لقاءات رسمية"
               progress={percentage(stats.meetings, stats.total)}
@@ -524,7 +587,7 @@ export default function StudentCommunicationsPage() {
             <ExecutiveCard
               title="زيارات"
               value={stats.visits}
-              icon={<CalendarDays size={22} />}
+              icon={<CalendarDays size={22} aria-hidden="true" />}
               tone="primary"
               subtitle="زيارات موثقة"
               progress={percentage(stats.visits, stats.total)}
@@ -546,8 +609,7 @@ export default function StudentCommunicationsPage() {
             footer="ينصح بتوثيق كل تواصل مع ولي الأمر لضمان وضوح المتابعة الإدارية والإرشادية."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm print:hidden">
-            <PageToolbar
+          <PageToolbar
               search={{
                 value: search,
                 onChange: setSearch,
@@ -565,18 +627,21 @@ export default function StudentCommunicationsPage() {
               }
               onRefresh={() => void fetchData()}
               onExportPDF={exportPDF}
-              onExportExcel={() => void exportExcel()}
-            />
-          </section>
+            onExportExcel={() => void exportExcel()}
+          />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5 flex items-center gap-2">
-              <Users className="text-[#15445A]" size={22} />
-              <h2 className="text-xl font-black text-[#15445A]">سجلات التواصل</h2>
+              <Users className="text-[var(--app-text)]" size={22} />
+              <h2 className="text-xl font-black text-[var(--app-text)]">سجلات التواصل</h2>
             </div>
 
             {filteredCommunications.length === 0 ? (
-              <EmptyBox text="لا توجد سجلات تواصل مطابقة." />
+              <UiEmptyState
+                icon={<MessageCircle className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد سجلات تواصل"
+                description="غيّر البحث أو الفلتر، أو أضف سجل تواصل جديدًا."
+              />
             ) : (
               <div className="grid gap-4">
                 {filteredCommunications.map((item) => (
@@ -618,7 +683,7 @@ function CommunicationCard({
   onDelete: (item: ParentCommunication) => void;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-slate-50 p-4 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -627,43 +692,37 @@ function CommunicationCard({
               {item.communication_method || "تواصل"}
             </span>
 
-            <span className="text-sm font-bold text-slate-500">
+            <span className="text-sm font-bold text-[var(--app-text-muted)]">
               {formatDate(item.communication_date || item.created_at)}
             </span>
           </div>
 
-          <h3 className="text-lg font-black text-[#15445A]">{item.topic || "—"}</h3>
+          <h3 className="text-lg font-black text-[var(--app-text)]">{item.topic || "—"}</h3>
 
-          <p className="mt-2 leading-7 text-slate-600">النتيجة: {item.result || "—"}</p>
+          <p className="mt-2 leading-7 text-[var(--app-text-muted)]">النتيجة: {item.result || "—"}</p>
 
           {item.notes && (
-            <p className="mt-2 rounded-2xl bg-white p-3 leading-7 text-slate-600">
+            <p className="mt-2 rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-3 leading-7 text-[var(--app-text-muted)]">
               {item.notes}
             </p>
           )}
 
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-3 text-sm text-[var(--app-text-muted)]">
             ولي الأمر: {item.guardian_name || "—"}
           </p>
         </div>
 
         <div className="flex shrink-0 gap-2 print:hidden">
-          <button
-            type="button"
-            onClick={() => onEdit(item)}
-            className="rounded-2xl bg-white px-4 py-2 text-sm font-bold text-[#15445A] hover:bg-slate-100"
-          >
+          <SecondaryButton onClick={() => onEdit(item)}>
             تعديل
-          </button>
+          </SecondaryButton>
 
-          <button
-            type="button"
+          <SecondaryButton
+            icon={<Trash2 size={15} aria-hidden="true" />}
             onClick={() => void onDelete(item)}
-            className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100"
           >
-            <Trash2 size={15} />
             حذف
-          </button>
+          </SecondaryButton>
         </div>
       </div>
     </div>
@@ -688,23 +747,22 @@ function CommunicationDrawer({
   onSave: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-950/40 p-4 backdrop-blur-sm">
-      <aside className="h-full w-full max-w-xl overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-end bg-[color-mix(in_srgb,var(--app-text)_44%,transparent)] p-4 backdrop-blur-sm">
+      <aside className="h-full w-full max-w-xl overflow-y-auto rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-6 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-[#15445A]">
+            <h2 className="text-2xl font-black text-[var(--app-text)]">
               {editingItem ? "تعديل سجل التواصل" : "إضافة تواصل جديد"}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">{student.full_name}</p>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">{student.full_name}</p>
           </div>
 
-          <button
-            type="button"
+          <IconButton
+            label="إغلاق نموذج التواصل"
+            title="إغلاق"
             onClick={onClose}
-            className="rounded-2xl bg-slate-100 p-3 text-slate-600 hover:bg-slate-200"
-          >
-            <X size={18} />
-          </button>
+            icon={<X size={18} aria-hidden="true" />}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4">
@@ -713,7 +771,7 @@ function CommunicationDrawer({
               type="date"
               value={form.communication_date}
               onChange={(event) => setForm({ ...form, communication_date: event.target.value })}
-              className="field"
+              className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
             />
           </FormField>
 
@@ -722,7 +780,7 @@ function CommunicationDrawer({
               value={form.guardian_name}
               onChange={(event) => setForm({ ...form, guardian_name: event.target.value })}
               placeholder="اسم ولي الأمر"
-              className="field"
+              className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
             />
           </FormField>
 
@@ -730,7 +788,7 @@ function CommunicationDrawer({
             <select
               value={form.communication_method}
               onChange={(event) => setForm({ ...form, communication_method: event.target.value })}
-              className="field"
+              className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
             >
               {COMMUNICATION_METHODS.map((method) => (
                 <option key={method}>{method}</option>
@@ -743,7 +801,7 @@ function CommunicationDrawer({
               value={form.topic}
               onChange={(event) => setForm({ ...form, topic: event.target.value })}
               placeholder="مثال: متابعة الغياب"
-              className="field"
+              className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
             />
           </FormField>
 
@@ -752,7 +810,7 @@ function CommunicationDrawer({
               value={form.result}
               onChange={(event) => setForm({ ...form, result: event.target.value })}
               placeholder="مثال: تم التواصل بنجاح"
-              className="field"
+              className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
             />
           </FormField>
 
@@ -762,29 +820,23 @@ function CommunicationDrawer({
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
               rows={5}
               placeholder="اكتب تفاصيل التواصل..."
-              className="field"
+              className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
             />
           </FormField>
         </div>
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700"
-          >
+          <SecondaryButton onClick={onClose}>
             إلغاء
-          </button>
+          </SecondaryButton>
 
-          <button
-            type="button"
-            disabled={saving}
+          <PrimaryButton
+            icon={<Save size={17} aria-hidden="true" />}
             onClick={onSave}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#15445A] px-5 text-sm font-black text-white disabled:opacity-60"
+            loading={saving}
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />}
-            {saving ? "جاري الحفظ..." : "حفظ التواصل"}
-          </button>
+            حفظ التواصل
+          </PrimaryButton>
         </div>
       </aside>
     </div>
@@ -794,38 +846,9 @@ function CommunicationDrawer({
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-bold text-slate-600">{label}</span>
+      <span className="mb-2 block text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
       {children}
     </label>
   );
 }
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] bg-white p-6 text-center text-slate-500 shadow-sm">
-      <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
-
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-      {toast.message}
-    </div>
-  );
-}

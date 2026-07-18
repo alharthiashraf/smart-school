@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ElementType, type ReactNode } from "react";
 
 import AppShell from "@/components/layout/AppShell";
 import Breadcrumb from "@/components/layout/Breadcrumb";
@@ -11,6 +11,10 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -26,7 +30,6 @@ import {
   FolderKanban,
   GraduationCap,
   HeartPulse,
-  Loader2,
   RefreshCcw,
   Search,
   UserCheck,
@@ -58,7 +61,7 @@ type QuickLink = {
   description: string;
   href: string;
   icon: ElementType;
-  tone: "blue" | "green" | "gold" | "red" | "teal" | "primary";
+  tone: "primary" | "green" | "gold" | "red" | "neutral";
 };
 
 const PAGE_ROLES: SchoolRole[] = [
@@ -68,13 +71,13 @@ const PAGE_ROLES: SchoolRole[] = [
   "administrative_staff",
 ];
 
-const QUICK_LINKS: QuickLink[] = [
+const QUICK_LINKS: readonly QuickLink[] = [
   {
     title: "الطلاب",
     description: "إدارة بيانات الطلاب، البحث، التحديث، والملفات.",
     href: "/students",
     icon: Users,
-    tone: "blue",
+    tone: "primary",
   },
   {
     title: "المعلمون",
@@ -109,7 +112,7 @@ const QUICK_LINKS: QuickLink[] = [
     description: "التقارير الإدارية والتشغيلية للمدرسة.",
     href: "/reports",
     icon: FileText,
-    tone: "blue",
+    tone: "primary",
   },
   {
     title: "التنبيهات",
@@ -154,7 +157,14 @@ function formatDate(value?: string | null) {
   }
 }
 
-function rows<T>(result: PromiseSettledResult<any>): T[] {
+type RowsQueryResult<T> = {
+  data: T[] | null;
+  error: unknown;
+};
+
+function rows<T>(
+  result: PromiseSettledResult<RowsQueryResult<T>>,
+): T[] {
   if (result.status !== "fulfilled") return [];
   if (result.value?.error) return [];
   return (result.value?.data as T[]) || [];
@@ -205,21 +215,26 @@ function percentage(value: number, total: number) {
 
 function toneClass(tone: QuickLink["tone"]) {
   const classes: Record<QuickLink["tone"], string> = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
-    gold: "bg-[#C1B489]/20 text-[#15445A]",
-    red: "bg-red-50 text-red-700",
-    teal: "bg-[#0DA9A6]/10 text-[#0DA9A6]",
-    primary: "bg-[#15445A]/10 text-[#15445A]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return classes[tone];
 }
 
 export default function StaffPage() {
-  const schoolContext = useSchool() as any;
-  const currentSchool = schoolContext?.currentSchool || schoolContext?.school || null;
-  const schoolLoading = Boolean(schoolContext?.loading);
+  const {
+    currentSchool,
+    loading: schoolLoading,
+  } = useSchool();
 
   const [stats, setStats] = useState<StaffStats>({
     students: 0,
@@ -240,7 +255,7 @@ export default function StaffPage() {
 
   const today = getTodayDate();
 
-  async function loadPage(isRefresh = false) {
+  const loadPage = useCallback(async (isRefresh = false) => {
     if (!currentSchool?.id) {
       setLoading(false);
       return;
@@ -313,12 +328,12 @@ export default function StaffPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [currentSchool?.id, today]);
 
   useEffect(() => {
-    if (!schoolLoading) void loadPage(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolLoading, currentSchool?.id]);
+    if (schoolLoading) return;
+    void loadPage(false);
+  }, [loadPage, schoolLoading]);
 
   const attendanceRate = useMemo(() => {
     const total = stats.presentToday + stats.absentToday + stats.lateToday;
@@ -336,7 +351,17 @@ export default function StaffPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل بوابة الإداري..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={PAGE_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -352,7 +377,7 @@ export default function StaffPage() {
             title="خدمات الإدارة المدرسية"
             description="مركز إداري لمتابعة الطلاب، المعلمين، الحضور، النماذج، التقارير، التنبيهات، والخدمات التشغيلية اليومية."
             badge="بوابة الإداري"
-            icon={<UserCheck size={18} />}
+            icon={<UserCheck size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة الإداري" },
@@ -364,54 +389,48 @@ export default function StaffPage() {
               { label: "نسبة الحضور", value: `${attendanceRate}%` },
             ]}
             stats={[
-              { label: "الطلاب", value: stats.students, icon: <Users size={20} />, tone: "blue" },
-              { label: "المعلمون", value: stats.teachers, icon: <GraduationCap size={20} />, tone: "teal" },
-              { label: "الحضور اليوم", value: `${attendanceRate}%`, icon: <CheckCircle2 size={20} />, tone: attendanceRate >= 85 ? "green" : "gold" },
-              { label: "تنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
+              { label: "الطلاب", value: stats.students, icon: <Users size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "المعلمون", value: stats.teachers, icon: <GraduationCap size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "الحضور اليوم", value: `${attendanceRate}%`, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: attendanceRate >= 85 ? "green" : "gold" },
+              { label: "تنبيهات", value: stats.unreadNotifications, icon: <Bell size={20} aria-hidden="true" />, tone: stats.unreadNotifications > 0 ? "red" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={16} aria-hidden="true" />}
                   onClick={() => void loadPage(true)}
-                  disabled={refreshing}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={refreshing}
                 >
-                  {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw size={16} />}
                   تحديث
-                </button>
+                </SecondaryButton>
 
                 <Link
                   href="/search"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-4 text-sm font-black text-[var(--app-primary-foreground)] shadow-[var(--app-shadow-sm)] transition hover:opacity-90"
                 >
-                  <Search size={16} />
+                  <Search size={16} aria-hidden="true" />
                   البحث
                 </Link>
 
                 <Link
                   href="/notifications"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] px-4 text-sm font-black text-[var(--app-accent-foreground)] shadow-[var(--app-shadow-sm)] transition hover:opacity-90"
                 >
-                  <Bell size={16} />
+                  <Bell size={16} aria-hidden="true" />
                   التنبيهات
                 </Link>
               </>
             }
           />
 
-          {errorMsg && (
-            <div className="rounded-[28px] border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <ExecutiveCard
               title="الطلاب"
               value={stats.students}
-              icon={<Users size={22} />}
-              tone="blue"
+              icon={<Users size={22} aria-hidden="true" />}
+              tone="primary"
               subtitle="إجمالي الطلاب"
               progress={stats.students > 0 ? 100 : 0}
             />
@@ -419,8 +438,8 @@ export default function StaffPage() {
             <ExecutiveCard
               title="المعلمون"
               value={stats.teachers}
-              icon={<GraduationCap size={22} />}
-              tone="teal"
+              icon={<GraduationCap size={22} aria-hidden="true" />}
+              tone="primary"
               subtitle="إجمالي المعلمين"
               progress={stats.teachers > 0 ? 100 : 0}
             />
@@ -428,7 +447,7 @@ export default function StaffPage() {
             <ExecutiveCard
               title="الحضور اليوم"
               value={`${attendanceRate}%`}
-              icon={<CheckCircle2 size={22} />}
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
               tone={attendanceRate >= 85 ? "green" : "gold"}
               subtitle="نسبة الحضور"
               progress={attendanceRate}
@@ -437,7 +456,7 @@ export default function StaffPage() {
             <ExecutiveCard
               title="غياب اليوم"
               value={stats.absentToday}
-              icon={<AlertTriangle size={22} />}
+              icon={<AlertTriangle size={22} aria-hidden="true" />}
               tone={stats.absentToday > 0 ? "red" : "green"}
               subtitle="سجلات الغياب"
               progress={stats.absentToday > 0 ? Math.min(100, stats.absentToday * 10) : 0}
@@ -446,7 +465,7 @@ export default function StaffPage() {
             <ExecutiveCard
               title="النماذج"
               value={stats.forms}
-              icon={<FolderKanban size={22} />}
+              icon={<FolderKanban size={22} aria-hidden="true" />}
               tone="gold"
               subtitle="نماذج المدرسة"
               progress={stats.forms > 0 ? 100 : 0}
@@ -468,55 +487,57 @@ export default function StaffPage() {
             footer="هذه البوابة تجمع الخدمات اليومية للإداري دون الدخول في تفاصيل صلاحيات المدير أو المعلم."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-            <PageToolbar
-              search={{
-                value: "",
-                onChange: () => undefined,
-                placeholder: "استخدم البحث الشامل من زر البحث أعلى الصفحة...",
-              }}
-              onRefresh={() => void loadPage(true)}
-            />
-          </section>
+          <PageToolbar
+            search={{
+              value: "",
+              onChange: () => undefined,
+              placeholder: "استخدم البحث الشامل من زر البحث أعلى الصفحة...",
+            }}
+            onRefresh={() => void loadPage(true)}
+          />
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_.85fr]">
-            <Panel title="مؤشرات المتابعة اليومية" icon={<ClipboardCheck size={24} />}>
+            <Panel title="مؤشرات المتابعة اليومية" icon={<ClipboardCheck size={24} aria-hidden="true" />}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <MiniInfo label="حاضر اليوم" value={stats.presentToday} icon={<CheckCircle2 size={18} />} />
-                <MiniInfo label="متأخر اليوم" value={stats.lateToday} icon={<CalendarDays size={18} />} />
-                <MiniInfo label="إحالات مفتوحة" value={stats.openReferrals} icon={<ClipboardCheck size={18} />} />
-                <MiniInfo label="حالات صحية نشطة" value={stats.activeHealthCases} icon={<HeartPulse size={18} />} />
-                <MiniInfo label="تنبيهات غير مقروءة" value={stats.unreadNotifications} icon={<Bell size={18} />} />
-                <MiniInfo label="عدد النماذج" value={stats.forms} icon={<FolderKanban size={18} />} />
+                <MiniInfo label="حاضر اليوم" value={stats.presentToday} icon={<CheckCircle2 size={18} aria-hidden="true" />} />
+                <MiniInfo label="متأخر اليوم" value={stats.lateToday} icon={<CalendarDays size={18} aria-hidden="true" />} />
+                <MiniInfo label="إحالات مفتوحة" value={stats.openReferrals} icon={<ClipboardCheck size={18} aria-hidden="true" />} />
+                <MiniInfo label="حالات صحية نشطة" value={stats.activeHealthCases} icon={<HeartPulse size={18} aria-hidden="true" />} />
+                <MiniInfo label="تنبيهات غير مقروءة" value={stats.unreadNotifications} icon={<Bell size={18} aria-hidden="true" />} />
+                <MiniInfo label="عدد النماذج" value={stats.forms} icon={<FolderKanban size={18} aria-hidden="true" />} />
               </div>
             </Panel>
 
-            <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} />}>
+            <Panel title="التنبيهات الأخيرة" icon={<Bell size={24} aria-hidden="true" />}>
               {notifications.length === 0 ? (
-                <EmptyBox text="لا توجد تنبيهات حاليًا." />
+                <UiEmptyState
+                  icon={<Bell className="h-8 w-8" aria-hidden="true" />}
+                  title="لا توجد تنبيهات"
+                  description="لا توجد تنبيهات جديدة حاليًا."
+                />
               ) : (
                 <div className="space-y-3">
                   {notifications.map((item) => (
                     <Link
                       key={item.id}
                       href="/notifications"
-                      className="block rounded-2xl border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm"
+                      className="block rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]"
                     >
                       <div className="mb-1 flex items-center justify-between gap-2">
-                        <h3 className="line-clamp-1 font-black text-[#15445A]">
+                        <h3 className="line-clamp-1 font-black text-[var(--app-text)]">
                           {item.title || "تنبيه"}
                         </h3>
 
                         {item.is_read === false && (
-                          <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)]0" />
                         )}
                       </div>
 
-                      <p className="line-clamp-2 text-sm leading-7 text-slate-500">
+                      <p className="line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
                         {item.message || "لا توجد تفاصيل."}
                       </p>
 
-                      <p className="mt-2 text-xs font-bold text-slate-400">
+                      <p className="mt-2 text-xs font-bold text-[var(--app-text-subtle)]">
                         {formatDate(item.created_at)}
                       </p>
                     </Link>
@@ -526,10 +547,10 @@ export default function StaffPage() {
             </Panel>
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5">
-              <h2 className="text-2xl font-black text-[#15445A]">خدمات بوابة الإداري</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <h2 className="text-2xl font-black text-[var(--app-text)]">خدمات بوابة الإداري</h2>
+              <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                 أهم الخدمات اليومية التي يحتاجها الإداري داخل المدرسة.
               </p>
             </div>
@@ -556,13 +577,13 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]">
           {icon}
         </div>
 
-        <h2 className="text-2xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
 
       {children}
@@ -580,13 +601,13 @@ function MiniInfo({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-      <div className="mb-2 flex items-center gap-2 text-[#0DA9A6]">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3">
+      <div className="mb-2 flex items-center gap-2 text-[var(--app-primary)]">
         {icon}
-        <p className="text-xs font-black text-slate-500">{label}</p>
+        <p className="text-xs font-black text-[var(--app-text-muted)]">{label}</p>
       </div>
 
-      <p className="text-lg font-black text-[#15445A]">{value}</p>
+      <p className="text-lg font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -597,42 +618,24 @@ function QuickLinkCard({ link }: { link: QuickLink }) {
   return (
     <Link
       href={link.href}
-      className="group rounded-[24px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md"
+      className="group rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]"
     >
-      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition ${toneClass(link.tone)}`}>
+      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] transition ${toneClass(link.tone)}`}>
         <Icon size={24} />
       </div>
 
-      <h3 className="text-xl font-black text-[#15445A]">{link.title}</h3>
+      <h3 className="text-xl font-black text-[var(--app-text)]">{link.title}</h3>
 
-      <p className="mt-3 line-clamp-2 text-sm leading-7 text-slate-500">
+      <p className="mt-3 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">
         {link.description}
       </p>
 
-      <div className="mt-5 rounded-2xl bg-white px-4 py-3 text-center text-sm font-black text-[#15445A] transition group-hover:bg-[#15445A] group-hover:text-white">
+      <div className="mt-5 rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-4 py-3 text-center text-sm font-black text-[var(--app-text)] transition group-hover:bg-[var(--app-primary)] group-hover:text-[var(--app-primary-foreground)]">
         فتح
       </div>
     </Link>
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-        <p className="font-bold">جاري تحميل بوابة الإداري...</p>
-      </div>
-    </div>
-  );
-}
+

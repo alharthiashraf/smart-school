@@ -13,3 +13,4 @@ export async function deleteStorageFile(bucket: string, path: string) {
 }
 
 export const StorageDelete = { one: deleteStorageFile, many: deleteStorageFiles };
+

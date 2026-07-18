@@ -894,3 +894,4 @@ function CanvasSummaryCard({
     </div>
   );
 }
+

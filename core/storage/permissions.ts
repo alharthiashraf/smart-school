@@ -30,3 +30,4 @@ export function canAccessStorage(input: { role?: StorageRole | null; bucket: str
 }
 
 export const StoragePermissionEngine = { canAccessStorage };
+

@@ -15,6 +15,13 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -29,10 +36,8 @@ import {
   Grid2X2,
   HeartPulse,
   LayoutList,
-  Loader2,
   RefreshCcw,
   Save,
-  Search,
   ShieldAlert,
   UserCheck,
   UsersRound,
@@ -129,17 +134,26 @@ function normalizeStatus(value?: string | null): AttendanceStatus {
 }
 
 function statusStyle(status: AttendanceStatus) {
-  if (status === "حاضر") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (status === "غائب") return "border-red-200 bg-red-50 text-red-700";
-  if (status === "متأخر") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (status === "حاضر") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (status === "غائب") {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (status === "متأخر") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 }
 
 function statusDot(status: AttendanceStatus) {
-  if (status === "حاضر") return "bg-[#07A869]";
-  if (status === "غائب") return "bg-red-600";
-  if (status === "متأخر") return "bg-[#C1B489]";
-  return "bg-[#3D7EB9]";
+  if (status === "حاضر") return "bg-[var(--app-success)]";
+  if (status === "غائب") return "bg-[var(--app-danger)]";
+  if (status === "متأخر") return "bg-[var(--app-accent)]";
+  return "bg-[var(--app-primary)]";
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -160,19 +174,17 @@ function getErrorMessage(error: unknown, fallback: string) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`teacher daily query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`teacher daily query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -685,7 +697,7 @@ export default function TeacherDailyPage() {
     return (
       <RoleGuard allowedRoles={ALLOWED_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل مركز إدارة الحصة..." />
+          <PageLoader text="جاري تحميل مركز إدارة الحصة..." />
         </AppShell>
       </RoleGuard>
     );
@@ -695,9 +707,7 @@ export default function TeacherDailyPage() {
     return (
       <RoleGuard allowedRoles={ALLOWED_ROLES}>
         <AppShell>
-          <div className="rounded-[28px] border border-red-100 bg-red-50 p-8 text-center font-bold text-red-700">
-            {errorMsg || "تعذر فتح متابعة الحصة."}
-          </div>
+          <ErrorState description={errorMsg || "تعذر فتح متابعة الحصة."} />
         </AppShell>
       </RoleGuard>
     );
@@ -707,14 +717,22 @@ export default function TeacherDailyPage() {
     <RoleGuard allowedRoles={ALLOWED_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title="مركز إدارة الحصة"
             description="شاشة عملية للمعلم لإدارة حضور الحصة، تسجيل السلوك، تحويل الطالب للعيادة، وفتح ملف الطالب السريع."
             badge="بوابة المعلم"
-            icon={<UserCheck size={18} />}
+            icon={<UserCheck size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة المعلم", href: "/teacher-portal" },
@@ -727,49 +745,47 @@ export default function TeacherDailyPage() {
               { label: "الحصة", value: selectedLesson ? `الحصة ${selectedLesson.period_number || "—"}` : "غير محددة" },
             ]}
             stats={[
-              { label: "طلاب الحصة", value: stats.total, icon: <UsersRound size={20} />, tone: "blue" },
-              { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <CheckCircle2 size={20} />, tone: attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red" },
-              { label: "غياب", value: stats.absent, icon: <AlertCircle size={20} />, tone: stats.absent > 0 ? "red" : "green" },
-              { label: "مستأذن", value: stats.excused, icon: <FileText size={20} />, tone: stats.excused > 0 ? "blue" : "slate" },
+              { label: "طلاب الحصة", value: stats.total, icon: <UsersRound size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red" },
+              { label: "غياب", value: stats.absent, icon: <AlertCircle size={20} aria-hidden="true" />, tone: stats.absent > 0 ? "red" : "green" },
+              { label: "مستأذن", value: stats.excused, icon: <FileText size={20} aria-hidden="true" />, tone: stats.excused > 0 ? "blue" : "slate" },
             ]}
             actions={
               <>
                 <Link
                   href="/teacher-portal"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]"
                 >
-                  <ArrowRight size={17} />
+                  <ArrowRight size={17} aria-hidden="true" />
                   بوابة المعلم
                 </Link>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchPage()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Save size={17} aria-hidden="true" />}
                   onClick={() => void saveAttendance()}
-                  disabled={saving || !selectedLesson || students.length === 0}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={saving}
+                  disabled={!selectedLesson || students.length === 0}
                 >
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />}
                   حفظ السجل
-                </button>
+                </PrimaryButton>
               </>
             }
           />
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <ExecutiveCard title="طلاب الحصة" value={stats.total} icon={<UsersRound size={22} />} tone="blue" subtitle="حسب الفصل والشعبة" progress={stats.total > 0 ? 100 : 0} />
-            <ExecutiveCard title="حاضر" value={stats.present} icon={<CheckCircle2 size={22} />} tone="green" subtitle={`${attendanceRate}% من الطلاب`} progress={attendanceRate} />
-            <ExecutiveCard title="غائب" value={stats.absent} icon={<AlertCircle size={22} />} tone={stats.absent > 0 ? "red" : "green"} subtitle="يحتاج متابعة" progress={stats.total ? percentage(stats.absent, stats.total) : 0} />
-            <ExecutiveCard title="متأخر" value={stats.late} icon={<BarChart3 size={22} />} tone={stats.late > 0 ? "gold" : "green"} subtitle="رصد تأخر" progress={stats.total ? percentage(stats.late, stats.total) : 0} />
-            <ExecutiveCard title="اكتمال الرصد" value={`${completionRate}%`} icon={<UserCheck size={22} />} tone={completionRate >= 100 ? "green" : "gold"} subtitle="جاهزية السجل" progress={completionRate} />
+            <ExecutiveCard title="طلاب الحصة" value={stats.total} icon={<UsersRound size={22} aria-hidden="true" />} tone="primary" subtitle="حسب الفصل والشعبة" progress={stats.total > 0 ? 100 : 0} />
+            <ExecutiveCard title="حاضر" value={stats.present} icon={<CheckCircle2 size={22} aria-hidden="true" />} tone="green" subtitle={`${attendanceRate}% من الطلاب`} progress={attendanceRate} />
+            <ExecutiveCard title="غائب" value={stats.absent} icon={<AlertCircle size={22} aria-hidden="true" />} tone={stats.absent > 0 ? "red" : "green"} subtitle="يحتاج متابعة" progress={stats.total ? percentage(stats.absent, stats.total) : 0} />
+            <ExecutiveCard title="متأخر" value={stats.late} icon={<BarChart3 size={22} aria-hidden="true" />} tone={stats.late > 0 ? "gold" : "green"} subtitle="رصد تأخر" progress={stats.total ? percentage(stats.late, stats.total) : 0} />
+            <ExecutiveCard title="اكتمال الرصد" value={`${completionRate}%`} icon={<UserCheck size={22} aria-hidden="true" />} tone={completionRate >= 100 ? "green" : "gold"} subtitle="جاهزية السجل" progress={completionRate} />
           </section>
 
           <SummaryCard
@@ -787,10 +803,10 @@ export default function TeacherDailyPage() {
             footer="بعد حفظ السجل، يتم تسجيل حالة الطلاب في جدول student_attendance_records."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
               <div>
-                <p className="text-sm font-black text-slate-500">الحصة المختارة</p>
+                <p className="text-sm font-black text-[var(--app-text-muted)]">الحصة المختارة</p>
 
                 <select
                   value={selectedScheduleId}
@@ -801,7 +817,7 @@ export default function TeacherDailyPage() {
                     const lesson = schedule.find((item) => item.id === value);
                     if (lesson) void loadStudents(lesson);
                   }}
-                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-[#15445A] outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                  className="mt-2 h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                 >
                   <option value="">اختر الحصة</option>
 
@@ -815,29 +831,33 @@ export default function TeacherDailyPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<CheckCircle2 size={17} aria-hidden="true" />}
                   onClick={markAllPresent}
                   disabled={students.length === 0}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#07A869]/10 px-4 text-sm font-black text-[#07A869] disabled:opacity-60"
                 >
-                  <CheckCircle2 size={17} />
                   الجميع حاضر
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
-                  onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl bg-slate-100 px-4 text-sm font-black text-[#15445A]"
+                <SecondaryButton
+                  icon={
+                    viewMode === "table" ? (
+                      <Grid2X2 size={17} aria-hidden="true" />
+                    ) : (
+                      <LayoutList size={17} aria-hidden="true" />
+                    )
+                  }
+                  onClick={() =>
+                    setViewMode(viewMode === "table" ? "cards" : "table")
+                  }
                 >
-                  {viewMode === "table" ? <Grid2X2 size={17} /> : <LayoutList size={17} />}
                   {viewMode === "table" ? "عرض بطاقات" : "عرض جدول"}
-                </button>
+                </SecondaryButton>
               </div>
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -861,29 +881,37 @@ export default function TeacherDailyPage() {
             />
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <UsersRound className="text-[#15445A]" />
+                <UsersRound className="text-[var(--app-text)]" aria-hidden="true" />
                 <div>
-                  <h2 className="text-xl font-black text-[#15445A]">كشف طلاب الحصة</h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <h2 className="text-xl font-black text-[var(--app-text)]">كشف طلاب الحصة</h2>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                     {filteredStudents.length} طالب حسب البحث والفلترة.
                   </p>
                 </div>
               </div>
 
-              <span className="rounded-full bg-slate-50 px-4 py-2 text-xs font-black text-slate-500">
+              <span className="rounded-full bg-[var(--app-card-soft)] px-4 py-2 text-xs font-black text-[var(--app-text-muted)]">
                 {students.length} طالب
               </span>
             </div>
 
             {studentsLoading ? (
-              <LoadingBox text="جاري تحميل طلاب الحصة..." />
+              <PageLoader text="جاري تحميل طلاب الحصة..." />
             ) : schedule.length === 0 ? (
-              <EmptyBox text="لا توجد حصص مجدولة لهذا المعلم." />
+              <UiEmptyState
+                icon={<LayoutList className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد حصص"
+                description="لا توجد حصص مجدولة لهذا المعلم."
+              />
             ) : filteredStudents.length === 0 ? (
-              <EmptyBox text="لا يوجد طلاب مطابقون للبحث أو الفلتر الحالي." />
+              <UiEmptyState
+                icon={<UsersRound className="h-8 w-8" aria-hidden="true" />}
+                title="لا يوجد طلاب"
+                description="لا يوجد طلاب مطابقون للبحث أو الفلتر الحالي."
+              />
             ) : viewMode === "cards" ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredStudents.map((student, index) => (
@@ -904,7 +932,7 @@ export default function TeacherDailyPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[950px] border-separate border-spacing-y-2">
                   <thead>
-                    <tr className="text-right text-xs font-black text-slate-400">
+                    <tr className="text-right text-xs font-black text-[var(--app-text-subtle)]">
                       <th className="px-3 py-2">الطالب</th>
                       <th className="px-3 py-2">الحالة</th>
                       <th className="px-3 py-2">ملاحظة</th>
@@ -917,7 +945,7 @@ export default function TeacherDailyPage() {
                       const row = attendance[student.id];
 
                       return (
-                        <tr key={student.id} className="rounded-2xl bg-slate-50">
+                        <tr key={student.id} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)]">
                           <td className="rounded-r-2xl px-3 py-3">
                             <StudentNameCell
                               student={student}
@@ -938,7 +966,7 @@ export default function TeacherDailyPage() {
                               value={row?.notes || ""}
                               onChange={(event) => updateNotes(student.id, event.target.value)}
                               placeholder="ملاحظة اختيارية"
-                              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#0DA9A6]"
+                              className="h-10 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] px-3"
                             />
                           </td>
 
@@ -969,7 +997,7 @@ export default function TeacherDailyPage() {
 
           {behaviorStudent && (
             <Modal title="تسجيل مخالفة" onClose={() => setBehaviorStudent(null)}>
-              <p className="mb-4 text-sm font-bold text-slate-500">
+              <p className="mb-4 text-sm font-bold text-[var(--app-text-muted)]">
                 الطالب: {behaviorStudent.full_name || "-"}
               </p>
 
@@ -977,7 +1005,7 @@ export default function TeacherDailyPage() {
                 value={behaviorType}
                 onChange={(event) => setBehaviorType(event.target.value)}
                 placeholder="نوع المخالفة"
-                className="mb-3 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                className="mb-3 h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               />
 
               <textarea
@@ -985,23 +1013,22 @@ export default function TeacherDailyPage() {
                 onChange={(event) => setBehaviorNotes(event.target.value)}
                 placeholder="وصف أو ملاحظات"
                 rows={4}
-                className="mb-3 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                className="mb-3 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] p-4"
               />
 
-              <button
-                type="button"
+              <PrimaryButton
+                className="w-full"
                 onClick={() => void saveBehavior()}
-                disabled={modalSaving}
-                className="h-12 w-full rounded-2xl bg-[#15445A] text-sm font-black text-white disabled:opacity-60"
+                loading={modalSaving}
               >
-                {modalSaving ? "جاري الحفظ..." : "حفظ المخالفة"}
-              </button>
+                حفظ المخالفة
+              </PrimaryButton>
             </Modal>
           )}
 
           {healthStudent && (
             <Modal title="تحويل للعيادة" onClose={() => setHealthStudent(null)}>
-              <p className="mb-4 text-sm font-bold text-slate-500">
+              <p className="mb-4 text-sm font-bold text-[var(--app-text-muted)]">
                 الطالب: {healthStudent.full_name || "-"}
               </p>
 
@@ -1009,7 +1036,7 @@ export default function TeacherDailyPage() {
                 value={healthReason}
                 onChange={(event) => setHealthReason(event.target.value)}
                 placeholder="سبب زيارة العيادة"
-                className="mb-3 h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                className="mb-3 h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               />
 
               <textarea
@@ -1017,17 +1044,16 @@ export default function TeacherDailyPage() {
                 onChange={(event) => setHealthNotes(event.target.value)}
                 placeholder="ملاحظات إضافية"
                 rows={4}
-                className="mb-3 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                className="mb-3 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] p-4"
               />
 
-              <button
-                type="button"
+              <PrimaryButton
+                className="w-full"
                 onClick={() => void saveHealthVisit()}
-                disabled={modalSaving}
-                className="h-12 w-full rounded-2xl bg-[#15445A] text-sm font-black text-white disabled:opacity-60"
+                loading={modalSaving}
               >
-                {modalSaving ? "جاري الإرسال..." : "إرسال للعيادة"}
-              </button>
+                إرسال للعيادة
+              </PrimaryButton>
             </Modal>
           )}
         </main>
@@ -1047,7 +1073,7 @@ function StudentNameCell({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#15445A] text-sm font-black text-white">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-sm font-black text-white">
         {index + 1}
       </div>
 
@@ -1055,12 +1081,12 @@ function StudentNameCell({
         <button
           type="button"
           onClick={() => openStudentPanel(student)}
-          className="font-black text-[#15445A] hover:underline"
+          className="font-black text-[var(--app-text)] hover:underline"
         >
           {student.full_name || "طالب بدون اسم"}
         </button>
 
-        <p className="mt-1 text-xs font-bold text-slate-500">
+        <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
           {student.class_name || "-"} {student.section ? `/ ${student.section}` : ""}
         </p>
       </div>
@@ -1079,7 +1105,7 @@ function StatusSelect({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value as AttendanceStatus)}
-      className={`h-10 rounded-xl border px-3 text-xs font-black outline-none ${statusStyle(value)}`}
+      className={`h-10 rounded-[var(--app-radius-md)] border px-3 text-xs font-black outline-none ${statusStyle(value)}`}
     >
       {STATUS_OPTIONS.map((status) => (
         <option key={status} value={status}>
@@ -1103,32 +1129,29 @@ function StudentActions({
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
+      <SecondaryButton
+        size="sm"
+        icon={<ShieldAlert size={15} aria-hidden="true" />}
         onClick={() => setBehaviorStudent(student)}
-        className="inline-flex h-10 items-center gap-1 rounded-xl bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100"
       >
-        <ShieldAlert size={15} />
         مخالفة
-      </button>
+      </SecondaryButton>
 
-      <button
-        type="button"
+      <SecondaryButton
+        size="sm"
+        icon={<HeartPulse size={15} aria-hidden="true" />}
         onClick={() => setHealthStudent(student)}
-        className="inline-flex h-10 items-center gap-1 rounded-xl bg-[#07A869]/10 px-3 text-xs font-black text-[#07A869] hover:bg-[#07A869]/15"
       >
-        <HeartPulse size={15} />
         عيادة
-      </button>
+      </SecondaryButton>
 
-      <button
-        type="button"
+      <SecondaryButton
+        size="sm"
+        icon={<FileText size={15} aria-hidden="true" />}
         onClick={() => openStudentPanel(student)}
-        className="inline-flex h-10 items-center gap-1 rounded-xl bg-[#3D7EB9]/10 px-3 text-xs font-black text-[#3D7EB9] hover:bg-[#3D7EB9]/15"
       >
-        <FileText size={15} />
         ملف
-      </button>
+      </SecondaryButton>
     </div>
   );
 }
@@ -1155,7 +1178,7 @@ function StudentCard({
   const status = row?.status || "حاضر";
 
   return (
-    <article className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+    <article className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
         <StudentNameCell
           student={student}
@@ -1176,7 +1199,7 @@ function StudentCard({
           value={row?.notes || ""}
           onChange={(event) => updateNotes(student.id, event.target.value)}
           placeholder="ملاحظة اختيارية"
-          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#0DA9A6]"
+          className="h-10 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] px-3"
         />
 
         <StudentActions
@@ -1200,17 +1223,16 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[28px] bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_srgb,var(--app-text)_44%,transparent)] p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[var(--app-radius-xl)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
-          <button
-            type="button"
+          <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
+          <IconButton
+            label="إغلاق"
+            title="إغلاق"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500"
-          >
-            <X size={18} />
-          </button>
+            icon={<X size={18} aria-hidden="true" />}
+          />
         </div>
         {children}
       </div>
@@ -1228,28 +1250,27 @@ function SidePanel({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-sm">
-      <aside className="absolute left-0 top-0 h-full w-full max-w-md overflow-y-auto bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-40 bg-[color-mix(in_srgb,var(--app-text)_34%,transparent)] backdrop-blur-sm">
+      <aside className="absolute left-0 top-0 h-full w-full max-w-md overflow-y-auto bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-black text-[#15445A]">ملف الطالب السريع</h2>
+          <h2 className="text-xl font-black text-[var(--app-text)]">ملف الطالب السريع</h2>
 
-          <button
-            type="button"
+          <IconButton
+            label="إغلاق"
+            title="إغلاق"
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500"
-          >
-            <X size={18} />
-          </button>
+            icon={<X size={18} aria-hidden="true" />}
+          />
         </div>
 
-        <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
-          <p className="text-xs font-black text-[#C1B489]">الطالب</p>
+        <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] p-5 text-white">
+          <p className="text-xs font-black text-[var(--app-accent)]">الطالب</p>
 
           <h3 className="mt-2 text-2xl font-black">
             {student.full_name || "طالب بدون اسم"}
           </h3>
 
-          <p className="mt-2 text-sm text-slate-300">
+          <p className="mt-2 text-sm text-[var(--app-primary-foreground)]/70">
             الفصل {student.class_name || "-"} / {student.section || "-"}
           </p>
         </div>
@@ -1261,16 +1282,16 @@ function SidePanel({
           <MiniStat label="الإحالات" value={stats.referrals} />
         </div>
 
-        <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-500">
+        <p className="mt-5 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-sm leading-7 text-[var(--app-text-muted)]">
           هذه نافذة سريعة تساعد المعلم على معرفة مؤشرات الطالب أثناء الحصة.
           ويمكن ربطها بملف الطالب الموحد للحضور والسلوك والصحة والدرجات.
         </p>
 
         <Link
           href={`/students/${student.id}`}
-          className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#15445A] text-sm font-black text-white"
+          className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] text-sm font-black text-white"
         >
-          <FileText size={17} />
+          <FileText size={17} aria-hidden="true" />
           فتح ملف الطالب الكامل
         </Link>
       </aside>
@@ -1280,45 +1301,11 @@ function SidePanel({
 
 function MiniStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center">
-      <div className="rounded-[28px] bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-        {text}
-      </div>
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? (
-        <CheckCircle2 size={18} />
-      ) : (
-        <AlertCircle size={18} />
-      )}
-      <span>{toast.message}</span>
-    </div>
-  );
-}

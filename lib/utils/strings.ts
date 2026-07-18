@@ -17,3 +17,4 @@ export function includesArabic(value: string | null | undefined, search: string)
   if (!target) return true;
   return source.includes(target);
 }
+

@@ -20,3 +20,4 @@ export const ConflictEngine = {
       .map((group) => ({ type, severity: "high", message: message(group), items: group }));
   },
 };
+

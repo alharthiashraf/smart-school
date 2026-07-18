@@ -14,3 +14,4 @@ export const PermissionEngine = {
     return permissions.every((permission) => this.has(rules, role, permission));
   },
 };
+

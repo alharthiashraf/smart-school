@@ -16,8 +16,11 @@ import PageToolbar, {
 } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
-import { PageLoader } from "@/components/ui/loading";
-import { EmptyState } from "@/components/ui/empty-state";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import IconButton from "@/components/ui/buttons/IconButton";
 import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
 import ErrorState from "@/components/ui/feedback/ErrorState";
 
@@ -49,7 +52,7 @@ import {
 
 type AnyRow = Record<string, unknown>;
 
-type MonitorTone = "green" | "gold" | "red" | "blue" | "teal";
+type MonitorTone = "green" | "gold" | "red" | "primary" | "slate";
 
 type Toast = {
   type: "success" | "error";
@@ -175,11 +178,16 @@ function formatDate(value?: string | null) {
 
 function insightTone(tone: MonitorTone) {
   const tones: Record<MonitorTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    slate:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -187,11 +195,11 @@ function insightTone(tone: MonitorTone) {
 
 function progressTone(tone: MonitorTone) {
   const tones: Record<MonitorTone, string> = {
-    green: "bg-[var(--app-green)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    primary: "bg-[var(--app-primary)]",
+    slate: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -200,19 +208,17 @@ function progressTone(tone: MonitorTone) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`monitoring query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`monitoring query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -260,7 +266,19 @@ function normalizeEvent(
     statusText.includes("medium");
 
   return {
-    id: textValue(row, ["id"], `${category}-${Math.random()}`),
+    id: textValue(
+      row,
+      ["id"],
+      `${category}-${textValue(
+        row,
+        ["created_at", "occurred_at", "run_at", "updated_at"],
+        "unknown-time",
+      )}-${textValue(
+        row,
+        ["title", "event_type", "action", "name", "message"],
+        "system-event",
+      )}`,
+    ),
     category,
     title: textValue(
       row,
@@ -530,7 +548,7 @@ export default function SystemMonitoringCenterPage() {
         title: "Database Health",
         description:
           "مؤشر وصول الواجهة إلى الجداول الأساسية للمدرسة.",
-        icon: <Database className="h-6 w-6" />,
+        icon: <Database className="h-6 w-6" aria-hidden="true" />,
         ...databaseState,
       },
       {
@@ -562,7 +580,7 @@ export default function SystemMonitoringCenterPage() {
           0
             ? "green"
             : "gold",
-        icon: <CloudCog className="h-6 w-6" />,
+        icon: <CloudCog className="h-6 w-6" aria-hidden="true" />,
         note:
           "هذا فحص وظيفي من داخل التطبيق، وليس مراقبة رسمية لحالة Supabase العامة.",
       },
@@ -573,8 +591,8 @@ export default function SystemMonitoringCenterPage() {
           "حالة النشر تحتاج ربط Vercel API أو Webhook مخصص.",
         state: "unknown",
         value: "يحتاج ربط API",
-        tone: "blue",
-        icon: <Server className="h-6 w-6" />,
+        tone: "primary",
+        icon: <Server className="h-6 w-6" aria-hidden="true" />,
         note:
           "لا يتم جلب حالة Vercel الحقيقية من هذه الصفحة حاليًا.",
       },
@@ -583,7 +601,7 @@ export default function SystemMonitoringCenterPage() {
         title: "Storage Usage",
         description:
           "استخدام التخزين حسب جدول storage_usage عند توفره.",
-        icon: <HardDrive className="h-6 w-6" />,
+        icon: <HardDrive className="h-6 w-6" aria-hidden="true" />,
         ...storageState,
       },
       {
@@ -591,7 +609,7 @@ export default function SystemMonitoringCenterPage() {
         title: "Audit Pipeline",
         description:
           "جاهزية مسار تسجيل العمليات الحساسة.",
-        icon: <Activity className="h-6 w-6" />,
+        icon: <Activity className="h-6 w-6" aria-hidden="true" />,
         ...auditState,
       },
       {
@@ -599,7 +617,7 @@ export default function SystemMonitoringCenterPage() {
         title: "Scheduled Jobs",
         description:
           "حالة المهام المجدولة حسب جدول scheduled_jobs.",
-        icon: <TimerReset className="h-6 w-6" />,
+        icon: <TimerReset className="h-6 w-6" aria-hidden="true" />,
         ...jobsState,
       },
     ];
@@ -634,7 +652,7 @@ export default function SystemMonitoringCenterPage() {
         title: "أخطاء مسجلة",
         description: `يوجد ${metrics.errors} سجل خطأ يحتاج مراجعة.`,
         tone: "red",
-        icon: <TriangleAlert className="h-5 w-5" />,
+        icon: <TriangleAlert className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -643,7 +661,7 @@ export default function SystemMonitoringCenterPage() {
         title: "تغطية البيانات غير مكتملة",
         description: `تغطية الجداول الأساسية ${metrics.dataCoverage}%.`,
         tone: "gold",
-        icon: <BarChart3 className="h-5 w-5" />,
+        icon: <BarChart3 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -652,8 +670,8 @@ export default function SystemMonitoringCenterPage() {
         title: "لا توجد مهام مجدولة موثقة",
         description:
           "يمكن إنشاء جدول scheduled_jobs أو ربط Cron/Edge Functions.",
-        tone: "blue",
-        icon: <Clock3 className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Clock3 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -662,8 +680,8 @@ export default function SystemMonitoringCenterPage() {
         title: "استخدام التخزين غير متاح",
         description:
           "لا توجد بيانات في storage_usage، لذا يظهر التخزين كغير معروف.",
-        tone: "teal",
-        icon: <HardDrive className="h-5 w-5" />,
+        tone: "primary",
+        icon: <HardDrive className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -673,7 +691,7 @@ export default function SystemMonitoringCenterPage() {
         description:
           "لا توجد مؤشرات تشغيلية حرجة في البيانات المتاحة.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -711,12 +729,22 @@ export default function SystemMonitoringCenterPage() {
     );
   }
 
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={PAGE_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
   return (
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-6 pb-10" dir="rtl">
           {toast && (
-            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))]">
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
               {toast.type === "success" ? (
                 <SuccessBanner description={toast.message} />
               ) : (
@@ -730,7 +758,7 @@ export default function SystemMonitoringCenterPage() {
             title="مركز مراقبة النظام"
             description="مركز موحد لمراقبة صحة قاعدة البيانات، الاتصال بـ Supabase، التخزين، سجل الأخطاء، المهام المجدولة، التدقيق، وحالة التكاملات."
             badge="System Monitoring Enterprise V3"
-            icon={<Server size={18} />}
+            icon={<Server size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "مراقبة النظام" },
@@ -757,7 +785,7 @@ export default function SystemMonitoringCenterPage() {
               {
                 label: "Operational Score",
                 value: `${metrics.operationalScore}%`,
-                icon: <Gauge size={20} />,
+                icon: <Gauge size={20} aria-hidden="true" />,
                 tone:
                   metrics.operationalScore >= 80
                     ? "green"
@@ -768,46 +796,43 @@ export default function SystemMonitoringCenterPage() {
               {
                 label: "الأخطاء",
                 value: metrics.errors,
-                icon: <AlertTriangle size={20} />,
+                icon: <AlertTriangle size={20} aria-hidden="true" />,
                 tone: metrics.errors > 0 ? "red" : "green",
               },
               {
                 label: "Audit Logs",
                 value: metrics.auditLogs,
-                icon: <Activity size={20} />,
-                tone: "blue",
+                icon: <Activity size={20} aria-hidden="true" />,
+                tone: "primary",
               },
               {
                 label: "التخزين",
                 value: formatBytes(metrics.storageBytes),
-                icon: <HardDrive size={20} />,
-                tone: "teal",
+                icon: <HardDrive size={20} aria-hidden="true" />,
+                tone: "primary",
               },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void loadMonitoringData()}
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A]"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<ShieldCheck size={17} aria-hidden="true" />}
                   onClick={() =>
                     showToast(
                       "success",
                       "تم تنفيذ فحص محلي للبيانات المتاحة",
                     )
                   }
-                  className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white"
                 >
-                  <ShieldCheck size={17} />
                   تشغيل الفحص
-                </button>
+                </PrimaryButton>
               </>
             }
           />
@@ -817,7 +842,7 @@ export default function SystemMonitoringCenterPage() {
               title="Operational Score"
               value={`${metrics.operationalScore}%`}
               subtitle={`المستوى: ${metrics.riskLevel}`}
-              icon={<Gauge size={24} />}
+              icon={<Gauge size={24} aria-hidden="true" />}
               tone={
                 metrics.operationalScore >= 80
                   ? "green"
@@ -832,7 +857,7 @@ export default function SystemMonitoringCenterPage() {
               title="Data Coverage"
               value={`${metrics.dataCoverage}%`}
               subtitle="تغطية الجداول الأساسية"
-              icon={<Database size={24} />}
+              icon={<Database size={24} aria-hidden="true" />}
               tone={metrics.dataCoverage >= 80 ? "green" : "gold"}
               progress={metrics.dataCoverage}
             />
@@ -841,7 +866,7 @@ export default function SystemMonitoringCenterPage() {
               title="Error Logs"
               value={metrics.errors}
               subtitle="أخطاء تحتاج مراجعة"
-              icon={<TriangleAlert size={24} />}
+              icon={<TriangleAlert size={24} aria-hidden="true" />}
               tone={metrics.errors > 0 ? "red" : "green"}
               progress={Math.min(100, metrics.errors * 10)}
             />
@@ -850,7 +875,7 @@ export default function SystemMonitoringCenterPage() {
               title="Storage"
               value={formatBytes(metrics.storageBytes)}
               subtitle={`${metrics.storageObjects} سجل استخدام`}
-              icon={<HardDrive size={24} />}
+              icon={<HardDrive size={24} aria-hidden="true" />}
               tone={metrics.storageObjects > 0 ? "teal" : "gold"}
               progress={metrics.storageObjects > 0 ? 100 : 0}
             />
@@ -893,7 +918,7 @@ export default function SystemMonitoringCenterPage() {
             <BackupStatusPanel />
           </section>
 
-          <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -917,10 +942,10 @@ export default function SystemMonitoringCenterPage() {
 
             <div className="mt-5">
               {filteredEvents.length === 0 ? (
-                <EmptyState
+                <UiEmptyState
                   title="لا توجد سجلات مراقبة"
                   description="قد تكون جداول error_logs أو scheduled_jobs أو storage_usage غير موجودة بعد."
-                  icon={<Wifi className="h-8 w-8" />}
+                  icon={<Wifi className="h-8 w-8" aria-hidden="true" />}
                 />
               ) : (
                 <div className="space-y-3">
@@ -929,10 +954,10 @@ export default function SystemMonitoringCenterPage() {
                       key={event.id}
                       type="button"
                       onClick={() => setSelectedEvent(event)}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-right transition hover:-translate-y-0.5"
+                      className="flex w-full items-start gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-right transition hover:-translate-y-0.5"
                     >
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(
                           event.severity === "high"
                             ? "red"
                             : event.severity === "medium"
@@ -940,7 +965,7 @@ export default function SystemMonitoringCenterPage() {
                               : "green",
                         )}`}
                       >
-                        <Zap size={18} />
+                        <Zap size={18} aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -983,7 +1008,7 @@ function MonitoringExecutiveAnalytics({
   metrics: SystemMetrics;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
         Monitoring Executive Analytics
       </h2>
@@ -995,7 +1020,7 @@ function MonitoringExecutiveAnalytics({
         <MonitoringMetric
           label="Operational Score"
           value={`${metrics.operationalScore}%`}
-          icon={<Gauge size={18} />}
+          icon={<Gauge size={18} aria-hidden="true" />}
           tone={
             metrics.operationalScore >= 80
               ? "green"
@@ -1007,20 +1032,20 @@ function MonitoringExecutiveAnalytics({
         <MonitoringMetric
           label="Data Coverage"
           value={`${metrics.dataCoverage}%`}
-          icon={<Database size={18} />}
-          tone="blue"
+          icon={<Database size={18} aria-hidden="true" />}
+          tone="primary"
         />
         <MonitoringMetric
           label="Error Logs"
           value={metrics.errors}
-          icon={<AlertTriangle size={18} />}
+          icon={<AlertTriangle size={18} aria-hidden="true" />}
           tone={metrics.errors > 0 ? "red" : "green"}
         />
         <MonitoringMetric
           label="Storage"
           value={formatBytes(metrics.storageBytes)}
-          icon={<HardDrive size={18} />}
-          tone="teal"
+          icon={<HardDrive size={18} aria-hidden="true" />}
+          tone="primary"
         />
       </div>
     </section>
@@ -1033,9 +1058,9 @@ function MonitoringSmartInsights({
   insights: MonitoringInsight[];
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <BrainCircuit size={20} />
+        <BrainCircuit size={20} aria-hidden="true" />
         AI Monitoring Insights
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1046,10 +1071,10 @@ function MonitoringSmartInsights({
         {insights.map((insight) => (
           <div
             key={insight.title}
-            className="flex gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
+            className="flex gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3"
           >
             <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(insight.tone)}`}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(insight.tone)}`}
             >
               {insight.icon}
             </div>
@@ -1074,20 +1099,20 @@ function ServiceStatusCard({
   service: ServiceStatus;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="flex items-start justify-between gap-3">
         <div
-          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${insightTone(service.tone)}`}
+          className={`flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(service.tone)}`}
         >
           {service.icon}
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-black ${
             service.state === "operational"
-              ? "bg-emerald-50 text-emerald-700"
+              ? "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]"
               : service.state === "degraded"
-                ? "bg-amber-50 text-amber-700"
-                : "bg-slate-100 text-slate-600"
+                ? "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]"
+                : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]"
           }`}
         >
           {service.state === "operational"
@@ -1105,7 +1130,7 @@ function ServiceStatusCard({
         {service.description}
       </p>
 
-      <div className="mt-4 rounded-2xl bg-[var(--app-card-soft)] p-4">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
         <p className="text-2xl font-black text-[var(--app-text)]">
           {service.value}
         </p>
@@ -1123,7 +1148,7 @@ function SystemHealthPanel({
   metrics: SystemMetrics;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">
         System Health
       </h2>
@@ -1140,12 +1165,12 @@ function SystemHealthPanel({
         <MonitoringProgress
           label="Data Coverage"
           value={metrics.dataCoverage}
-          tone="blue"
+          tone="primary"
         />
         <MonitoringProgress
           label="Audit Coverage"
           value={Math.min(100, metrics.auditLogs * 2)}
-          tone="teal"
+          tone="primary"
         />
         <MonitoringProgress
           label="Error Health"
@@ -1163,9 +1188,9 @@ function InfrastructurePanel({
   metrics: SystemMetrics;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Server size={20} />
+        <Server size={20} aria-hidden="true" />
         Infrastructure Summary
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -1188,16 +1213,16 @@ function InfrastructurePanel({
 
 function BackupStatusPanel() {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <DatabaseBackup size={20} />
+        <DatabaseBackup size={20} aria-hidden="true" />
         Backup Status
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         حالة النسخ الاحتياطي والتعافي.
       </p>
 
-      <div className="mt-5 rounded-3xl bg-[var(--app-card-soft)] p-5">
+      <div className="mt-5 rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-5">
         <p className="text-xs font-bold text-[var(--app-text-muted)]">
           الحالة الحالية
         </p>
@@ -1206,7 +1231,7 @@ function BackupStatusPanel() {
         </p>
       </div>
 
-      <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-6 text-amber-800">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] p-4 text-xs leading-6 text-[var(--app-accent-foreground)]">
         النسخ الاحتياطي الحقيقي يحتاج Supabase Backup أو Edge Function أو
         خدمة خارجية. هذه الصفحة لا تنفذ نسخة احتياطية تلقائيًا.
       </div>
@@ -1222,30 +1247,29 @@ function SystemEventDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
+    <div className="fixed inset-0 z-[80] flex justify-end bg-[color-mix(in_srgb,var(--app-text)_44%,transparent)] backdrop-blur-sm print:hidden">
       <button
         type="button"
         className="flex-1"
         onClick={onClose}
         aria-label="إغلاق"
       />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto border-r border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-xl)]">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">
+            <p className="text-xs font-black text-[var(--app-accent)]">
               System Event
             </p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">
               {event.title}
             </h2>
           </div>
-          <button
-            type="button"
+          <IconButton
+            label="إغلاق تفاصيل الحدث"
+            title="إغلاق"
             onClick={onClose}
-            className="rounded-xl bg-slate-100 p-2 text-slate-600"
-          >
-            <X size={20} />
-          </button>
+            icon={<X size={20} aria-hidden="true" />}
+          />
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
@@ -1294,9 +1318,9 @@ function MonitoringMetric({
   tone: MonitorTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
       <div
-        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}
+        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}
       >
         {icon}
       </div>
@@ -1327,8 +1351,13 @@ function MonitoringProgress({
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
         <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.max(0, Math.min(100, value))}
           className={`h-full rounded-full ${progressTone(tone)}`}
-          style={{ width: `${Math.max(4, Math.min(100, value))}%` }}
+          style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
         />
       </div>
     </div>
@@ -1343,7 +1372,7 @@ function MonitoringInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">
         {label}
       </span>
@@ -1362,9 +1391,9 @@ function MonitoringDrawerMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 text-base font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 text-base font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -1377,11 +1406,11 @@ function MonitoringDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">
             {item}
           </p>
         ))}
@@ -1389,3 +1418,4 @@ function MonitoringDrawerSection({
     </div>
   );
 }
+

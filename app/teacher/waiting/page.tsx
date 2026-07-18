@@ -15,6 +15,11 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -23,7 +28,6 @@ import { useSchool } from "@/contexts/SchoolContext";
 import {
   AlertCircle,
   ArrowRight,
-  BookOpenCheck,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -31,10 +35,7 @@ import {
   FileText,
   Grid2X2,
   LayoutList,
-  Loader2,
   RefreshCcw,
-  School,
-  Search,
   Timer,
   UserRoundCheck,
   XCircle,
@@ -186,11 +187,19 @@ function isRejected(value?: string | null) {
 function getStatusPill(value?: string | null) {
   const status = normalizeStatus(value);
 
-  if (status === "معتمدة") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (status === "مرفوضة") return "border-red-200 bg-red-50 text-red-700";
-  if (status === "بانتظار الاعتماد") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (status === "معتمدة") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
 
-  return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (status === "مرفوضة") {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (status === "بانتظار الاعتماد") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 }
 
 function getStatusTone(value?: string | null): "green" | "red" | "gold" | "blue" {
@@ -206,19 +215,17 @@ function getStatusTone(value?: string | null): "green" | "red" | "gold" | "blue"
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`teacher waiting query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`teacher waiting query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -454,7 +461,7 @@ export default function TeacherWaitingPage() {
     return (
       <RoleGuard allowedRoles={ALLOWED_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل حصص الانتظار..." />
+          <PageLoader text="جاري تحميل حصص الانتظار..." />
         </AppShell>
       </RoleGuard>
     );
@@ -464,9 +471,7 @@ export default function TeacherWaitingPage() {
     return (
       <RoleGuard allowedRoles={ALLOWED_ROLES}>
         <AppShell>
-          <div className="rounded-[28px] border border-red-100 bg-red-50 p-6 text-center font-bold text-red-700">
-            {errorMsg || "تعذر فتح صفحة الانتظار."}
-          </div>
+          <ErrorState description={errorMsg || "تعذر فتح صفحة الانتظار."} />
         </AppShell>
       </RoleGuard>
     );
@@ -476,14 +481,22 @@ export default function TeacherWaitingPage() {
     <RoleGuard allowedRoles={ALLOWED_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title={`حصص انتظار ${teacher.full_name}`}
             description="متابعة حصص الانتظار المسندة للمعلم، حالة الاعتماد، الحصص القادمة، والفصول المرتبطة بها."
             badge="بوابة المعلم"
-            icon={<Timer size={18} />}
+            icon={<Timer size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة المعلم", href: "/teacher-portal" },
@@ -496,45 +509,44 @@ export default function TeacherWaitingPage() {
               { label: "القسم", value: teacher.department || "غير محدد" },
             ]}
             stats={[
-              { label: "انتظار اليوم", value: todayWaiting.length, icon: <Timer size={20} />, tone: "blue" },
-              { label: "الأسبوع", value: weeklyWaiting.length, icon: <CalendarDays size={20} />, tone: "teal" },
-              { label: "بانتظار الاعتماد", value: pendingWaiting.length, icon: <Clock size={20} />, tone: pendingWaiting.length > 0 ? "gold" : "green" },
-              { label: "معتمدة", value: approvedWaiting.length, icon: <CheckCircle2 size={20} />, tone: "green" },
+              { label: "انتظار اليوم", value: todayWaiting.length, icon: <Timer size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "الأسبوع", value: weeklyWaiting.length, icon: <CalendarDays size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "بانتظار الاعتماد", value: pendingWaiting.length, icon: <Clock size={20} aria-hidden="true" />, tone: pendingWaiting.length > 0 ? "gold" : "green" },
+              { label: "معتمدة", value: approvedWaiting.length, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
             ]}
             actions={
               <>
                 <Link
                   href="/teacher-portal"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]"
                 >
-                  <ArrowRight size={17} />
+                  <ArrowRight size={17} aria-hidden="true" />
                   بوابة المعلم
                 </Link>
 
                 <Link
                   href="/teacher/schedule"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] px-4 text-sm font-black text-[var(--app-accent-foreground)] shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]"
                 >
-                  <CalendarDays size={17} />
+                  <CalendarDays size={17} aria-hidden="true" />
                   الجدول
                 </Link>
 
                 <Link
                   href="/teacher/daily"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-4 text-sm font-black text-[var(--app-primary-foreground)] shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]"
                 >
-                  <ClipboardCheck size={17} />
+                  <ClipboardCheck size={17} aria-hidden="true" />
                   متابعة الحصة
                 </Link>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchWaiting()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
               </>
             }
           />
@@ -543,8 +555,8 @@ export default function TeacherWaitingPage() {
             <ExecutiveCard
               title="انتظار اليوم"
               value={todayWaiting.length}
-              icon={<Timer size={22} />}
-              tone="blue"
+              icon={<Timer size={22} aria-hidden="true" />}
+              tone="primary"
               subtitle={`${todayName}`}
               progress={waiting.length ? percentage(todayWaiting.length, waiting.length) : 0}
             />
@@ -552,8 +564,8 @@ export default function TeacherWaitingPage() {
             <ExecutiveCard
               title="إجمالي الانتظار"
               value={waiting.length}
-              icon={<ClipboardCheck size={22} />}
-              tone="teal"
+              icon={<ClipboardCheck size={22} aria-hidden="true" />}
+              tone="primary"
               subtitle="كل الحصص المسندة"
               progress={waiting.length ? 100 : 0}
             />
@@ -561,7 +573,7 @@ export default function TeacherWaitingPage() {
             <ExecutiveCard
               title="بانتظار الاعتماد"
               value={pendingWaiting.length}
-              icon={<Clock size={22} />}
+              icon={<Clock size={22} aria-hidden="true" />}
               tone={pendingWaiting.length > 0 ? "gold" : "green"}
               subtitle="تحتاج مراجعة"
               progress={waiting.length ? percentage(pendingWaiting.length, waiting.length) : 0}
@@ -570,7 +582,7 @@ export default function TeacherWaitingPage() {
             <ExecutiveCard
               title="معتمدة"
               value={approvedWaiting.length}
-              icon={<CheckCircle2 size={22} />}
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
               tone="green"
               subtitle="تم اعتمادها"
               progress={waiting.length ? percentage(approvedWaiting.length, waiting.length) : 0}
@@ -579,7 +591,7 @@ export default function TeacherWaitingPage() {
             <ExecutiveCard
               title="مرفوضة"
               value={rejectedWaiting.length}
-              icon={<XCircle size={22} />}
+              icon={<XCircle size={22} aria-hidden="true" />}
               tone={rejectedWaiting.length > 0 ? "red" : "green"}
               subtitle="تحتاج معالجة"
               progress={waiting.length ? percentage(rejectedWaiting.length, waiting.length) : 0}
@@ -602,7 +614,7 @@ export default function TeacherWaitingPage() {
           />
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.95fr_1.05fr]">
-            <Panel title="بيانات المعلم" icon={<UserRoundCheck size={24} />}>
+            <Panel title="بيانات المعلم" icon={<UserRoundCheck size={24} aria-hidden="true" />}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <InfoRow label="المعلم" value={teacher.full_name} />
                 <InfoRow label="المادة" value={teacher.subject || teacher.specialization || "—"} />
@@ -613,9 +625,13 @@ export default function TeacherWaitingPage() {
               </div>
             </Panel>
 
-            <Panel title="أقرب حصص الانتظار" icon={<FileText size={24} />}>
+            <Panel title="أقرب حصص الانتظار" icon={<FileText size={24} aria-hidden="true" />}>
               {upcomingWaiting.length === 0 ? (
-                <EmptyBox text="لا توجد حصص انتظار قادمة." />
+                <UiEmptyState
+                icon={<CalendarDays className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد حصص قادمة"
+                description="لا توجد حصص انتظار قادمة."
+              />
               ) : (
                 <div className="space-y-3">
                   {upcomingWaiting.map((item) => (
@@ -626,7 +642,7 @@ export default function TeacherWaitingPage() {
             </Panel>
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)]">
             <PageToolbar
               search={{
                 value: search,
@@ -647,27 +663,33 @@ export default function TeacherWaitingPage() {
               }
               onRefresh={() => void fetchWaiting()}
               actions={
-                <button
-                  type="button"
-                  onClick={() => setViewMode(viewMode === "cards" ? "timeline" : "cards")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A]"
+                <SecondaryButton
+                  icon={
+                    viewMode === "cards" ? (
+                      <LayoutList size={17} aria-hidden="true" />
+                    ) : (
+                      <Grid2X2 size={17} aria-hidden="true" />
+                    )
+                  }
+                  onClick={() =>
+                    setViewMode(viewMode === "cards" ? "timeline" : "cards")
+                  }
                 >
-                  {viewMode === "cards" ? <LayoutList size={17} /> : <Grid2X2 size={17} />}
                   {viewMode === "cards" ? "عرض زمني" : "عرض بطاقات"}
-                </button>
+                </SecondaryButton>
               }
             />
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
             <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-                  <ClipboardCheck size={24} />
+                <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
+                  <ClipboardCheck size={24} aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">قائمة حصص الانتظار</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                  <h2 className="text-2xl font-black text-[var(--app-text)]">قائمة حصص الانتظار</h2>
+                  <p className="mt-1 text-sm font-semibold text-[var(--app-text-muted)]">
                     عرض {filteredWaiting.length} حصة حسب الفلاتر الحالية.
                   </p>
                 </div>
@@ -686,7 +708,11 @@ export default function TeacherWaitingPage() {
             </div>
 
             {filteredWaiting.length === 0 ? (
-              <EmptyBox text="لا توجد حصص انتظار حسب التصفية الحالية." />
+              <UiEmptyState
+              icon={<ClipboardCheck className="h-8 w-8" aria-hidden="true" />}
+              title="لا توجد حصص انتظار"
+              description="لا توجد حصص انتظار مطابقة للبحث أو التصفية الحالية."
+            />
             ) : viewMode === "cards" ? (
               <div className="grid gap-4 lg:grid-cols-2">
                 {filteredWaiting.map((item) => (
@@ -694,7 +720,7 @@ export default function TeacherWaitingPage() {
                 ))}
               </div>
             ) : (
-              <div className="relative space-y-4 before:absolute before:right-5 before:top-0 before:h-full before:w-px before:bg-slate-200">
+              <div className="relative space-y-4 before:absolute before:right-5 before:top-0 before:h-full before:w-px before:bg-[var(--app-border)]">
                 {filteredWaiting.map((item) => (
                   <TimelineWaiting key={item.id} item={item} />
                 ))}
@@ -717,12 +743,12 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
           {icon}
         </div>
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </section>
@@ -733,11 +759,11 @@ function WaitingMiniCard({ item }: { item: WaitingPeriod }) {
   const status = getStatusText(item);
 
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-black text-[#15445A]">{waitingTitle(item)}</h3>
-          <p className="mt-1 text-sm font-semibold text-slate-500">
+          <h3 className="font-black text-[var(--app-text)]">{waitingTitle(item)}</h3>
+          <p className="mt-1 text-sm font-semibold text-[var(--app-text-muted)]">
             {waitingSubject(item)} - {periodLabel(item)}
           </p>
         </div>
@@ -747,7 +773,7 @@ function WaitingMiniCard({ item }: { item: WaitingPeriod }) {
         </span>
       </div>
 
-      <p className="mt-2 text-xs font-bold text-slate-400">
+      <p className="mt-2 text-xs font-bold text-[var(--app-text-subtle)]">
         {item.day_name || "—"} - {formatDate(item.waiting_date)}
       </p>
     </div>
@@ -758,12 +784,12 @@ function WaitingCard({ item }: { item: WaitingPeriod }) {
   const status = getStatusText(item);
 
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-black text-[#15445A]">{waitingTitle(item)}</h3>
+          <h3 className="text-lg font-black text-[var(--app-text)]">{waitingTitle(item)}</h3>
 
-          <p className="mt-1 text-sm font-bold text-slate-500">
+          <p className="mt-1 text-sm font-bold text-[var(--app-text-muted)]">
             {waitingSubject(item)} — {periodLabel(item)}
           </p>
         </div>
@@ -779,9 +805,9 @@ function WaitingCard({ item }: { item: WaitingPeriod }) {
       </div>
 
       {item.notes && (
-        <div className="mt-3 rounded-2xl bg-white p-4">
-          <p className="mb-1 text-xs font-black text-slate-400">ملاحظات</p>
-          <p className="text-sm leading-7 text-slate-600">{item.notes}</p>
+        <div className="mt-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-4">
+          <p className="mb-1 text-xs font-black text-[var(--app-text-subtle)]">ملاحظات</p>
+          <p className="text-sm leading-7 text-[var(--app-text-muted)]">{item.notes}</p>
         </div>
       )}
     </div>
@@ -794,8 +820,8 @@ function TimelineWaiting({ item }: { item: WaitingPeriod }) {
 
   return (
     <div className="relative pr-12">
-      <div className={`absolute right-0 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-2xl border ${circleTone(tone)}`}>
-        <Clock size={16} />
+      <div className={`absolute right-0 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] border ${circleTone(tone)}`}>
+        <Clock size={16} aria-hidden="true" />
       </div>
 
       <WaitingCard item={item} />
@@ -804,17 +830,26 @@ function TimelineWaiting({ item }: { item: WaitingPeriod }) {
 }
 
 function circleTone(tone: "green" | "red" | "gold" | "blue") {
-  if (tone === "green") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (tone === "red") return "border-red-200 bg-red-50 text-red-700";
-  if (tone === "gold") return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  return "border-[#3D7EB9]/20 bg-[#3D7EB9]/10 text-[#3D7EB9]";
+  if (tone === "green") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (tone === "red") {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (tone === "gold") {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-primary)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]";
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 px-4 py-3">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 line-clamp-1 font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 py-3">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-1 line-clamp-1 font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
@@ -832,10 +867,10 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`h-12 rounded-2xl px-4 text-sm font-black transition ${
+      className={`h-12 rounded-[var(--app-radius-lg)] px-4 text-sm font-black transition ${
         active
-          ? "bg-[#15445A] text-white"
-          : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+          ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]"
+          : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:text-[var(--app-text)]"
       }`}
     >
       {label}
@@ -843,34 +878,4 @@ function FilterButton({
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-        {text}
-      </div>
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      <span>{toast.message}</span>
-    </div>
-  );
-}

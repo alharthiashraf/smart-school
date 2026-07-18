@@ -21,7 +21,6 @@ import {
   FileText,
   Grid2X2,
   List,
-  Loader2,
   Pencil,
   Plus,
   Printer,
@@ -40,6 +39,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import { useSchool } from "@/contexts/SchoolContext";
 import {
   StudentsService,
@@ -186,10 +193,19 @@ function getExportHeaders() {
 }
 
 function gradeTone(average: number) {
-  if (average >= 90) return "bg-[#07A869]/10 text-[#07A869]";
-  if (average >= 60) return "bg-[#3D7EB9]/10 text-[#3D7EB9]";
-  if (average > 0) return "bg-red-50 text-red-700";
-  return "bg-slate-100 text-slate-500";
+  if (average >= 90) {
+    return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (average >= 60) {
+    return "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]";
+  }
+
+  if (average > 0) {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  }
+
+  return "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 }
 
 function riskLabel(student: StudentWithAverage) {
@@ -200,9 +216,16 @@ function riskLabel(student: StudentWithAverage) {
 
 function riskTone(student: StudentWithAverage) {
   const label = riskLabel(student);
-  if (label === "عالي") return "bg-red-50 text-red-700";
-  if (label === "متوسط") return "bg-[#C1B489]/20 text-[#15445A]";
-  return "bg-[#07A869]/10 text-[#07A869]";
+
+  if (label === "عالي") {
+    return "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]";
+  }
+
+  if (label === "متوسط") {
+    return "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]";
 }
 
 export default function StudentsPage() {
@@ -471,13 +494,13 @@ export default function StudentsPage() {
     void fetchAllData();
   }
 
-  function todayAttendance(studentId: string) {
+  const todayAttendance = useCallback((studentId: string) => {
     return attendance.find(
       (item) => item.student_id === studentId && item.attendance_date === today,
     )?.status;
-  }
+  }, [attendance, today]);
 
-  function getStudentAverage(studentId: string, studentGradeLevel?: string | null) {
+  const getStudentAverage = useCallback((studentId: string, studentGradeLevel?: string | null) => {
     const studentScores = scores.filter((score) => score.student_id === studentId);
     if (studentScores.length === 0) return 0;
 
@@ -503,16 +526,19 @@ export default function StudentsPage() {
 
     if (subjectTotals.length === 0) return 0;
 
-    return Math.round(subjectTotals.reduce((sum, value) => sum + value, 0) / subjectTotals.length);
-  }
+    return Math.round(
+      subjectTotals.reduce((sum, value) => sum + value, 0) /
+        subjectTotals.length,
+    );
+  }, [gradeSubjects, scores]);
 
-  function getStudentGradeStatus(studentId: string, gradeLevel?: string | null) {
+  const getStudentGradeStatus = useCallback((studentId: string, gradeLevel?: string | null) => {
     const average = getStudentAverage(studentId, gradeLevel);
     if (average >= 90) return "متفوق";
     if (average >= 60) return "مستقر";
     if (average > 0) return "يحتاج متابعة";
     return "لا توجد درجات";
-  }
+  }, [getStudentAverage]);
 
   const gradeLevels = useMemo(() => uniqueValues(students.map((student) => student.grade_level)), [students]);
   const classrooms = useMemo(() => uniqueValues(students.map((student) => student.classroom)), [students]);
@@ -547,8 +573,12 @@ export default function StudentsPage() {
         todayStatus: todayAttendance(student.id),
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [students, scores, gradeSubjects, attendance, repeatedAbsenceStudents]);
+  }, [
+    getStudentAverage,
+    repeatedAbsenceStudents,
+    students,
+    todayAttendance,
+  ]);
 
   const filteredStudents = useMemo(() => {
     const keyword = search.toLowerCase().trim();
@@ -591,6 +621,10 @@ export default function StudentsPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
   const pagedStudents = filteredStudents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
 
   const todayRecords = useMemo(
     () => attendance.filter((item) => item.attendance_date === today),
@@ -708,7 +742,7 @@ export default function StudentsPage() {
           title="لا تملك صلاحية الوصول إلى إدارة الطلاب"
           description="هذه الصفحة مخصصة للطاقم المدرسي حسب الصلاحيات."
           tone="gold"
-          icon={<Users size={22} />}
+          icon={<Users size={22} aria-hidden="true" />}
         />
       </AuthGuard>
     );
@@ -717,7 +751,7 @@ export default function StudentsPage() {
   if (schoolLoading) {
     return (
       <AuthGuard>
-        <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+        <PageLoader text="جاري تحميل بيانات المدرسة..." />
       </AuthGuard>
     );
   }
@@ -729,7 +763,7 @@ export default function StudentsPage() {
           title="لا توجد مدرسة مرتبطة"
           description="لا توجد مدرسة مرتبطة بالمستخدم الحالي."
           tone="red"
-          icon={<AlertTriangle size={22} />}
+          icon={<AlertTriangle size={22} aria-hidden="true" />}
         />
       </AuthGuard>
     );
@@ -738,14 +772,22 @@ export default function StudentsPage() {
   return (
     <AuthGuard>
       <main className="space-y-5" dir="rtl">
-        {toast && <ToastBox toast={toast} />}
+        {toast && (
+          <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+            {toast.type === "success" ? (
+              <SuccessBanner description={toast.message} />
+            ) : (
+              <ErrorState description={toast.message} />
+            )}
+          </div>
+        )}
 
         <PageHeader
           variant="hero"
           title="إدارة الطلاب"
           description={`${currentSchool.school_name} — إدارة بيانات الطلاب، متابعة حضور اليوم، مؤشرات الدرجات، والتنبيهات الذكية للغياب والتعثر.`}
           badge="منصة المدرسة الذكية"
-          icon={<Users size={18} />}
+          icon={<Users size={18} aria-hidden="true" />}
           breadcrumbs={[
             { label: "لوحة التحكم", href: "/dashboard" },
             { label: "إدارة الطلاب" },
@@ -757,71 +799,61 @@ export default function StudentsPage() {
             { label: "المحددون", value: selectedIds.length },
           ]}
           stats={[
-            { label: "إجمالي الطلاب", value: students.length, icon: <Users size={20} />, tone: "blue" },
-            { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <ClipboardCheck size={20} />, tone: attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red" },
-            { label: "متوسط المدرسة", value: `${averageGrade}%`, icon: <BarChart3 size={20} />, tone: averageGrade >= 85 ? "green" : averageGrade >= 60 ? "gold" : "red" },
-            { label: "غياب متكرر", value: repeatedAbsenceStudents.length, icon: <AlertTriangle size={20} />, tone: repeatedAbsenceStudents.length > 0 ? "red" : "green" },
+            { label: "إجمالي الطلاب", value: students.length, icon: <Users size={20} aria-hidden="true" />, tone: "primary" },
+            { label: "نسبة الحضور", value: `${attendanceRate}%`, icon: <ClipboardCheck size={20} aria-hidden="true" />, tone: attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red" },
+            { label: "متوسط المدرسة", value: `${averageGrade}%`, icon: <BarChart3 size={20} aria-hidden="true" />, tone: averageGrade >= 85 ? "green" : averageGrade >= 60 ? "gold" : "red" },
+            { label: "غياب متكرر", value: repeatedAbsenceStudents.length, icon: <AlertTriangle size={20} aria-hidden="true" />, tone: repeatedAbsenceStudents.length > 0 ? "red" : "green" },
           ]}
           actions={
             <>
               {canManage && (
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Plus size={17} aria-hidden="true" />}
                   onClick={openAddForm}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Plus size={17} />
                   إضافة طالب
-                </button>
+                </PrimaryButton>
               )}
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<Download size={17} aria-hidden="true" />}
                 onClick={() => void exportStudentsExcel()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <Download size={17} />
                 Excel
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <ExportButton
+                icon={<FileText size={17} aria-hidden="true" />}
                 onClick={() => exportStudentsPDF()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <FileText size={17} />
                 PDF
-              </button>
+              </ExportButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<RefreshCcw size={17} aria-hidden="true" />}
                 onClick={() => void fetchAllData()}
-                disabled={loading}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                loading={loading}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw size={17} />}
                 تحديث
-              </button>
+              </SecondaryButton>
 
-              <button
-                type="button"
+              <SecondaryButton
+                icon={<Printer size={17} aria-hidden="true" />}
                 onClick={() => window.print()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <Printer size={17} />
                 طباعة
-              </button>
+              </SecondaryButton>
             </>
           }
         />
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <ExecutiveCard title="إجمالي الطلاب" value={students.length} subtitle={`${gradeLevels.length} مرحلة · ${classrooms.length} فصل`} icon={<Users size={22} />} tone="blue" progress={students.length > 0 ? 100 : 0} />
-          <ExecutiveCard title="نسبة الحضور" value={`${attendanceRate}%`} subtitle={`${presentToday} حاضر · ${absentToday} غائب · ${lateToday} متأخر`} icon={<ClipboardCheck size={22} />} tone={attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red"} progress={attendanceRate} />
-          <ExecutiveCard title="متوسط المدرسة" value={`${averageGrade}%`} subtitle={`${gradedStudents.length} طالب لديهم درجات`} icon={<BarChart3 size={22} />} tone={averageGrade >= 85 ? "green" : averageGrade >= 60 ? "gold" : "red"} progress={averageGrade} />
-          <ExecutiveCard title="المتفوقون" value={excellentStudents.length} subtitle="متوسط 90% فأعلى" icon={<ShieldCheck size={22} />} tone="green" progress={students.length ? percentage(excellentStudents.length, students.length) : 0} />
-          <ExecutiveCard title="يحتاجون متابعة" value={weakStudents.length} subtitle="متوسط أقل من 60%" icon={<AlertTriangle size={22} />} tone={weakStudents.length > 0 ? "red" : "green"} progress={students.length ? percentage(weakStudents.length, students.length) : 0} />
-          <ExecutiveCard title="عيادة اليوم" value={clinicToday} subtitle="تحويلات صحية اليوم" icon={<Clock size={22} />} tone={clinicToday > 0 ? "gold" : "green"} progress={todayRecords.length ? percentage(clinicToday, todayRecords.length) : 0} />
+          <ExecutiveCard title="إجمالي الطلاب" value={students.length} subtitle={`${gradeLevels.length} مرحلة · ${classrooms.length} فصل`} icon={<Users size={22} aria-hidden="true" />} tone="primary" progress={students.length > 0 ? 100 : 0} />
+          <ExecutiveCard title="نسبة الحضور" value={`${attendanceRate}%`} subtitle={`${presentToday} حاضر · ${absentToday} غائب · ${lateToday} متأخر`} icon={<ClipboardCheck size={22} aria-hidden="true" />} tone={attendanceRate >= 85 ? "green" : attendanceRate >= 60 ? "gold" : "red"} progress={attendanceRate} />
+          <ExecutiveCard title="متوسط المدرسة" value={`${averageGrade}%`} subtitle={`${gradedStudents.length} طالب لديهم درجات`} icon={<BarChart3 size={22} aria-hidden="true" />} tone={averageGrade >= 85 ? "green" : averageGrade >= 60 ? "gold" : "red"} progress={averageGrade} />
+          <ExecutiveCard title="المتفوقون" value={excellentStudents.length} subtitle="متوسط 90% فأعلى" icon={<ShieldCheck size={22} aria-hidden="true" />} tone="green" progress={students.length ? percentage(excellentStudents.length, students.length) : 0} />
+          <ExecutiveCard title="يحتاجون متابعة" value={weakStudents.length} subtitle="متوسط أقل من 60%" icon={<AlertTriangle size={22} aria-hidden="true" />} tone={weakStudents.length > 0 ? "red" : "green"} progress={students.length ? percentage(weakStudents.length, students.length) : 0} />
+          <ExecutiveCard title="عيادة اليوم" value={clinicToday} subtitle="تحويلات صحية اليوم" icon={<Clock size={22} aria-hidden="true" />} tone={clinicToday > 0 ? "gold" : "green"} progress={todayRecords.length ? percentage(clinicToday, todayRecords.length) : 0} />
         </section>
 
         <SummaryCard
@@ -840,24 +872,20 @@ export default function StudentsPage() {
         />
 
         {showForm && (
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-black text-[#15445A]">
+                <h2 className="text-2xl font-black text-[var(--app-text)]">
                   {editingId ? "تعديل بيانات الطالب" : "إضافة طالب جديد"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                   أدخل بيانات الطالب الأساسية وبيانات ولي الأمر ثم احفظ التغييرات.
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
-              >
+              <SecondaryButton onClick={closeForm}>
                 إغلاق
-              </button>
+              </SecondaryButton>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -874,7 +902,7 @@ export default function StudentsPage() {
               <select
                 value={form.status}
                 onChange={(event) => updateForm("status", event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+                className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               >
                 {STUDENT_STATUSES.map((studentStatus) => (
                   <option key={studentStatus} value={studentStatus}>
@@ -884,33 +912,38 @@ export default function StudentsPage() {
               </select>
             </div>
 
-            <button
-              type="button"
+            <PrimaryButton
+              className="mt-5"
+              icon={
+                editingId ? (
+                  <Save size={16} aria-hidden="true" />
+                ) : (
+                  <Plus size={16} aria-hidden="true" />
+                )
+              }
               onClick={() => void saveStudent()}
-              disabled={saving}
-              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+              loading={saving}
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingId ? <Save size={16} /> : <Plus size={16} />}
-              {saving ? "جاري الحفظ..." : editingId ? "حفظ التعديل" : "إضافة الطالب"}
-            </button>
+              {editingId ? "حفظ التعديل" : "إضافة الطالب"}
+            </PrimaryButton>
           </section>
         )}
 
         {repeatedAbsenceStudents.length > 0 && (
-          <section className="rounded-[28px] border border-red-100 bg-red-50 p-5">
+          <section className="rounded-[var(--app-radius-xl)] border border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] p-5">
             <div className="mb-5 flex items-center gap-2">
-              <AlertTriangle className="text-red-700" size={22} />
-              <h2 className="text-xl font-black text-red-800">طلاب يحتاجون متابعة بسبب الغياب</h2>
+              <AlertTriangle className="text-[var(--app-danger)]" size={22} />
+              <h2 className="text-xl font-black text-[var(--app-danger)]">طلاب يحتاجون متابعة بسبب الغياب</h2>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {repeatedAbsenceStudents.slice(0, 8).map((student) => (
-                <Link key={student.id} href={`/students/${student.id}`} className="rounded-2xl bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-md">
-                  <p className="font-black text-slate-900">{student.full_name}</p>
-                  <p className="mt-1 text-sm text-slate-500">
+                <Link key={student.id} href={`/students/${student.id}`} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-4 transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]">
+                  <p className="font-black text-[var(--app-text)]">{student.full_name}</p>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                     {student.grade_level || "-"} - {student.classroom || "-"}
                   </p>
-                  <p className="mt-2 font-bold text-red-600">{student.absenceCount} غياب</p>
+                  <p className="mt-2 font-bold text-[var(--app-danger)]">{student.absenceCount} غياب</p>
                 </Link>
               ))}
             </div>
@@ -918,12 +951,12 @@ export default function StudentsPage() {
         )}
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm xl:col-span-2">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
             <div className="mb-5 flex flex-col gap-4 print:hidden">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <h2 className="text-2xl font-black text-[#15445A]">قائمة الطلاب</h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <h2 className="text-2xl font-black text-[var(--app-text)]">قائمة الطلاب</h2>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                     عرض {pagedStudents.length} من {filteredStudents.length} طالب حسب الفلاتر الحالية.
                   </p>
                 </div>
@@ -932,18 +965,18 @@ export default function StudentsPage() {
                   <button
                     type="button"
                     onClick={() => setViewMode("table")}
-                    className={`inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-black ${viewMode === "table" ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"}`}
+                    className={`inline-flex h-10 items-center gap-2 rounded-[var(--app-radius-lg)] px-3 text-sm font-black ${viewMode === "table" ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]" : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]"}`}
                   >
-                    <List size={16} />
+                    <List size={16} aria-hidden="true" />
                     جدول
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setViewMode("cards")}
-                    className={`inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-sm font-black ${viewMode === "cards" ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600"}`}
+                    className={`inline-flex h-10 items-center gap-2 rounded-[var(--app-radius-lg)] px-3 text-sm font-black ${viewMode === "cards" ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]" : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]"}`}
                   >
-                    <Grid2X2 size={16} />
+                    <Grid2X2 size={16} aria-hidden="true" />
                     بطاقات
                   </button>
                 </div>
@@ -1002,29 +1035,29 @@ export default function StudentsPage() {
               />
 
               {selectedIds.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#C1B489]/40 bg-[#C1B489]/20 p-3">
-                  <p className="text-sm font-black text-[#15445A]">تم تحديد {selectedIds.length} طالب</p>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--app-radius-lg)] border border-[color-mix(in_srgb,var(--app-accent)_35%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] p-3">
+                  <p className="text-sm font-black text-[var(--app-text)]">تم تحديد {selectedIds.length} طالب</p>
 
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => void exportSelectedExcel()} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700">
+                    <button type="button" onClick={() => void exportSelectedExcel()} className="rounded-[var(--app-radius-md)] bg-[var(--app-card)] px-3 py-2 text-xs font-black text-[var(--app-text)]">
                       Excel المحدد
                     </button>
 
-                    <button type="button" onClick={exportSelectedPDF} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700">
+                    <button type="button" onClick={exportSelectedPDF} className="rounded-[var(--app-radius-md)] bg-[var(--app-card)] px-3 py-2 text-xs font-black text-[var(--app-text)]">
                       PDF المحدد
                     </button>
 
                     {canManage && (
                       <>
-                        <button type="button" onClick={() => void updateSelectedStatus(DEFAULT_STATUS)} className="rounded-xl bg-[#07A869] px-3 py-2 text-xs font-black text-white">
+                        <button type="button" onClick={() => void updateSelectedStatus(DEFAULT_STATUS)} className="rounded-[var(--app-radius-md)] bg-[var(--app-success)] px-3 py-2 text-xs font-black text-[var(--app-primary-foreground)]">
                           جعلهم نشطين
                         </button>
 
-                        <button type="button" onClick={() => void updateSelectedStatus("غير نشط")} className="rounded-xl bg-[#C1B489] px-3 py-2 text-xs font-black text-[#15445A]">
+                        <button type="button" onClick={() => void updateSelectedStatus("غير نشط")} className="rounded-[var(--app-radius-md)] bg-[var(--app-accent)] px-3 py-2 text-xs font-black text-[var(--app-text)]">
                           جعلهم غير نشطين
                         </button>
 
-                        <button type="button" onClick={() => void deleteSelectedStudents()} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white">
+                        <button type="button" onClick={() => void deleteSelectedStudents()} className="rounded-[var(--app-radius-md)] bg-[var(--app-danger)] px-3 py-2 text-xs font-black text-[var(--app-primary-foreground)]">
                           حذف المحدد
                         </button>
                       </>
@@ -1035,9 +1068,13 @@ export default function StudentsPage() {
             </div>
 
             {loading ? (
-              <LoadingBox text="جاري تحميل الطلاب..." />
+              <PageLoader text="جاري تحميل الطلاب..." />
             ) : filteredStudents.length === 0 ? (
-              <EmptyBox icon={<Search size={30} />} title="لا توجد نتائج" description="لا يوجد طلاب مطابقون للبحث أو الفلاتر الحالية." />
+              <UiEmptyState
+                icon={<Search className="h-8 w-8" aria-hidden="true" />}
+                title="لا توجد نتائج"
+                description="لا يوجد طلاب مطابقون للبحث أو الفلاتر الحالية."
+              />
             ) : viewMode === "cards" ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {pagedStudents.map((student) => (
@@ -1076,32 +1113,34 @@ export default function StudentsPage() {
 
             {!loading && filteredStudents.length > 0 && (
               <div className="mt-5 flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[var(--app-text-muted)]">
                   عرض {pagedStudents.length} من {filteredStudents.length}
                 </p>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  <IconButton
+                    label="الصفحة السابقة"
+                    title="السابق"
+                    onClick={() =>
+                      setPage((value) => Math.max(1, value - 1))
+                    }
                     disabled={page === 1}
-                    className="rounded-xl border p-2 disabled:opacity-40"
-                  >
-                    <ChevronRight size={18} />
-                  </button>
+                    icon={<ChevronRight size={18} aria-hidden="true" />}
+                  />
 
-                  <span className="text-sm font-bold text-slate-700">
+                  <span className="text-sm font-bold text-[var(--app-text)]">
                     {page} / {totalPages}
                   </span>
 
-                  <button
-                    type="button"
-                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                  <IconButton
+                    label="الصفحة التالية"
+                    title="التالي"
+                    onClick={() =>
+                      setPage((value) => Math.min(totalPages, value + 1))
+                    }
                     disabled={page === totalPages}
-                    className="rounded-xl border p-2 disabled:opacity-40"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
+                    icon={<ChevronLeft size={18} aria-hidden="true" />}
+                  />
                 </div>
               </div>
             )}
@@ -1157,9 +1196,9 @@ function StudentsTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1280px]">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+          <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)] text-right text-sm text-[var(--app-text-muted)]">
             <th className="rounded-r-2xl px-4 py-3 print:hidden">
-              <input type="checkbox" checked={allPageSelected} onChange={toggleSelectPage} />
+              <input type="checkbox" checked={allPageSelected} onChange={toggleSelectPage} className="accent-[var(--app-primary)]" />
             </th>
             <th className="px-4 py-3">الطالب</th>
             <th className="px-4 py-3">رقم الطالب</th>
@@ -1177,16 +1216,17 @@ function StudentsTable({
 
         <tbody>
           {pagedStudents.map((student) => (
-            <tr key={student.id} className="border-b border-slate-50 text-sm transition hover:bg-slate-50">
+            <tr key={student.id} className="border-b border-slate-50 text-sm transition hover:bg-[var(--app-card-soft)]">
               <td className="px-4 py-3 print:hidden">
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(student.id)}
                   onChange={() => toggleSelectStudent(student.id)}
+                  className="accent-[var(--app-primary)]"
                 />
               </td>
 
-              <td className="px-4 py-3 font-bold text-[#15445A]">{student.full_name}</td>
+              <td className="px-4 py-3 font-bold text-[var(--app-text)]">{student.full_name}</td>
               <td className="px-4 py-3">{student.student_number || "-"}</td>
               <td className="px-4 py-3">{student.national_id || "-"}</td>
               <td className="px-4 py-3">{student.grade_level || "-"}</td>
@@ -1194,8 +1234,8 @@ function StudentsTable({
 
               <td className="px-4 py-3">
                 <p>{student.guardian_name || "-"}</p>
-                <p className="mt-1 text-xs text-slate-400">{student.guardian_phone || "-"}</p>
-                <p className="mt-1 text-xs text-slate-400">{student.guardian_email || student.parent_email || "-"}</p>
+                <p className="mt-1 text-xs text-[var(--app-text-subtle)]">{student.guardian_phone || "-"}</p>
+                <p className="mt-1 text-xs text-[var(--app-text-subtle)]">{student.guardian_email || student.parent_email || "-"}</p>
               </td>
 
               <td className="px-4 py-3">
@@ -1207,7 +1247,7 @@ function StudentsTable({
                   <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${gradeTone(student.average)}`}>
                     {student.average > 0 ? `${student.average}%` : "لا توجد درجات"}
                   </span>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-[var(--app-text-subtle)]">
                     {getStudentGradeStatus(student.id, student.grade_level)}
                   </span>
                 </div>
@@ -1220,7 +1260,7 @@ function StudentsTable({
               </td>
 
               <td className="px-4 py-3">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
                   {student.status || DEFAULT_STATUS}
                 </span>
               </td>
@@ -1268,11 +1308,11 @@ function StudentCard({
   onMarkAttendance: (studentId: string, status: AttendanceStatus) => Promise<void>;
 }) {
   return (
-    <article className="rounded-[24px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+    <article className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-black text-[#15445A]">{student.full_name}</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="text-lg font-black text-[var(--app-text)]">{student.full_name}</h3>
+          <p className="mt-1 text-sm text-[var(--app-text-muted)]">
             {student.grade_level || "-"} · {student.classroom || "-"}
             {student.section ? ` · ${student.section}` : ""}
           </p>
@@ -1333,28 +1373,28 @@ function StudentActions({
       <button
         type="button"
         onClick={() => onSelect(student)}
-        className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+        className="rounded-[var(--app-radius-md)] bg-[var(--app-card-soft)] p-2 text-[var(--app-text)] hover:bg-[var(--app-border)]"
         title="عرض مختصر"
       >
-        <Eye size={16} />
+        <Eye size={16} aria-hidden="true" />
       </button>
 
       <Link
         href={`/students/${student.id}`}
-        className="rounded-xl bg-[#07A869]/10 p-2 text-[#07A869] hover:bg-[#07A869]/15"
+        className="rounded-[var(--app-radius-md)] bg-[var(--app-success)]/10 p-2 text-[var(--app-success)] hover:bg-[var(--app-success)]/15"
         title="فتح ملف الطالب"
       >
-        <FileText size={16} />
+        <FileText size={16} aria-hidden="true" />
       </Link>
 
       {canManage && (
         <button
           type="button"
           onClick={() => onEdit(student)}
-          className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/15"
+          className="rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] p-2 text-[var(--app-primary)] hover:bg-[color-mix(in_srgb,var(--app-primary)_16%,transparent)]"
           title="تعديل"
         >
-          <Pencil size={16} />
+          <Pencil size={16} aria-hidden="true" />
         </button>
       )}
 
@@ -1363,13 +1403,13 @@ function StudentActions({
           <button
             type="button"
             onClick={() => setAttendanceMenuId(attendanceMenuId === student.id ? null : student.id)}
-            className="rounded-xl bg-[#15445A] px-3 py-2 text-xs font-black text-white"
+            className="rounded-[var(--app-radius-md)] bg-[var(--app-primary)] px-3 py-2 text-xs font-black text-[var(--app-primary-foreground)]"
           >
             الحضور
           </button>
 
           {attendanceMenuId === student.id && (
-            <div className="absolute left-0 top-10 z-20 w-44 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+            <div className="absolute left-0 top-10 z-20 w-44 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] p-2 shadow-[var(--app-shadow-xl)]">
               <AttendanceAction label="حاضر" color="green" onClick={() => onMarkAttendance(student.id, "حاضر")} />
               <AttendanceAction label="غائب" color="red" onClick={() => onMarkAttendance(student.id, "غائب")} />
               <AttendanceAction label="متأخر" color="amber" onClick={() => onMarkAttendance(student.id, "متأخر")} />
@@ -1383,24 +1423,12 @@ function StudentActions({
         <button
           type="button"
           onClick={() => void onDelete(student.id)}
-          className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+          className="rounded-[var(--app-radius-md)] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] p-2 text-[var(--app-danger)] hover:bg-[color-mix(in_srgb,var(--app-danger)_16%,transparent)]"
           title="حذف"
         >
-          <Trash2 size={16} />
+          <Trash2 size={16} aria-hidden="true" />
         </button>
       )}
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      <span>{toast.message}</span>
     </div>
   );
 }
@@ -1422,7 +1450,7 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     />
   );
 }
@@ -1444,8 +1472,8 @@ function QuickFilter({
     <button
       type="button"
       onClick={() => onClick(value)}
-      className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-        isActive ? "bg-[#15445A] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      className={`rounded-[var(--app-radius-lg)] px-4 py-2 text-sm font-black transition ${
+        isActive ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]" : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)] hover:bg-[var(--app-border)]"
       }`}
     >
       {label}
@@ -1457,14 +1485,14 @@ function StatusBadge({ status }: { status?: string | null }) {
   const label = getStatusLabel(status);
 
   const style = isPresent(status)
-    ? "bg-[#07A869]/10 text-[#07A869]"
+    ? "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]"
     : isAbsent(status)
-      ? "bg-red-50 text-red-700"
+      ? "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]"
       : isLate(status)
-        ? "bg-[#C1B489]/20 text-[#15445A]"
+        ? "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]"
         : isClinic(status)
-          ? "bg-[#3D7EB9]/10 text-[#3D7EB9]"
-          : "bg-slate-100 text-slate-500";
+          ? "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]"
+          : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]";
 
   return <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>{label}</span>;
 }
@@ -1479,17 +1507,21 @@ function AttendanceAction({
   onClick: () => void;
 }) {
   const colors = {
-    green: "text-[#07A869] hover:bg-[#07A869]/10",
-    red: "text-red-700 hover:bg-red-50",
-    amber: "text-[#15445A] hover:bg-[#C1B489]/20",
-    blue: "text-[#3D7EB9] hover:bg-[#3D7EB9]/10",
+    green:
+      "text-[var(--app-success)] hover:bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)]",
+    red:
+      "text-[var(--app-danger)] hover:bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)]",
+    amber:
+      "text-[var(--app-accent-foreground)] hover:bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)]",
+    blue:
+      "text-[var(--app-primary)] hover:bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)]",
   };
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`block w-full rounded-xl px-3 py-2 text-right text-sm font-black ${colors[color]}`}
+      className={`block w-full rounded-[var(--app-radius-md)] px-3 py-2 text-right text-sm font-black ${colors[color]}`}
     >
       {label}
     </button>
@@ -1515,41 +1547,38 @@ function StudentSideCard({
 }) {
   if (!selectedStudent) {
     return (
-      <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
-          <div>
-            <Users size={40} className="mx-auto text-[#C1B489]" />
-            <h3 className="mt-4 text-xl font-black text-[#15445A]">اختر طالبًا</h3>
-            <p className="mt-2 text-sm text-slate-500">اضغط على أيقونة العين لعرض الملف المختصر</p>
-          </div>
-        </div>
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+        <UiEmptyState
+          icon={<Users className="h-9 w-9" aria-hidden="true" />}
+          title="اختر طالبًا"
+          description="اضغط على زر العرض بجانب الطالب لمشاهدة ملفه المختصر."
+        />
       </div>
     );
   }
 
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] transition hover:shadow-[var(--app-shadow-md)]">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-2xl font-black text-[#15445A]">الملف المختصر</h2>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">الملف المختصر</h2>
 
-        <button
-          type="button"
+        <IconButton
+          label="إغلاق الملف المختصر"
+          title="إغلاق"
           onClick={() => setSelectedStudent(null)}
-          className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-        >
-          <X size={18} />
-        </button>
+          icon={<X size={18} aria-hidden="true" />}
+        />
       </div>
 
-      <div className="rounded-[28px] bg-[#15445A] p-5 text-white">
+      <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] p-5 text-[var(--app-primary-foreground)]">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#C1B489] text-[#15445A]">
-            <UserRound size={28} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] text-[var(--app-text)]">
+            <UserRound size={28} aria-hidden="true" />
           </div>
 
           <div>
-            <h3 className="text-2xl font-black text-[#C1B489]">{selectedStudent.full_name}</h3>
-            <p className="text-sm text-slate-300">
+            <h3 className="text-2xl font-black text-[var(--app-accent)]">{selectedStudent.full_name}</h3>
+            <p className="text-sm text-[var(--app-primary-foreground)]/70">
               {selectedStudent.grade_level || "-"} - {selectedStudent.classroom || "-"}
               {selectedStudent.section ? ` - ${selectedStudent.section}` : ""}
             </p>
@@ -1564,23 +1593,23 @@ function StudentSideCard({
         </div>
       </div>
 
-      <div className="mt-5 rounded-[24px] border border-slate-100 bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-500">مؤشر المتابعة</p>
-        <h3 className="mt-2 text-2xl font-black text-[#15445A]">{selectedRisk}</h3>
+      <div className="mt-5 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+        <p className="text-sm font-bold text-[var(--app-text-muted)]">مؤشر المتابعة</p>
+        <h3 className="mt-2 text-2xl font-black text-[var(--app-text)]">{selectedRisk}</h3>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <DetailStat title="متوسط" value={selectedAverage ? `${selectedAverage}%` : "-"} icon={<BarChart3 size={18} />} color="blue" />
-        <DetailStat title="حضور" value={selectedPresentCount} icon={<CheckCircle2 size={18} />} color="green" />
-        <DetailStat title="غياب" value={selectedAbsentCount} icon={<ClipboardCheck size={18} />} color="red" />
-        <DetailStat title="تأخر" value={selectedLateCount} icon={<Clock size={18} />} color="gold" />
+        <DetailStat title="متوسط" value={selectedAverage ? `${selectedAverage}%` : "-"} icon={<BarChart3 size={18} aria-hidden="true" />} color="blue" />
+        <DetailStat title="حضور" value={selectedPresentCount} icon={<CheckCircle2 size={18} aria-hidden="true" />} color="green" />
+        <DetailStat title="غياب" value={selectedAbsentCount} icon={<ClipboardCheck size={18} aria-hidden="true" />} color="red" />
+        <DetailStat title="تأخر" value={selectedLateCount} icon={<Clock size={18} aria-hidden="true" />} color="gold" />
       </div>
 
       <Link
         href={`/students/${selectedStudent.id}`}
-        className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-5 py-3 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        className="mt-5 flex items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] px-5 py-3 text-sm font-black text-[var(--app-accent-foreground)] shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)]"
       >
-        <FileText size={17} />
+        <FileText size={17} aria-hidden="true" />
         فتح ملف الطالب
       </Link>
     </div>
@@ -1589,9 +1618,9 @@ function StudentSideCard({
 
 function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
-      <p className="mt-1 truncate font-black text-white">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)]/10 p-3">
+      <p className="text-xs text-[var(--app-primary-foreground)]/70">{title}</p>
+      <p className="mt-1 truncate font-black text-[var(--app-primary-foreground)]">{value}</p>
     </div>
   );
 }
@@ -1608,14 +1637,18 @@ function DetailStat({
   color: "blue" | "red" | "gold" | "green";
 }) {
   const colors = {
-    blue: "bg-[#3D7EB9]/10 text-[#3D7EB9]",
-    red: "bg-red-50 text-red-700",
-    gold: "bg-[#C1B489]/20 text-[#15445A]",
-    green: "bg-[#07A869]/10 text-[#07A869]",
+    blue:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_18%,transparent)] text-[var(--app-accent-foreground)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
   };
 
   return (
-    <div className={`rounded-2xl p-4 ${colors[color]}`}>
+    <div className={`rounded-[var(--app-radius-lg)] p-4 ${colors[color]}`}>
       <div className="mb-2 flex items-center gap-2">
         {icon}
         <p className="text-xs font-bold">{title}</p>
@@ -1627,38 +1660,11 @@ function DetailStat({
 
 function MiniValue({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl bg-white px-3 py-2">
-      <p className="text-xs font-bold text-slate-400">{label}</p>
-      <p className="mt-1 font-black text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-3 py-2">
+      <p className="text-xs font-bold text-[var(--app-text-subtle)]">{label}</p>
+      <p className="mt-1 font-black text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
 
-function EmptyBox({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
-      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#0DA9A6]">
-        {icon}
-      </div>
-      <h3 className="text-lg font-black text-[#15445A]">{title}</h3>
-      <p className="mt-2 text-sm text-slate-500">{description}</p>
-    </div>
-  );
-}

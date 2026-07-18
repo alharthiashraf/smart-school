@@ -15,3 +15,4 @@ export function formatDate(value: string | Date | null | undefined) {
     day: "2-digit",
   }).format(date);
 }
+

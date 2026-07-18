@@ -719,10 +719,10 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-3" aria-label="سجل النشاطات">
                 {auditLogs.map((log) => {
-                  const module = getModuleLabel(log.module);
+                  const moduleLabel = getModuleLabel(log.module);
                   const description =
                     log.description ||
-                    `${getActionLabel(log.action)} في ${module}`;
+                    `${getActionLabel(log.action)} في ${moduleLabel}`;
 
                   return (
                     <article
@@ -742,7 +742,7 @@ export default function AdminPage() {
                         </div>
 
                         <span className="shrink-0 rounded-full bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-primary)]">
-                          {module}
+                          {moduleLabel}
                         </span>
                       </div>
 
@@ -764,3 +764,4 @@ export default function AdminPage() {
     </AppShell>
   );
 }
+

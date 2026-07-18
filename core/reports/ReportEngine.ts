@@ -26,3 +26,4 @@ export const ReportEngine = {
     return Object.fromEntries(Object.entries(reducers).map(([key, reducer]) => [key, reducer(rows)]));
   },
 };
+

@@ -1146,3 +1146,4 @@ function StatusBadge({ status }: { status: AttendanceStatus }) {
     </span>
   );
 }
+

@@ -17,3 +17,4 @@ export async function createSignedUrls(bucket: string, paths: string[], expiresI
 }
 
 export const StorageSignedUrls = { create: createSignedUrl, createMany: createSignedUrls };
+

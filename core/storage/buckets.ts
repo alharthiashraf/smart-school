@@ -42,3 +42,4 @@ export function isPublicBucket(bucket: string) {
 export function isKnownBucket(bucket: string) {
   return Object.values(StorageBuckets).includes(bucket);
 }
+

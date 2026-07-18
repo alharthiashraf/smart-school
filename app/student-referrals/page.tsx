@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -12,6 +12,13 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -27,7 +34,6 @@ import {
   Eye,
   FileText,
   Filter,
-  Loader2,
   RefreshCcw,
   ShieldAlert,
   User,
@@ -65,6 +71,20 @@ type Toast = {
   message: string;
 };
 
+const EXPORT_HEADERS = [
+  "#",
+  "الطالب",
+  "رقم الطالب",
+  "الصف",
+  "الفصل",
+  "الشعبة",
+  "سبب الإحالة",
+  "الحالة",
+  "ملاحظات",
+  "محولة لسلوك",
+  "تاريخ الإحالة",
+];
+
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
 
@@ -90,8 +110,11 @@ function statusLabel(status?: string | null) {
 }
 
 function statusTone(status?: string | null) {
-  if (isOpenStatus(status)) return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
-  return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
+  if (isOpenStatus(status)) {
+    return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
 }
 
 function percentage(value: number, total: number) {
@@ -109,7 +132,7 @@ export default function StudentReferralsPage() {
       fallback={
         <RoleGuard allowedRoles={STAFF_ROLES}>
           <AppShell>
-            <LoadingBox />
+            <PageLoader text="جاري تحميل الإحالات الطلابية..." />
           </AppShell>
         </RoleGuard>
       }
@@ -133,17 +156,15 @@ function StudentReferralsContent() {
   const [selectedReferral, setSelectedReferral] = useState<ReferralRow | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
 
-  useEffect(() => {
-    if (currentSchool?.id) void fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSchool?.id, studentIdFromUrl]);
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+      window.setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3000);
-  }
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -188,7 +209,20 @@ function StudentReferralsContent() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentSchool?.id, showToast, studentIdFromUrl]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setLoading(false);
+      setReferrals([]);
+      setStudents({});
+      return;
+    }
+
+    void fetchData();
+  }, [currentSchool?.id, fetchData, schoolLoading]);
 
   const stats = useMemo(() => {
     const total = referrals.length;
@@ -231,42 +265,53 @@ function StudentReferralsContent() {
     });
   }, [referrals, students, search, statusFilter]);
 
-  const exportRows = useMemo(() => {
+  const exportRows = useMemo<(string | number | null | undefined)[][]>(() => {
     return filteredReferrals.map((item, index) => {
       const student = students[item.student_id];
 
-      return {
-        "#": index + 1,
-        "الطالب": student?.full_name || "—",
-        "رقم الطالب": student?.student_number || "—",
-        "الصف": student?.grade_level || "—",
-        "الفصل": student?.class_name || student?.classroom || "—",
-        "الشعبة": student?.section || "—",
-        "سبب الإحالة": item.reason || "—",
-        "الحالة": item.status || "مفتوحة",
-        "ملاحظات": item.teacher_notes || "—",
-        "محولة لسلوك": item.converted_to_behavior ? "نعم" : "لا",
-        "تاريخ الإحالة": formatDateTime(item.created_at),
-      };
+      return [
+        index + 1,
+        student?.full_name || "—",
+        student?.student_number || "—",
+        student?.grade_level || "—",
+        student?.class_name || student?.classroom || "—",
+        student?.section || "—",
+        item.reason || "—",
+        item.status || "مفتوحة",
+        item.teacher_notes || "—",
+        item.converted_to_behavior ? "نعم" : "لا",
+        formatDateTime(item.created_at),
+      ];
     });
   }, [filteredReferrals, students]);
 
   function exportPDF() {
     exportTableToPDF({
       title: "الإحالات الطلابية",
-      fileName: `student-referrals-${todayStamp()}.pdf`,
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: studentIdFromUrl
+        ? "تقرير إحالات الطالب المحدد"
+        : "تقرير الإحالات الطلابية",
+      headers: EXPORT_HEADERS,
       rows: exportRows,
-    } as any);
+      fileName: `student-referrals-${todayStamp()}.pdf`,
+    });
 
     showToast("success", "تم تجهيز PDF");
   }
 
   async function exportExcel() {
     await exportTableToExcel({
+      title: "الإحالات الطلابية",
+      schoolName: currentSchool?.school_name || "منصة المدرسة الذكية",
+      subtitle: studentIdFromUrl
+        ? "تقرير إحالات الطالب المحدد"
+        : "تقرير الإحالات الطلابية",
+      headers: EXPORT_HEADERS,
+      rows: exportRows,
       fileName: `student-referrals-${todayStamp()}.xlsx`,
       sheetName: "Student Referrals",
-      rows: exportRows,
-    } as any);
+    });
 
     showToast("success", "تم تصدير Excel");
   }
@@ -304,7 +349,17 @@ function StudentReferralsContent() {
     return (
       <RoleGuard allowedRoles={STAFF_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل الإحالات الطلابية..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={STAFF_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -316,14 +371,22 @@ function StudentReferralsContent() {
         <PageContainer size="wide" className="space-y-5">
           <Breadcrumb />
 
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title="الإحالات الطلابية"
             description="متابعة الإحالات الطلابية واستقبال الحالات ومعالجتها أو إغلاقها حسب حالة الطالب، مع تصدير التقارير للمتابعة الإدارية."
             badge="بوابة الوكيل"
-            icon={<ShieldAlert size={18} />}
+            icon={<ShieldAlert size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "بوابة الوكيل", href: "/vice-principal" },
@@ -336,49 +399,43 @@ function StudentReferralsContent() {
               { label: "الحالة", value: statusFilter === "all" ? "كل الحالات" : statusFilter === "open" ? "المفتوحة" : "المغلقة" },
             ]}
             stats={[
-              { label: "إجمالي الإحالات", value: stats.total, icon: <ShieldAlert size={20} />, tone: "blue" },
-              { label: "المفتوحة", value: stats.open, icon: <AlertCircle size={20} />, tone: stats.open > 0 ? "gold" : "green" },
-              { label: "المغلقة", value: stats.closed, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "محولة لسلوك", value: stats.converted, icon: <XCircle size={20} />, tone: stats.converted > 0 ? "red" : "slate" },
+              { label: "إجمالي الإحالات", value: stats.total, icon: <ShieldAlert size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "المفتوحة", value: stats.open, icon: <AlertCircle size={20} aria-hidden="true" />, tone: stats.open > 0 ? "gold" : "green" },
+              { label: "المغلقة", value: stats.closed, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
+              { label: "محولة لسلوك", value: stats.converted, icon: <XCircle size={20} aria-hidden="true" />, tone: stats.converted > 0 ? "red" : "slate" },
             ]}
             actions={
               <>
                 <Link
                   href="/vice-principal"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] shadow-[var(--app-shadow-sm)] transition hover:bg-[var(--app-card-soft)]"
                 >
-                  <ArrowRight size={17} />
+                  <ArrowRight size={17} aria-hidden="true" />
                   رجوع
                 </Link>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={exportPDF}
                   disabled={!filteredReferrals.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <FileText size={17} />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
                   onClick={() => void exportExcel()}
                   disabled={!filteredReferrals.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <Download size={17} />
                   Excel
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchData()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
               </>
             }
           />
@@ -388,8 +445,8 @@ function StudentReferralsContent() {
               title="إجمالي الإحالات"
               value={stats.total}
               subtitle="جميع الإحالات المسجلة"
-              icon={<ShieldAlert size={22} />}
-              tone="blue"
+              icon={<ShieldAlert size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.total > 0 ? 100 : 0}
             />
 
@@ -397,7 +454,7 @@ function StudentReferralsContent() {
               title="المفتوحة"
               value={stats.open}
               subtitle="تحتاج متابعة"
-              icon={<AlertCircle size={22} />}
+              icon={<AlertCircle size={22} aria-hidden="true" />}
               tone={stats.open > 0 ? "gold" : "green"}
               progress={percentage(stats.open, stats.total)}
             />
@@ -406,7 +463,7 @@ function StudentReferralsContent() {
               title="المغلقة"
               value={stats.closed}
               subtitle="تمت معالجتها"
-              icon={<CheckCircle2 size={22} />}
+              icon={<CheckCircle2 size={22} aria-hidden="true" />}
               tone="green"
               progress={percentage(stats.closed, stats.total)}
             />
@@ -415,7 +472,7 @@ function StudentReferralsContent() {
               title="محولة لسلوك"
               value={stats.converted}
               subtitle="إحالات حُولت لسجل سلوكي"
-              icon={<XCircle size={22} />}
+              icon={<XCircle size={22} aria-hidden="true" />}
               tone={stats.converted > 0 ? "red" : "primary"}
               progress={percentage(stats.converted, stats.total)}
             />
@@ -436,8 +493,7 @@ function StudentReferralsContent() {
             footer="يفضل مراجعة الإحالات المفتوحة يوميًا وإغلاق الحالات بعد اكتمال الإجراء المناسب."
           />
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-            <PageToolbar
+          <PageToolbar
               search={{
                 value: search,
                 onChange: setSearch,
@@ -457,22 +513,25 @@ function StudentReferralsContent() {
               onExportPDF={exportPDF}
               onExportExcel={() => void exportExcel()}
               actions={
-                <div className="flex h-11 items-center gap-2 rounded-2xl bg-slate-50 px-4 text-sm font-black text-slate-600">
-                  <Filter size={17} />
+                <div className="flex h-11 items-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-4 text-sm font-black text-[var(--app-text-muted)]">
+                  <Filter size={17} aria-hidden="true" />
                   {filteredReferrals.length} نتيجة
                 </div>
               }
-            />
-          </section>
+          />
 
           {filteredReferrals.length === 0 ? (
-            <EmptyBox text="لا توجد إحالات مطابقة." />
+            <UiEmptyState
+              icon={<ShieldAlert className="h-8 w-8" aria-hidden="true" />}
+              title="لا توجد إحالات"
+              description="غيّر البحث أو الفلاتر لعرض نتائج أخرى."
+            />
           ) : (
-            <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black text-[#15445A]">قائمة الإحالات</h2>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <h2 className="text-xl font-black text-[var(--app-text)]">قائمة الإحالات</h2>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                     عرض {filteredReferrals.length} إحالة حسب الفلاتر الحالية.
                   </p>
                 </div>
@@ -522,7 +581,7 @@ function ReferralCard({
   onClose: (item: ReferralRow, status: string) => Promise<void>;
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:-translate-y-0.5 hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -531,33 +590,33 @@ function ReferralCard({
             </span>
 
             {item.converted_to_behavior && (
-              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-black text-red-700">
+              <span className="rounded-full border border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] px-3 py-1 text-xs font-black text-[var(--app-danger)]">
                 محولة لسلوك
               </span>
             )}
 
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600">
+            <span className="rounded-full bg-[var(--app-card)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
               {formatDateTime(item.created_at)}
             </span>
           </div>
 
-          <h2 className="text-xl font-black text-[#15445A]">
+          <h2 className="text-xl font-black text-[var(--app-text)]">
             {student?.full_name || "طالب غير معروف"}
           </h2>
 
-          <p className="mt-2 text-sm leading-7 text-slate-500">
+          <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
             {[student?.grade_level, student?.class_name || student?.classroom, student?.section]
               .filter(Boolean)
               .join(" • ") || "—"}
           </p>
 
-          <p className="mt-4 rounded-2xl bg-white p-4 text-sm leading-7 text-slate-700">
-            <span className="font-black text-[#15445A]">سبب الإحالة:</span>{" "}
+          <p className="mt-4 rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-4 text-sm leading-7 text-[var(--app-text)]">
+            <span className="font-black text-[var(--app-text)]">سبب الإحالة:</span>{" "}
             {item.reason || "—"}
           </p>
 
           {item.teacher_notes && (
-            <p className="mt-3 rounded-2xl bg-[#C1B489]/20 p-4 text-sm leading-7 text-[#15445A]">
+            <p className="mt-3 rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] p-4 text-sm leading-7 text-[var(--app-text)]">
               <span className="font-black">ملاحظات:</span> {item.teacher_notes}
             </p>
           )}
@@ -566,30 +625,26 @@ function ReferralCard({
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Link
             href={`/students/${item.student_id}`}
-            className="flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] hover:bg-slate-50"
+            className="flex h-11 items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 text-sm font-black text-[var(--app-text)] hover:bg-[var(--app-card-soft)]"
           >
             ملف الطالب
-            <User size={16} />
+            <User size={16} aria-hidden="true" />
           </Link>
 
-          <button
-            type="button"
+          <SecondaryButton
+            icon={<Eye size={16} aria-hidden="true" />}
             onClick={() => onView(item)}
-            className="flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] hover:bg-slate-50"
           >
             عرض
-            <Eye size={16} />
-          </button>
+          </SecondaryButton>
 
           {isOpenStatus(item.status) && (
-            <button
-              type="button"
+            <SecondaryButton
+              icon={<CheckCircle2 size={16} aria-hidden="true" />}
               onClick={() => void onClose(item, "مغلق")}
-              className="flex h-11 items-center gap-2 rounded-2xl bg-[#07A869] px-4 text-sm font-black text-white hover:opacity-90"
             >
               إغلاق
-              <CheckCircle2 size={16} />
-            </button>
+            </SecondaryButton>
           )}
         </div>
       </div>
@@ -609,23 +664,22 @@ function ReferralDrawer({
   onUpdateStatus: (item: ReferralRow, status: string) => Promise<void>;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-950/40 p-4 backdrop-blur-sm">
-      <aside className="h-full w-full max-w-xl overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-end bg-[color-mix(in_srgb,var(--app-text)_44%,transparent)] p-4 backdrop-blur-sm">
+      <aside className="h-full w-full max-w-xl overflow-y-auto rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-6 shadow-[var(--app-shadow-xl)]">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-[#15445A]">تفاصيل الإحالة</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-2xl font-black text-[var(--app-text)]">تفاصيل الإحالة</h2>
+            <p className="mt-1 text-sm text-[var(--app-text-muted)]">
               {student?.full_name || "طالب غير معروف"}
             </p>
           </div>
 
-          <button
-            type="button"
+          <IconButton
+            label="إغلاق تفاصيل الإحالة"
+            title="إغلاق"
             onClick={onClose}
-            className="rounded-2xl bg-slate-100 p-3 text-slate-600 hover:bg-slate-200"
-          >
-            <X size={18} />
-          </button>
+            icon={<X size={18} aria-hidden="true" />}
+          />
         </div>
 
         <div className="space-y-3">
@@ -648,22 +702,17 @@ function ReferralDrawer({
         </div>
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700"
-          >
+          <SecondaryButton onClick={onClose}>
             إغلاق النافذة
-          </button>
+          </SecondaryButton>
 
           {isOpenStatus(item.status) && (
-            <button
-              type="button"
+            <SecondaryButton
+              icon={<CheckCircle2 size={16} aria-hidden="true" />}
               onClick={() => void onUpdateStatus(item, "مغلق")}
-              className="h-11 rounded-2xl bg-[#07A869] px-4 text-sm font-black text-white"
             >
               إغلاق الإحالة
-            </button>
+            </SecondaryButton>
           )}
         </div>
       </aside>
@@ -671,45 +720,13 @@ function ReferralDrawer({
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[360px] items-center justify-center rounded-[28px] border border-slate-100 bg-white">
-      <div className="flex flex-col items-center gap-3 text-slate-600">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-        <p className="text-sm font-bold">جاري تحميل الإحالات الطلابية...</p>
-      </div>
-    </div>
-  );
-}
-
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-2 font-black leading-7 text-[#15445A]">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
+      <p className="mt-2 font-black leading-7 text-[var(--app-text)]">{value}</p>
     </div>
   );
 }
 
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
 
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      {toast.message}
-    </div>
-  );
-}

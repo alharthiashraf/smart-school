@@ -15,3 +15,4 @@ export async function scanFileBeforeUpload(file: File | Blob, fileName?: string)
 }
 
 export const VirusScanner = { scan: scanFileBeforeUpload };
+

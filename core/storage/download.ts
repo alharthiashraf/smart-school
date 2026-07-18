@@ -13,3 +13,4 @@ export async function downloadStorageText(input: StorageDownloadInput) {
 }
 
 export const StorageDownload = { file: downloadStorageFile, text: downloadStorageText };
+

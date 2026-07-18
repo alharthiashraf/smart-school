@@ -10,6 +10,12 @@ import PageActions from "@/components/layout/PageActions";
 import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { STAFF_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -23,7 +29,6 @@ import {
   CalendarDays,
   CheckCircle2,
   HeartPulse,
-  Loader2,
   Phone,
   PlusCircle,
   Printer,
@@ -124,13 +129,16 @@ export default function StudentProfilePage() {
   const [contactDate, setContactDate] = useState(todayISO());
   const [contactNotes, setContactNotes] = useState("");
 
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 2500);
-  }
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+      window.setTimeout(() => setToast(null), 2500);
+    },
+    [],
+  );
 
   const fetchStudentProfile = useCallback(async () => {
-    if (!studentId) return;
+    if (!studentId || !currentSchool?.id) return;
 
     setLoading(true);
     setErrorMsg("");
@@ -142,37 +150,46 @@ export default function StudentProfilePage() {
       healthResult,
       contactsResult,
     ] = await Promise.all([
-      supabase.from("students").select("*").eq("id", studentId).single(),
+      supabase
+        .from("students")
+        .select("*")
+        .eq("id", studentId)
+        .eq("school_id", currentSchool?.id || "")
+        .single(),
 
       supabase
         .from("alerts")
         .select("*")
+        .eq("school_id", currentSchool?.id || "")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false }),
 
       supabase
         .from("student_interventions")
         .select("*")
+        .eq("school_id", currentSchool?.id || "")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false }),
 
       supabase
         .from("health_referrals")
         .select("*")
+        .eq("school_id", currentSchool?.id || "")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false }),
 
       supabase
         .from("parent_contacts")
         .select("*")
+        .eq("school_id", currentSchool?.id || "")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false }),
     ]);
 
-    setLoading(false);
-
     if (studentResult.error) {
       setErrorMsg(studentResult.error.message);
+      setStudent(null);
+      setLoading(false);
       return;
     }
 
@@ -181,7 +198,20 @@ export default function StudentProfilePage() {
     setInterventions((interventionsResult.data as Intervention[]) || []);
     setHealthReferrals((healthResult.data as HealthReferral[]) || []);
     setParentContacts((contactsResult.data as ParentContact[]) || []);
-  }, [studentId]);
+
+    const optionalErrors = [
+      alertsResult.error,
+      interventionsResult.error,
+      healthResult.error,
+      contactsResult.error,
+    ].filter(Boolean);
+
+    if (optionalErrors.length > 0) {
+      setErrorMsg("تم تحميل ملف الطالب، لكن تعذر تحميل بعض السجلات المرتبطة.");
+    }
+
+    setLoading(false);
+  }, [currentSchool?.id, studentId]);
 
   useEffect(() => {
     void fetchStudentProfile();
@@ -261,7 +291,7 @@ export default function StudentProfilePage() {
       return {
         score,
         level: "حرج",
-        color: "bg-red-600 text-white",
+        color: "bg-[var(--app-danger)] text-white",
         note: "يتطلب متابعة عاجلة وتدخل مباشر.",
       };
     }
@@ -270,7 +300,7 @@ export default function StudentProfilePage() {
       return {
         score,
         level: "مرتفع",
-        color: "bg-red-50 text-red-700",
+        color: "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
         note: "يحتاج خطة متابعة قريبة.",
       };
     }
@@ -279,7 +309,7 @@ export default function StudentProfilePage() {
       return {
         score,
         level: "متوسط",
-        color: "bg-amber-50 text-amber-700",
+        color: "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
         note: "يفضل متابعة الحالة أسبوعياً.",
       };
     }
@@ -287,7 +317,7 @@ export default function StudentProfilePage() {
     return {
       score,
       level: "منخفض",
-      color: "bg-emerald-50 text-emerald-700",
+      color: "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]",
       note: "وضع الطالب مستقر حالياً.",
     };
   }, [highAlerts, unreadAlerts, openInterventions, activeHealth, parentContacts.length]);
@@ -326,7 +356,17 @@ export default function StudentProfilePage() {
     return (
       <RoleGuard allowedRoles={STAFF_ROLES}>
         <AppShell>
-          <LoadingBox />
+          <PageLoader text="جاري تحميل ملف الطالب..." />
+        </AppShell>
+      </RoleGuard>
+    );
+  }
+
+  if (!currentSchool) {
+    return (
+      <RoleGuard allowedRoles={STAFF_ROLES}>
+        <AppShell>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -336,7 +376,11 @@ export default function StudentProfilePage() {
     return (
       <RoleGuard allowedRoles={STAFF_ROLES}>
         <AppShell>
-          <EmptyBox text="الطالب غير موجود." />
+          <UiEmptyState
+            icon={<User className="h-9 w-9" aria-hidden="true" />}
+            title="الطالب غير موجود"
+            description="تعذر العثور على الطالب ضمن المدرسة الحالية."
+          />
         </AppShell>
       </RoleGuard>
     );
@@ -348,14 +392,22 @@ export default function StudentProfilePage() {
         <PageContainer size="wide" className="space-y-5 print:space-y-4">
           <Breadcrumb />
 
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title={student.full_name}
             description="ملف الطالب الذكي لمتابعة التنبيهات، التدخلات الإرشادية، التحويلات الصحية، وتواصل ولي الأمر في مكان واحد."
             badge="ملف الطالب الذكي"
-            icon={<User className="h-4 w-4" />}
+            icon={<User className="h-4 w-4" aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الإرشاد الطلابي", href: "/counselor" },
@@ -368,45 +420,39 @@ export default function StudentProfilePage() {
               { label: "مستوى الخطورة", value: risk.level },
             ]}
             stats={[
-              { label: "التنبيهات", value: alerts.length, icon: <Bell size={20} />, tone: "blue" },
-              { label: "التدخلات", value: interventions.length, icon: <ShieldAlert size={20} />, tone: "red" },
-              { label: "الصحة", value: healthReferrals.length, icon: <HeartPulse size={20} />, tone: "green" },
-              { label: "ولي الأمر", value: parentContacts.length, icon: <Phone size={20} />, tone: "gold" },
+              { label: "التنبيهات", value: alerts.length, icon: <Bell size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "التدخلات", value: interventions.length, icon: <ShieldAlert size={20} aria-hidden="true" />, tone: "red" },
+              { label: "الصحة", value: healthReferrals.length, icon: <HeartPulse size={20} aria-hidden="true" />, tone: "green" },
+              { label: "ولي الأمر", value: parentContacts.length, icon: <Phone size={20} aria-hidden="true" />, tone: "gold" },
             ]}
           />
 
           <PageActions className="print:hidden">
             <Link
               href="/counselor"
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-[#0f1f3d]"
+              className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)] px-4 py-2 text-sm font-bold text-[var(--app-text)] shadow-[var(--app-shadow-sm)] transition hover:bg-[var(--app-card-soft)] hover:text-[var(--app-text)]"
             >
-              <ArrowRight size={18} />
+              <ArrowRight size={18} aria-hidden="true" />
               العودة للموجه الطلابي
             </Link>
 
-            <button
-              type="button"
+            <SecondaryButton
+              icon={<Printer size={17} aria-hidden="true" />}
               onClick={printProfile}
-              className="inline-flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#15445A]"
             >
-              <Printer size={17} />
               طباعة ملف الطالب
-            </button>
+            </SecondaryButton>
           </PageActions>
 
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <ExecutiveCard
               title="التنبيهات"
               value={alerts.length}
               subtitle={`${unreadAlerts} غير مقروءة`}
-              icon={<Bell size={22} />}
-              tone="blue"
+              icon={<Bell size={22} aria-hidden="true" />}
+              tone="primary"
               progress={alerts.length > 0 ? Math.min(100, unreadAlerts * 20) : 0}
             />
 
@@ -414,7 +460,7 @@ export default function StudentProfilePage() {
               title="التدخلات"
               value={interventions.length}
               subtitle={`${openInterventions} مفتوحة`}
-              icon={<ShieldAlert size={22} />}
+              icon={<ShieldAlert size={22} aria-hidden="true" />}
               tone="red"
               progress={interventions.length > 0 ? Math.round((openInterventions / interventions.length) * 100) : 0}
             />
@@ -423,7 +469,7 @@ export default function StudentProfilePage() {
               title="التحويلات الصحية"
               value={healthReferrals.length}
               subtitle={`${activeHealth} حالة نشطة`}
-              icon={<HeartPulse size={22} />}
+              icon={<HeartPulse size={22} aria-hidden="true" />}
               tone="green"
               progress={healthReferrals.length > 0 ? Math.round((activeHealth / healthReferrals.length) * 100) : 0}
             />
@@ -432,7 +478,7 @@ export default function StudentProfilePage() {
               title="تواصل ولي الأمر"
               value={parentContacts.length}
               subtitle={lastContact ? "آخر تواصل موثق" : "لم يوثق بعد"}
-              icon={<Phone size={22} />}
+              icon={<Phone size={22} aria-hidden="true" />}
               tone="gold"
               progress={parentContacts.length > 0 ? 100 : 0}
             />
@@ -441,13 +487,13 @@ export default function StudentProfilePage() {
               title="مستوى الخطورة"
               value={risk.level}
               subtitle={`الدرجة ${risk.score}`}
-              icon={<Activity size={22} />}
+              icon={<Activity size={22} aria-hidden="true" />}
               tone={risk.level === "حرج" || risk.level === "مرتفع" ? "red" : risk.level === "متوسط" ? "gold" : "green"}
               progress={Math.min(100, risk.score)}
             />
           </section>
 
-          <Card title="ملخص الحالة الذكي" icon={<Activity size={22} />}>
+          <Card title="ملخص الحالة الذكي" icon={<Activity size={22} aria-hidden="true" />}>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <Recommendation text={risk.note} />
               <Recommendation
@@ -468,7 +514,7 @@ export default function StudentProfilePage() {
           </Card>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <Card title="بيانات الطالب" icon={<User size={22} />}>
+            <Card title="بيانات الطالب" icon={<User size={22} aria-hidden="true" />}>
               <div className="space-y-3 text-sm">
                 <Row title="اسم الطالب" value={student.full_name} />
                 <Row title="المرحلة" value={student.grade_level} />
@@ -478,12 +524,12 @@ export default function StudentProfilePage() {
               </div>
             </Card>
 
-            <Card title="إضافة تواصل مع ولي الأمر" icon={<Phone size={22} />}>
+            <Card title="إضافة تواصل مع ولي الأمر" icon={<Phone size={22} aria-hidden="true" />}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <select
                   value={contactType}
                   onChange={(event) => setContactType(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                 >
                   {CONTACT_TYPES.map((item) => (
                     <option key={item} value={item}>
@@ -496,7 +542,7 @@ export default function StudentProfilePage() {
                   type="date"
                   value={contactDate}
                   onChange={(event) => setContactDate(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                 />
               </div>
 
@@ -504,24 +550,24 @@ export default function StudentProfilePage() {
                 value={contactNotes}
                 onChange={(event) => setContactNotes(event.target.value)}
                 placeholder="اكتب تفاصيل التواصل مع ولي الأمر..."
-                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                className="mt-3 min-h-24 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               />
 
-              <button
-                onClick={addParentContact}
-                disabled={savingContact}
-                className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white disabled:opacity-50"
+              <PrimaryButton
+                className="mt-3"
+                icon={<PlusCircle size={17} aria-hidden="true" />}
+                onClick={() => void addParentContact()}
+                loading={savingContact}
               >
-                <PlusCircle size={17} />
-                {savingContact ? "جاري الحفظ..." : "حفظ التواصل"}
-              </button>
+                حفظ التواصل
+              </PrimaryButton>
             </Card>
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <ListCard title="آخر التنبيهات" icon={<Bell size={22} />}>
+            <ListCard title="آخر التنبيهات" icon={<Bell size={22} aria-hidden="true" />}>
               {alerts.length === 0 ? (
-                <EmptyBox text="لا توجد تنبيهات." />
+                <UiEmptyState title="لا توجد تنبيهات" description="لا توجد تنبيهات مسجلة لهذا الطالب." />
               ) : (
                 alerts.slice(0, 5).map((item) => (
                   <TimelineItem
@@ -534,9 +580,9 @@ export default function StudentProfilePage() {
               )}
             </ListCard>
 
-            <ListCard title="التدخلات الإرشادية" icon={<ShieldAlert size={22} />}>
+            <ListCard title="التدخلات الإرشادية" icon={<ShieldAlert size={22} aria-hidden="true" />}>
               {interventions.length === 0 ? (
-                <EmptyBox text="لا توجد تدخلات إرشادية." />
+                <UiEmptyState title="لا توجد تدخلات" description="لا توجد تدخلات إرشادية مسجلة." />
               ) : (
                 interventions.map((item) => (
                   <TimelineItem
@@ -551,9 +597,9 @@ export default function StudentProfilePage() {
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-            <ListCard title="السجل الصحي" icon={<HeartPulse size={22} />}>
+            <ListCard title="السجل الصحي" icon={<HeartPulse size={22} aria-hidden="true" />}>
               {healthReferrals.length === 0 ? (
-                <EmptyBox text="لا توجد تحويلات صحية." />
+                <UiEmptyState title="لا توجد تحويلات صحية" description="لا توجد تحويلات صحية مسجلة." />
               ) : (
                 healthReferrals.map((item) => (
                   <TimelineItem
@@ -566,9 +612,9 @@ export default function StudentProfilePage() {
               )}
             </ListCard>
 
-            <ListCard title="سجل التواصل مع ولي الأمر" icon={<Phone size={22} />}>
+            <ListCard title="سجل التواصل مع ولي الأمر" icon={<Phone size={22} aria-hidden="true" />}>
               {parentContacts.length === 0 ? (
-                <EmptyBox text="لا توجد سجلات تواصل." />
+                <UiEmptyState title="لا توجد سجلات تواصل" description="لم يتم توثيق تواصل مع ولي الأمر." />
               ) : (
                 parentContacts.map((item) => (
                   <TimelineItem
@@ -582,7 +628,7 @@ export default function StudentProfilePage() {
             </ListCard>
           </section>
 
-          <Card title="توصيات ذكية للموجه الطلابي" icon={<BookOpen size={22} />}>
+          <Card title="توصيات ذكية للموجه الطلابي" icon={<BookOpen size={22} aria-hidden="true" />}>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {recommendations.map((item) => (
                 <Recommendation key={item} text={item} />
@@ -605,12 +651,12 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0f1f3d]/10 text-[#0f1f3d]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)]/10 text-[var(--app-text)]">
           {icon}
         </div>
-        <h2 className="text-xl font-black text-[#0f1f3d]">{title}</h2>
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </section>
@@ -635,9 +681,9 @@ function ListCard({
 
 function Row({ title, value }: { title: string; value?: string | null }) {
   return (
-    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-      <span className="text-slate-500">{title}</span>
-      <span className="font-bold text-[#0f1f3d]">{value || "-"}</span>
+    <div className="flex items-center justify-between border-b border-[var(--app-border)] pb-2">
+      <span className="text-[var(--app-text-muted)]">{title}</span>
+      <span className="font-bold text-[var(--app-text)]">{value || "-"}</span>
     </div>
   );
 }
@@ -652,11 +698,11 @@ function TimelineItem({
   meta: string;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <p className="font-black text-[#0f1f3d]">{title}</p>
-      <p className="mt-1 text-sm leading-7 text-slate-600">{description}</p>
-      <p className="mt-2 flex items-center gap-1 text-xs text-slate-400">
-        <CalendarDays size={13} />
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+      <p className="font-black text-[var(--app-text)]">{title}</p>
+      <p className="mt-1 text-sm leading-7 text-[var(--app-text-muted)]">{description}</p>
+      <p className="mt-2 flex items-center gap-1 text-xs text-[var(--app-text-subtle)]">
+        <CalendarDays size={13} aria-hidden="true" />
         {meta}
       </p>
     </div>
@@ -665,40 +711,8 @@ function TimelineItem({
 
 function Recommendation({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold leading-7 text-slate-700">
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 text-sm font-bold leading-7 text-[var(--app-text)]">
       {text}
-    </div>
-  );
-}
-
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed bg-slate-50 p-6 text-center text-sm text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-lg ${
-        toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
-    >
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-      {toast.message}
-    </div>
-  );
-}
-
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="flex items-center gap-3 rounded-3xl border bg-white px-6 py-4 text-slate-600 shadow-sm">
-        <Loader2 className="h-5 w-5 animate-spin text-[#0f1f3d]" />
-        جاري تحميل ملف الطالب...
-      </div>
     </div>
   );
 }
@@ -706,8 +720,12 @@ function LoadingBox() {
 function formatDate(value: string | null) {
   if (!value) return "-";
 
-  return new Intl.DateTimeFormat("ar-SA", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  try {
+    return new Intl.DateTimeFormat("ar-SA", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }

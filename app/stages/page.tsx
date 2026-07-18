@@ -35,6 +35,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { useSchool } from "@/contexts/SchoolContext";
 import { ExportEngine } from "@/core";
@@ -124,15 +132,12 @@ function percentage(value: number, total: number) {
 }
 
 export default function StagesPage() {
-  const schoolContext = useSchool() as any;
-
-  const currentSchool = schoolContext?.currentSchool || schoolContext?.school || null;
-  const currentRole = schoolContext?.currentRole || currentSchool?.role || null;
-  const schoolLoading = Boolean(schoolContext?.loading);
-  const hasPermission =
-    schoolContext?.hasPermission ||
-    ((permission: string) =>
-      currentRole === "super_admin" || currentRole === "school_admin");
+  const {
+    currentSchool,
+    currentRole,
+    loading: schoolLoading,
+    hasPermission,
+  } = useSchool();
 
   const canManage =
     hasPermission("stages.manage") ||
@@ -223,6 +228,10 @@ export default function StagesPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
 
   const stats = useMemo(() => {
     const active = rows.filter((row) => row.is_active !== false).length;
@@ -397,7 +406,7 @@ export default function StagesPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+          <PageLoader text="جاري تحميل بيانات المدرسة..." />
         </AppShell>
       </RoleGuard>
     );
@@ -407,9 +416,7 @@ export default function StagesPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <div className="rounded-[28px] border border-red-100 bg-red-50 p-6 text-center font-bold text-red-700">
-            لا توجد مدرسة مرتبطة بالمستخدم الحالي.
-          </div>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -421,14 +428,22 @@ export default function StagesPage() {
         <PageContainer size="wide" className="space-y-5">
           <Breadcrumb />
 
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title="المراحل الدراسية"
             description={`${currentSchool.school_name} — إدارة المراحل الدراسية وترتيبها وتفعيلها وربطها لاحقًا بالصفوف والفصول والمواد.`}
             badge="الإدارة الأكاديمية"
-            icon={<Layers3 size={18} />}
+            icon={<Layers3 size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "المراحل الدراسية" },
@@ -440,62 +455,54 @@ export default function StagesPage() {
               { label: "الصلاحية", value: canManage ? "إدارة كاملة" : "عرض فقط" },
             ]}
             stats={[
-              { label: "إجمالي المراحل", value: stats.total, icon: <Layers3 size={20} />, tone: "blue" },
-              { label: "نتائج البحث", value: stats.filtered, icon: <FileText size={20} />, tone: "slate" },
-              { label: "نشطة", value: stats.active, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "غير نشطة", value: stats.inactive, icon: <XCircle size={20} />, tone: stats.inactive > 0 ? "red" : "green" },
+              { label: "إجمالي المراحل", value: stats.total, icon: <Layers3 size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "نتائج البحث", value: stats.filtered, icon: <FileText size={20} aria-hidden="true" />, tone: "slate" },
+              { label: "نشطة", value: stats.active, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
+              { label: "غير نشطة", value: stats.inactive, icon: <XCircle size={20} aria-hidden="true" />, tone: stats.inactive > 0 ? "red" : "green" },
             ]}
             actions={
               <>
                 {canManage && (
-                  <button
-                    type="button"
+                  <PrimaryButton
+                    icon={<Plus size={17} aria-hidden="true" />}
                     onClick={openCreateForm}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
-                    <Plus size={17} />
                     إضافة
-                  </button>
+                  </PrimaryButton>
                 )}
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
                   onClick={exportExcel}
                   disabled={!filteredRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <Download size={17} />
                   Excel
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<Printer size={17} aria-hidden="true" />}
                   onClick={exportPDF}
                   disabled={!filteredRows.length}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
                 >
-                  <Printer size={17} />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void loadStages()}
-                  disabled={loading}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} className={loading ? "animate-spin" : ""} />
                   تحديث
-                </button>
+                </SecondaryButton>
               </>
             }
           />
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <ExecutiveCard title="إجمالي المراحل" value={stats.total} icon={<Layers3 size={22} />} tone="blue" subtitle="كل المراحل" progress={stats.total > 0 ? 100 : 0} />
-            <ExecutiveCard title="نتائج البحث" value={stats.filtered} icon={<FileText size={22} />} tone="slate" subtitle="بعد الفلترة" progress={stats.total ? percentage(stats.filtered, stats.total) : 0} />
-            <ExecutiveCard title="مراحل نشطة" value={stats.active} icon={<CheckCircle2 size={22} />} tone="green" subtitle="مفعلة" progress={stats.total ? percentage(stats.active, stats.total) : 0} />
-            <ExecutiveCard title="غير نشطة" value={stats.inactive} icon={<XCircle size={22} />} tone={stats.inactive > 0 ? "red" : "green"} subtitle="معطلة" progress={stats.total ? percentage(stats.inactive, stats.total) : 0} />
+            <ExecutiveCard title="إجمالي المراحل" value={stats.total} icon={<Layers3 size={22} aria-hidden="true" />} tone="primary" subtitle="كل المراحل" progress={stats.total > 0 ? 100 : 0} />
+            <ExecutiveCard title="نتائج البحث" value={stats.filtered} icon={<FileText size={22} aria-hidden="true" />} tone="slate" subtitle="بعد الفلترة" progress={stats.total ? percentage(stats.filtered, stats.total) : 0} />
+            <ExecutiveCard title="مراحل نشطة" value={stats.active} icon={<CheckCircle2 size={22} aria-hidden="true" />} tone="green" subtitle="مفعلة" progress={stats.total ? percentage(stats.active, stats.total) : 0} />
+            <ExecutiveCard title="غير نشطة" value={stats.inactive} icon={<XCircle size={22} aria-hidden="true" />} tone={stats.inactive > 0 ? "red" : "green"} subtitle="معطلة" progress={stats.total ? percentage(stats.inactive, stats.total) : 0} />
           </section>
 
           <SummaryCard
@@ -514,27 +521,23 @@ export default function StagesPage() {
           />
 
           {formOpen && (
-            <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
               <div className="mb-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {editingStage ? (
-                    <Edit3 className="text-[#0DA9A6]" />
+                    <Edit3 className="text-[var(--app-primary)]" aria-hidden="true" />
                   ) : (
-                    <Plus className="text-[#0DA9A6]" />
+                    <Plus className="text-[var(--app-primary)]" aria-hidden="true" />
                   )}
 
-                  <h2 className="text-xl font-black text-[#15445A]">
+                  <h2 className="text-xl font-black text-[var(--app-text)]">
                     {editingStage ? "تعديل مرحلة" : "إضافة مرحلة"}
                   </h2>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600"
-                >
+                <SecondaryButton onClick={closeForm}>
                   إغلاق
-                </button>
+                </SecondaryButton>
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -557,7 +560,7 @@ export default function StagesPage() {
                   onChange={(value) => setForm((current) => ({ ...current, sort_order: value }))}
                 />
 
-                <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
+                <label className="flex items-center gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm font-black text-[var(--app-text)]">
                   <input
                     type="checkbox"
                     checked={form.is_active}
@@ -567,67 +570,64 @@ export default function StagesPage() {
                         is_active: event.target.checked,
                       }))
                     }
-                    className="h-4 w-4 accent-[#0DA9A6]"
+                    className="h-4 w-4 accent-[var(--app-primary)]"
                   />
                   المرحلة نشطة
                 </label>
               </div>
 
-              <button
-                type="button"
+              <PrimaryButton
+                className="mt-5"
+                icon={<Save size={16} aria-hidden="true" />}
                 onClick={() => void submitForm()}
-                disabled={saving}
-                className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+                loading={saving}
               >
-                <Save size={16} />
-                {saving ? "جاري الحفظ..." : "حفظ"}
-              </button>
+                حفظ
+              </PrimaryButton>
             </section>
           )}
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm print:hidden">
-            <PageToolbar
-              search={{
-                value: search,
-                onChange: setSearch,
-                placeholder: "ابحث باسم المرحلة أو المفتاح...",
-              }}
-              filters={
-                <ToolbarSelect
-                  value={statusFilter}
-                  onChange={(value) =>
-                    setStatusFilter(value as "all" | "active" | "inactive")
-                  }
-                >
-                  <option value="all">كل الحالات</option>
-                  <option value="active">نشطة</option>
-                  <option value="inactive">غير نشطة</option>
-                </ToolbarSelect>
-              }
-              onRefresh={() => void loadStages()}
-              onExportPDF={exportPDF}
-              onExportExcel={exportExcel}
-            />
-          </section>
+          <PageToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "ابحث باسم المرحلة أو المفتاح...",
+            }}
+            filters={
+              <ToolbarSelect
+                value={statusFilter}
+                onChange={(value) =>
+                  setStatusFilter(value as "all" | "active" | "inactive")
+                }
+              >
+                <option value="all">كل الحالات</option>
+                <option value="active">نشطة</option>
+                <option value="inactive">غير نشطة</option>
+              </ToolbarSelect>
+            }
+            onRefresh={() => void loadStages()}
+            onExportPDF={exportPDF}
+            onExportExcel={exportExcel}
+          />
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <div className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm xl:col-span-2">
-              <div className="flex flex-col gap-2 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="overflow-hidden rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)] xl:col-span-2">
+              <div className="flex flex-col gap-2 border-b border-[var(--app-border)] p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black text-[#15445A]">قائمة المراحل</h2>
-                  <p className="text-sm text-slate-500">
+                  <h2 className="text-lg font-black text-[var(--app-text)]">قائمة المراحل</h2>
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عرض {pagedRows.length} من {filteredRows.length} مرحلة
                   </p>
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+                <div className="inline-flex items-center gap-2 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-2 text-sm font-bold text-[var(--app-text-muted)]">
                   التصدير حسب النتائج المعروضة
                 </div>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[850px] text-right text-sm">
-                  <thead className="bg-[#15445A] text-white">
+                  <thead className="bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
                     <tr>
                       <th className="px-4 py-3 font-bold">المرحلة</th>
                       <th className="px-4 py-3 font-bold">المفتاح</th>
@@ -638,13 +638,13 @@ export default function StagesPage() {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[var(--app-border)]">
                     {!loading &&
                       pagedRows.map((stage) => (
-                        <tr key={stage.id} className="transition hover:bg-slate-50">
+                        <tr key={stage.id} className="transition hover:bg-[var(--app-card-soft)]">
                           <td className="px-4 py-3">
-                            <div className="font-black text-[#15445A]">{stage.displayName}</div>
-                            <div className="mt-1 text-xs font-bold text-slate-400">
+                            <div className="font-black text-[var(--app-text)]">{stage.displayName}</div>
+                            <div className="mt-1 text-xs font-bold text-[var(--app-text-subtle)]">
                               رقم السجل: {stage.id.slice(0, 8)}
                             </div>
                           </td>
@@ -652,7 +652,7 @@ export default function StagesPage() {
                           <td className="px-4 py-3">{stage.displayKey}</td>
 
                           <td className="px-4 py-3">
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+                            <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text)]">
                               {stage.displayOrder}
                             </span>
                           </td>
@@ -665,43 +665,39 @@ export default function StagesPage() {
 
                           <td className="px-4 py-3 print:hidden">
                             <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedStage(stage)}
-                                className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+                              <IconButton
+                                label="عرض تفاصيل المرحلة"
                                 title="عرض مختصر"
-                              >
-                                <Eye size={16} />
-                              </button>
+                                onClick={() => setSelectedStage(stage)}
+                                icon={<Eye size={16} aria-hidden="true" />}
+                              />
 
                               {canManage && (
                                 <>
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditForm(stage)}
-                                    className="rounded-xl bg-[#3D7EB9]/10 p-2 text-[#3D7EB9] hover:bg-[#3D7EB9]/15"
+                                  <IconButton
+                                    label="تعديل المرحلة"
                                     title="تعديل"
-                                  >
-                                    <Edit3 size={16} />
-                                  </button>
+                                    onClick={() => openEditForm(stage)}
+                                    icon={<Edit3 size={16} aria-hidden="true" />}
+                                  />
 
-                                  <button
-                                    type="button"
-                                    onClick={() => void toggleActive(stage)}
-                                    className="rounded-xl bg-[#C1B489]/20 p-2 text-[#15445A] hover:bg-[#C1B489]/30"
+                                  <IconButton
+                                    label={
+                                      stage.is_active === false
+                                        ? "تفعيل المرحلة"
+                                        : "تعطيل المرحلة"
+                                    }
                                     title={stage.is_active === false ? "تفعيل" : "تعطيل"}
-                                  >
-                                    <Power size={16} />
-                                  </button>
+                                    onClick={() => void toggleActive(stage)}
+                                    icon={<Power size={16} aria-hidden="true" />}
+                                  />
 
-                                  <button
-                                    type="button"
-                                    onClick={() => void removeStage(stage)}
-                                    className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                                  <IconButton
+                                    label="حذف المرحلة"
                                     title="حذف"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
+                                    onClick={() => void removeStage(stage)}
+                                    icon={<Trash2 size={16} aria-hidden="true" />}
+                                  />
                                 </>
                               )}
                             </div>
@@ -711,40 +707,46 @@ export default function StagesPage() {
                   </tbody>
                 </table>
 
-                {loading && <div className="py-10 text-center text-slate-500">جاري تحميل المراحل الدراسية...</div>}
+                {loading && <div className="py-10 text-center text-[var(--app-text-muted)]">جاري تحميل المراحل الدراسية...</div>}
                 {!loading && filteredRows.length === 0 && (
-                  <div className="py-10 text-center text-slate-500">لا توجد مراحل مطابقة للبحث</div>
+                  <div className="p-6">
+                    <UiEmptyState
+                      icon={<Layers3 className="h-8 w-8" aria-hidden="true" />}
+                      title="لا توجد مراحل"
+                      description="غيّر البحث أو الفلاتر، أو أضف مرحلة دراسية جديدة."
+                    />
+                  </div>
                 )}
               </div>
 
               {!loading && filteredRows.length > 0 && (
-                <div className="mt-5 flex items-center justify-between border-t border-slate-100 p-4">
-                  <p className="text-sm text-slate-500">
+                <div className="mt-5 flex items-center justify-between border-t border-[var(--app-border)] p-4">
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عرض {pagedRows.length} من {filteredRows.length}
                   </p>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
+                    <IconButton
+                      label="الصفحة السابقة"
+                      title="السابق"
                       onClick={() => setPage((value) => Math.max(1, value - 1))}
                       disabled={page === 1}
-                      className="rounded-xl border p-2 disabled:opacity-40"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
+                      icon={<ChevronRight size={18} aria-hidden="true" />}
+                    />
 
-                    <span className="text-sm font-bold text-slate-700">
+                    <span className="text-sm font-bold text-[var(--app-text)]">
                       {page} / {totalPages}
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    <IconButton
+                      label="الصفحة التالية"
+                      title="التالي"
+                      onClick={() =>
+                        setPage((value) => Math.min(totalPages, value + 1))
+                      }
                       disabled={page === totalPages}
-                      className="rounded-xl border p-2 disabled:opacity-40"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
+                      icon={<ChevronLeft size={18} aria-hidden="true" />}
+                    />
                   </div>
                 </div>
               )}
@@ -758,17 +760,6 @@ export default function StagesPage() {
   );
 }
 
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      <span>{toast.message}</span>
-    </div>
-  );
-}
 
 function Input({
   placeholder,
@@ -787,7 +778,7 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     />
   );
 }
@@ -796,7 +787,7 @@ function StageStatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-black ${
-        active ? "bg-[#07A869]/10 text-[#07A869]" : "bg-red-50 text-red-700"
+        active ? "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]" : "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]"
       }`}
     >
       {active ? "نشطة" : "غير نشطة"}
@@ -813,46 +804,41 @@ function StageSideCard({
 }) {
   if (!selectedStage) {
     return (
-      <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
-        <div className="flex min-h-[330px] items-center justify-center rounded-[24px] bg-slate-50 text-center">
-          <div>
-            <Layers3 size={42} className="mx-auto text-[#0DA9A6]" />
-            <h3 className="mt-4 text-xl font-black text-[#15445A]">اختر مرحلة</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              اضغط على أيقونة العين لعرض تفاصيل المرحلة
-            </p>
-          </div>
-        </div>
+      <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
+        <UiEmptyState
+          icon={<Layers3 className="h-9 w-9" aria-hidden="true" />}
+          title="اختر مرحلة"
+          description="اضغط على زر العرض بجانب أي مرحلة لمشاهدة تفاصيلها."
+        />
       </div>
     );
   }
 
   return (
-    <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-2xl font-black text-[#15445A]">تفاصيل المرحلة</h2>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">تفاصيل المرحلة</h2>
 
-        <button
-          type="button"
+        <IconButton
+          label="إغلاق تفاصيل المرحلة"
+          title="إغلاق"
           onClick={() => setSelectedStage(null)}
-          className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-        >
-          <X size={18} />
-        </button>
+          icon={<X size={18} aria-hidden="true" />}
+        />
       </div>
 
-      <div className="rounded-[24px] bg-[#15445A] p-5 text-white">
+      <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] p-5 text-[var(--app-primary-foreground)]">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#C1B489] text-[#15445A]">
-            <Layers3 size={28} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] text-[var(--app-accent-foreground)]">
+            <Layers3 size={28} aria-hidden="true" />
           </div>
 
           <div>
-            <h3 className="text-2xl font-black text-[#C1B489]">
+            <h3 className="text-2xl font-black text-[var(--app-accent)]">
               {selectedStage.displayName}
             </h3>
 
-            <p className="text-sm text-slate-300">{selectedStage.displayKey}</p>
+            <p className="text-sm text-[var(--app-primary-foreground)]/70">{selectedStage.displayKey}</p>
           </div>
         </div>
 
@@ -864,9 +850,9 @@ function StageSideCard({
         </div>
       </div>
 
-      <div className="mt-5 rounded-[24px] border border-slate-100 bg-slate-50 p-4">
-        <p className="text-sm font-bold text-slate-500">ملاحظة تشغيلية</p>
-        <p className="mt-2 text-sm leading-7 text-slate-600">
+      <div className="mt-5 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+        <p className="text-sm font-bold text-[var(--app-text-muted)]">ملاحظة تشغيلية</p>
+        <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
           هذه المرحلة تستخدم كأساس لاحق للصفوف والفصول والمواد وإسناد المعلمين.
           حافظ على ترتيب العرض لتظهر القوائم الأكاديمية بشكل صحيح.
         </p>
@@ -877,18 +863,11 @@ function StageSideCard({
 
 function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
-      <p className="mt-1 truncate font-black text-white">{value}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)]/10 p-3">
+      <p className="text-xs text-[var(--app-primary-foreground)]/70">{title}</p>
+      <p className="mt-1 truncate font-black text-[var(--app-primary-foreground)]">{value}</p>
     </div>
   );
 }
 
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-[28px] bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-      {text}
-    </div>
-  );
-}
+

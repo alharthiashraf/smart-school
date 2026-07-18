@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Image from "next/image";
 import {
   useCallback,
   useEffect,
@@ -19,6 +19,14 @@ import PageHeader from "@/components/ui/page/PageHeader";
 import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -43,7 +51,6 @@ import {
   Filter,
   GraduationCap,
   ImageIcon,
-  Loader2,
   Paperclip,
   Printer,
   RefreshCcw,
@@ -225,9 +232,15 @@ function isPending(value?: string | null) {
 function statusTone(value?: string | null) {
   const status = getStatusLabel(value);
 
-  if (status === "معتمد") return "border-[#07A869]/20 bg-[#07A869]/10 text-[#07A869]";
-  if (status === "مرفوض") return "border-red-200 bg-red-50 text-red-700";
-  return "border-[#C1B489]/30 bg-[#C1B489]/20 text-[#15445A]";
+  if (status === "معتمد") {
+    return "border-[color-mix(in_srgb,var(--app-success)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[var(--app-success)]";
+  }
+
+  if (status === "مرفوض") {
+    return "border-[color-mix(in_srgb,var(--app-danger)_28%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]";
+  }
+
+  return "border-[color-mix(in_srgb,var(--app-accent)_30%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
 }
 
 function fileKind(fileType?: string | null, fileName?: string | null): FileFilter {
@@ -242,10 +255,10 @@ function fileKind(fileType?: string | null, fileName?: string | null): FileFilte
 function fileIcon(fileType?: string | null, fileName?: string | null) {
   const kind = fileKind(fileType, fileName);
 
-  if (kind === "image") return <FileImage size={20} />;
-  if (kind === "pdf") return <FileText size={20} />;
-  if (kind === "office") return <FileSpreadsheet size={20} />;
-  return <FileArchive size={20} />;
+  if (kind === "image") return <FileImage size={20} aria-hidden="true" />;
+  if (kind === "pdf") return <FileText size={20} aria-hidden="true" />;
+  if (kind === "office") return <FileSpreadsheet size={20} aria-hidden="true" />;
+  return <FileArchive size={20} aria-hidden="true" />;
 }
 
 function percentage(value: number, total: number) {
@@ -346,6 +359,7 @@ export default function TeacherPortfolioPage() {
         supabase
           .from("teacher_portfolio")
           .select("*")
+          .eq("school_id", currentTeacher.school_id || currentSchool?.id || "")
           .eq("teacher_id", teacherId)
           .order("created_at", { ascending: false }),
       ]);
@@ -372,8 +386,17 @@ export default function TeacherPortfolioPage() {
   }, [currentSchool?.id, teacherId, showToast]);
 
   useEffect(() => {
-    if (!schoolLoading) void fetchPortfolio();
-  }, [schoolLoading, fetchPortfolio]);
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id || !teacherId) {
+      setTeacher(null);
+      setPortfolio([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchPortfolio();
+  }, [currentSchool?.id, fetchPortfolio, schoolLoading, teacherId]);
 
   const evidenceUploadMap = useMemo(() => {
     const map = new Map<number, PortfolioItem[]>();
@@ -508,7 +531,7 @@ export default function TeacherPortfolioPage() {
     return "استمر في تحديث ملف الإنجاز دوريًا وإضافة الشواهد الحديثة.";
   }, [completionPercent, pendingCount, rejectedCount, missingRequired]);
 
-  const exportRows = useMemo(() => {
+  const exportRows = useMemo<(string | number | null | undefined)[][]>(() => {
     return [
       ["اسم المعلم", teacher?.full_name || "—"],
       ["المادة", teacher?.subject || teacher?.specialization || "—"],
@@ -700,7 +723,7 @@ export default function TeacherPortfolioPage() {
       headers: ["المؤشر", "القيمة"],
       rows: exportRows,
       fileName: `${safeFileName(`teacher-portfolio-${teacher?.full_name || teacherId}-${today}`)}.xlsx`,
-    } as any);
+    });
 
     showToast("success", "تم تصدير Excel");
   }
@@ -713,7 +736,7 @@ export default function TeacherPortfolioPage() {
       headers: ["المؤشر", "القيمة"],
       rows: exportRows,
       fileName: `${safeFileName(`teacher-portfolio-${teacher?.full_name || teacherId}-${today}`)}.pdf`,
-    } as any);
+    });
 
     showToast("success", "تم تجهيز PDF");
   }
@@ -722,7 +745,7 @@ export default function TeacherPortfolioPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل ملف إنجاز المعلم..." />
+          <PageLoader text="جاري تحميل ملف إنجاز المعلم..." />
         </AppShell>
       </RoleGuard>
     );
@@ -732,9 +755,7 @@ export default function TeacherPortfolioPage() {
     return (
       <RoleGuard allowedRoles={PAGE_ROLES}>
         <AppShell>
-          <div className="rounded-[28px] border border-red-100 bg-red-50 p-8 text-center font-bold text-red-700">
-            {errorMsg || "لم يتم العثور على المعلم."}
-          </div>
+          <ErrorState description={errorMsg || "لم يتم العثور على المعلم."} />
         </AppShell>
       </RoleGuard>
     );
@@ -744,14 +765,22 @@ export default function TeacherPortfolioPage() {
     <RoleGuard allowedRoles={PAGE_ROLES}>
       <AppShell>
         <main className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title={`ملف إنجاز ${teacher.full_name}`}
             description="مركز احترافي لإدارة شواهد المعلم، رفع الملفات، قياس اكتمال العناصر، مراجعة الاعتماد، وتحليل جاهزية ملف الإنجاز."
             badge="ملف إنجاز المعلم"
-            icon={<Award size={18} />}
+            icon={<Award size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "المعلمون", href: "/teachers" },
@@ -765,70 +794,61 @@ export default function TeacherPortfolioPage() {
               { label: "آخر تحديث", value: formatDateTime(portfolio[0]?.created_at) },
             ]}
             stats={[
-              { label: "نسبة الاكتمال", value: `${completionPercent}%`, icon: <ShieldCheck size={20} />, tone: completionPercent >= 80 ? "green" : "gold" },
-              { label: "إجمالي الشواهد", value: portfolio.length, icon: <Paperclip size={20} />, tone: "blue" },
-              { label: "معتمدة", value: approvedCount, icon: <CheckCircle2 size={20} />, tone: "green" },
-              { label: "تحتاج مراجعة", value: pendingCount + rejectedCount, icon: <AlertCircle size={20} />, tone: pendingCount + rejectedCount > 0 ? "gold" : "green" },
+              { label: "نسبة الاكتمال", value: `${completionPercent}%`, icon: <ShieldCheck size={20} aria-hidden="true" />, tone: completionPercent >= 80 ? "green" : "gold" },
+              { label: "إجمالي الشواهد", value: portfolio.length, icon: <Paperclip size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "معتمدة", value: approvedCount, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: "green" },
+              { label: "تحتاج مراجعة", value: pendingCount + rejectedCount, icon: <AlertCircle size={20} aria-hidden="true" />, tone: pendingCount + rejectedCount > 0 ? "gold" : "green" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<ArrowRight size={17} aria-hidden="true" />}
                   onClick={() => router.push(`/teachers/${teacher.id}`)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <ArrowRight size={17} />
                   ملف المعلم
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
                   onClick={() => void exportExcel()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#0DA9A6] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Download size={17} />
                   Excel
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={exportPDF}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <FileText size={17} />
                   PDF
-                </button>
+                </ExportButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<Printer size={17} aria-hidden="true" />}
                   onClick={() => window.print()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Printer size={17} />
                   طباعة
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchPortfolio()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-4 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  loading={loading}
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
               </>
             }
           />
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-4 xl:grid-cols-8">
-            <ExecutiveCard title="الاكتمال" value={`${completionPercent}%`} icon={<ShieldCheck size={22} />} tone={completionPercent >= 80 ? "green" : "gold"} subtitle={`${uploadedRequiredCount}/${totalRequired} شاهد إلزامي`} progress={completionPercent} />
-            <ExecutiveCard title="الشواهد" value={portfolio.length} icon={<Paperclip size={22} />} tone="blue" subtitle="كل الملفات" progress={portfolio.length ? 100 : 0} />
-            <ExecutiveCard title="معتمد" value={approvedCount} icon={<CheckCircle2 size={22} />} tone="green" subtitle="مكتمل الاعتماد" progress={percentage(approvedCount, portfolio.length)} />
-            <ExecutiveCard title="مراجعة" value={pendingCount} icon={<Clock size={22} />} tone={pendingCount > 0 ? "gold" : "green"} subtitle="بانتظار" progress={percentage(pendingCount, portfolio.length)} />
-            <ExecutiveCard title="مرفوض" value={rejectedCount} icon={<XCircle size={22} />} tone={rejectedCount > 0 ? "red" : "green"} subtitle="يحتاج تصحيح" progress={percentage(rejectedCount, portfolio.length)} />
-            <ExecutiveCard title="صور" value={imagesCount} icon={<ImageIcon size={22} />} tone="teal" subtitle="ملفات مرئية" progress={percentage(imagesCount, portfolio.length)} />
-            <ExecutiveCard title="الحجم" value={formatFileSize(totalSize)} icon={<FileArchive size={22} />} tone="slate" subtitle="إجمالي الملفات" />
-            <ExecutiveCard title="النواقص" value={missingRequired.length} icon={<AlertCircle size={22} />} tone={missingRequired.length > 0 ? "red" : "green"} subtitle="شواهد إلزامية" progress={percentage(totalRequired - missingRequired.length, totalRequired)} />
+            <ExecutiveCard title="الاكتمال" value={`${completionPercent}%`} icon={<ShieldCheck size={22} aria-hidden="true" />} tone={completionPercent >= 80 ? "green" : "gold"} subtitle={`${uploadedRequiredCount}/${totalRequired} شاهد إلزامي`} progress={completionPercent} />
+            <ExecutiveCard title="الشواهد" value={portfolio.length} icon={<Paperclip size={22} aria-hidden="true" />} tone="primary" subtitle="كل الملفات" progress={portfolio.length ? 100 : 0} />
+            <ExecutiveCard title="معتمد" value={approvedCount} icon={<CheckCircle2 size={22} aria-hidden="true" />} tone="green" subtitle="مكتمل الاعتماد" progress={percentage(approvedCount, portfolio.length)} />
+            <ExecutiveCard title="مراجعة" value={pendingCount} icon={<Clock size={22} aria-hidden="true" />} tone={pendingCount > 0 ? "gold" : "green"} subtitle="بانتظار" progress={percentage(pendingCount, portfolio.length)} />
+            <ExecutiveCard title="مرفوض" value={rejectedCount} icon={<XCircle size={22} aria-hidden="true" />} tone={rejectedCount > 0 ? "red" : "green"} subtitle="يحتاج تصحيح" progress={percentage(rejectedCount, portfolio.length)} />
+            <ExecutiveCard title="صور" value={imagesCount} icon={<ImageIcon size={22} aria-hidden="true" />} tone="primary" subtitle="ملفات مرئية" progress={percentage(imagesCount, portfolio.length)} />
+            <ExecutiveCard title="الحجم" value={formatFileSize(totalSize)} icon={<FileArchive size={22} aria-hidden="true" />} tone="slate" subtitle="إجمالي الملفات" />
+            <ExecutiveCard title="النواقص" value={missingRequired.length} icon={<AlertCircle size={22} aria-hidden="true" />} tone={missingRequired.length > 0 ? "red" : "green"} subtitle="شواهد إلزامية" progress={percentage(totalRequired - missingRequired.length, totalRequired)} />
           </section>
 
           <SummaryCard
@@ -847,14 +867,14 @@ export default function TeacherPortfolioPage() {
           />
 
           {canUpload && (
-            <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm print:hidden">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-                  <UploadCloud size={24} />
+                <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
+                  <UploadCloud size={24} aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-[#15445A]">رفع شاهد جديد</h2>
-                  <p className="mt-1 text-sm text-slate-500">اسحب الملفات أو اخترها، ويمكن رفع أكثر من ملف دفعة واحدة.</p>
+                  <h2 className="text-xl font-black text-[var(--app-text)]">رفع شاهد جديد</h2>
+                  <p className="mt-1 text-sm text-[var(--app-text-muted)]">اسحب الملفات أو اخترها، ويمكن رفع أكثر من ملف دفعة واحدة.</p>
                 </div>
               </div>
 
@@ -866,23 +886,22 @@ export default function TeacherPortfolioPage() {
                   }}
                   onDragLeave={() => setDragActive(false)}
                   onDrop={onDrop}
-                  className={`flex min-h-[220px] flex-col items-center justify-center rounded-[28px] border-2 border-dashed p-6 text-center transition ${
-                    dragActive ? "border-[#0DA9A6] bg-[#0DA9A6]/10" : "border-slate-200 bg-slate-50"
+                  className={`flex min-h-[220px] flex-col items-center justify-center rounded-[var(--app-radius-xl)] border-2 border-dashed p-6 text-center transition ${
+                    dragActive ? "border-[var(--app-primary)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)]" : "border-[var(--app-border)] bg-[var(--app-card-soft)]"
                   }`}
                 >
                   <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileInputChange} />
 
-                  <UploadCloud className="mb-3 text-[#0DA9A6]" size={42} />
-                  <h3 className="text-lg font-black text-[#15445A]">اسحب الملفات هنا</h3>
-                  <p className="mt-2 text-sm text-slate-500">أو اضغط لاختيار الملفات من جهازك</p>
+                  <UploadCloud className="mb-3 text-[var(--app-primary)]" size={42} />
+                  <h3 className="text-lg font-black text-[var(--app-text)]">اسحب الملفات هنا</h3>
+                  <p className="mt-2 text-sm text-[var(--app-text-muted)]">أو اضغط لاختيار الملفات من جهازك</p>
 
-                  <button
-                    type="button"
+                  <SecondaryButton
+                    className="mt-4"
                     onClick={() => fileInputRef.current?.click()}
-                    className="mt-4 rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-black text-white"
                   >
                     اختيار ملفات
-                  </button>
+                  </SecondaryButton>
                 </div>
 
                 <div className="space-y-3">
@@ -897,7 +916,7 @@ export default function TeacherPortfolioPage() {
                         category: evidence?.evidence_name || current.category,
                       }));
                     }}
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                    className="h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                   >
                     <option value="">اختر نوع الشاهد</option>
                     {evidenceTypes.map((evidence) => (
@@ -911,21 +930,21 @@ export default function TeacherPortfolioPage() {
                     value={uploadForm.title}
                     onChange={(event) => setUploadForm((current) => ({ ...current, title: event.target.value }))}
                     placeholder="عنوان الشاهد"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                    className="h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                   />
 
                   <input
                     value={uploadForm.category}
                     onChange={(event) => setUploadForm((current) => ({ ...current, category: event.target.value }))}
                     placeholder="التصنيف"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                    className="h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                   />
 
                   <input
                     type="date"
                     value={uploadForm.achievement_date}
                     onChange={(event) => setUploadForm((current) => ({ ...current, achievement_date: event.target.value }))}
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                    className="h-12 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                   />
 
                   <textarea
@@ -933,61 +952,75 @@ export default function TeacherPortfolioPage() {
                     onChange={(event) => setUploadForm((current) => ({ ...current, description: event.target.value }))}
                     placeholder="وصف مختصر للشاهد"
                     rows={4}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold outline-none focus:border-[#0DA9A6]"
+                    className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 text-sm font-bold text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)] p-4"
                   />
 
                   {selectedFiles.length > 0 && (
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <p className="mb-2 text-xs font-black text-slate-500">الملفات المختارة</p>
+                    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-3">
+                      <p className="mb-2 text-xs font-black text-[var(--app-text-muted)]">الملفات المختارة</p>
                       <div className="space-y-2">
                         {selectedFiles.map((file, index) => (
-                          <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600">
+                          <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 rounded-[var(--app-radius-md)] bg-[var(--app-card)] px-3 py-2 text-xs font-bold text-[var(--app-text-muted)]">
                             <span className="truncate">{file.name} — {formatFileSize(file.size)}</span>
-                            <button type="button" onClick={() => clearSelectedFile(index)} className="text-red-600">
-                              <X size={14} />
-                            </button>
+                            <IconButton
+                              label="إزالة الملف المحدد"
+                              title="إزالة"
+                              onClick={() => clearSelectedFile(index)}
+                              icon={<X size={14} aria-hidden="true" />}
+                            />
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <button
-                    type="button"
+                  <PrimaryButton
+                    className="w-full"
+                    icon={<UploadCloud size={18} aria-hidden="true" />}
                     onClick={() => void uploadFiles()}
-                    disabled={uploading}
-                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#15445A] text-sm font-black text-white disabled:opacity-60"
+                    loading={uploading}
                   >
-                    {uploading ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18} />}
-                    {uploading ? "جاري الرفع..." : `رفع ${selectedFiles.length || ""} ملف`}
-                  </button>
+                    {`رفع ${selectedFiles.length || ""} ملف`}
+                  </PrimaryButton>
                 </div>
               </div>
             </section>
           )}
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.9fr_1.1fr]">
-            <Panel title="تقدم العناصر" icon={<BarChart3 size={24} />}>
+            <Panel title="تقدم العناصر" icon={<BarChart3 size={24} aria-hidden="true" />}>
               {elementProgress.length === 0 ? (
-                <EmptyBox text="لا توجد عناصر تقييم مضافة." />
+                <UiEmptyState title="لا توجد عناصر تقييم" description="لم تتم إضافة عناصر تقييم بعد." />
               ) : (
                 <div className="space-y-3">
                   {elementProgress.map((item) => (
-                    <div key={item.element.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div key={item.element.id} className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
-                          <h3 className="font-black text-[#15445A]">
+                          <h3 className="font-black text-[var(--app-text)]">
                             {item.element.element_number ? `${item.element.element_number}. ` : ""}
                             {item.element.element_name}
                           </h3>
-                          <p className="mt-1 text-xs font-bold text-slate-500">{item.uploaded} من {item.total} شاهد إلزامي</p>
+                          <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">{item.uploaded} من {item.total} شاهد إلزامي</p>
                         </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-black ${item.complete ? "bg-[#07A869]/10 text-[#07A869]" : "bg-[#C1B489]/20 text-[#15445A]"}`}>
+                        <span className={`rounded-full px-3 py-1 text-xs font-black ${item.complete ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[#07A869]" : "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-text)]"}`}>
                           {item.percent}%
                         </span>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                        <div className={`h-full rounded-full ${item.complete ? "bg-[#07A869]" : "bg-[#C1B489]"}`} style={{ width: `${item.percent}%` }} />
+                      <div className="h-2 overflow-hidden rounded-full bg-[var(--app-border)]">
+                        <div
+                          role="progressbar"
+                          aria-label={`تقدم ${item.element.element_name}`}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={item.percent}
+                          className={`h-full rounded-full ${
+                            item.complete
+                              ? "bg-[var(--app-success)]"
+                              : "bg-[var(--app-accent)]"
+                          }`}
+                          style={{ width: `${item.percent}%` }}
+                        />
                       </div>
                     </div>
                   ))}
@@ -995,24 +1028,24 @@ export default function TeacherPortfolioPage() {
               )}
             </Panel>
 
-            <Panel title="سجل النشاط الزمني" icon={<Clock size={24} />}>
+            <Panel title="سجل النشاط الزمني" icon={<Clock size={24} aria-hidden="true" />}>
               {timelineItems.length === 0 ? (
-                <EmptyBox text="لا توجد أحداث في ملف الإنجاز." />
+                <UiEmptyState title="لا توجد أحداث" description="لا توجد أحداث في ملف الإنجاز." />
               ) : (
-                <div className="relative space-y-3 before:absolute before:right-5 before:top-0 before:h-full before:w-px before:bg-slate-200">
+                <div className="relative space-y-3 before:absolute before:right-5 before:top-0 before:h-full before:w-px before:bg-[var(--app-border)]">
                   {timelineItems.map((item) => (
                     <div key={item.id} className="relative pr-12">
-                      <div className={`absolute right-0 top-3 flex h-10 w-10 items-center justify-center rounded-2xl border ${statusTone(item.review_status || item.status)}`}>
+                      <div className={`absolute right-0 top-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] border ${statusTone(item.review_status || item.status)}`}>
                         {fileIcon(item.file_type, item.file_name)}
                       </div>
-                      <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <h3 className="font-black text-[#15445A]">{getEvidenceTitle(item, evidenceTypes)}</h3>
+                          <h3 className="font-black text-[var(--app-text)]">{getEvidenceTitle(item, evidenceTypes)}</h3>
                           <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone(item.review_status || item.status)}`}>
                             {getStatusLabel(item.review_status || item.status)}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-500">{formatDateTime(item.created_at)} — {item.file_name || "بدون ملف"}</p>
+                        <p className="text-sm text-[var(--app-text-muted)]">{formatDateTime(item.created_at)} — {item.file_name || "بدون ملف"}</p>
                       </div>
                     </div>
                   ))}
@@ -1022,23 +1055,23 @@ export default function TeacherPortfolioPage() {
           </section>
 
           {missingRequired.length > 0 && (
-            <section className="rounded-[28px] border border-red-100 bg-red-50 p-5">
+            <section className="rounded-[var(--app-radius-xl)] border border-[color-mix(in_srgb,var(--app-danger)_24%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] p-5">
               <div className="mb-4 flex items-center gap-2">
-                <AlertCircle className="text-red-700" size={22} />
-                <h2 className="text-xl font-black text-red-800">الشواهد الإلزامية الناقصة</h2>
+                <AlertCircle className="text-[var(--app-danger)]" size={22} />
+                <h2 className="text-xl font-black text-[var(--app-danger)]">الشواهد الإلزامية الناقصة</h2>
               </div>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {missingRequired.slice(0, 12).map((item) => (
-                  <div key={item.id} className="rounded-2xl bg-white p-4">
-                    <p className="font-black text-[#15445A]">{item.evidence_name}</p>
-                    <p className="mt-2 line-clamp-2 text-sm text-slate-500">{item.description || "شاهد إلزامي يحتاج رفع."}</p>
+                  <div key={item.id} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-4">
+                    <p className="font-black text-[var(--app-text)]">{item.evidence_name}</p>
+                    <p className="mt-2 line-clamp-2 text-sm text-[var(--app-text-muted)]">{item.description || "شاهد إلزامي يحتاج رفع."}</p>
                   </div>
                 ))}
               </div>
             </section>
           )}
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm print:hidden">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[var(--app-shadow-sm)] print:hidden">
             <PageToolbar
               search={{
                 value: search,
@@ -1077,9 +1110,9 @@ export default function TeacherPortfolioPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-[.85fr_1.15fr]">
-            <Panel title="دليل الشواهد" icon={<Filter size={24} />}>
+            <Panel title="دليل الشواهد" icon={<Filter size={24} aria-hidden="true" />}>
               {filteredEvidenceTypes.length === 0 ? (
-                <EmptyBox text="لا توجد أنواع شواهد مطابقة." />
+                <UiEmptyState title="لا توجد أنواع شواهد" description="لا توجد أنواع شواهد مطابقة للبحث الحالي." />
               ) : (
                 <div className="space-y-3">
                   {filteredEvidenceTypes.map((evidence) => {
@@ -1087,19 +1120,19 @@ export default function TeacherPortfolioPage() {
                     const complete = uploads.length > 0;
 
                     return (
-                      <div key={evidence.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <div key={evidence.id} className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
                         <div className="mb-2 flex items-start justify-between gap-3">
                           <div>
-                            <h3 className="font-black text-[#15445A]">{evidence.evidence_name}</h3>
-                            <p className="mt-1 text-xs font-bold text-slate-500">
+                            <h3 className="font-black text-[var(--app-text)]">{evidence.evidence_name}</h3>
+                            <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">
                               {evidence.is_required === false ? "اختياري" : "إلزامي"}
                             </p>
                           </div>
-                          <span className={`rounded-full px-3 py-1 text-xs font-black ${complete ? "bg-[#07A869]/10 text-[#07A869]" : "bg-[#C1B489]/20 text-[#15445A]"}`}>
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${complete ? "bg-[color-mix(in_srgb,var(--app-success)_10%,transparent)] text-[#07A869]" : "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-text)]"}`}>
                             {complete ? "مرفوع" : "ناقص"}
                           </span>
                         </div>
-                        {evidence.description && <p className="line-clamp-2 text-sm leading-7 text-slate-500">{evidence.description}</p>}
+                        {evidence.description && <p className="line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">{evidence.description}</p>}
                       </div>
                     );
                   })}
@@ -1107,95 +1140,101 @@ export default function TeacherPortfolioPage() {
               )}
             </Panel>
 
-            <Panel title="الشواهد المرفوعة" icon={<Paperclip size={24} />}>
+            <Panel title="الشواهد المرفوعة" icon={<Paperclip size={24} aria-hidden="true" />}>
               {filteredPortfolio.length === 0 ? (
-                <EmptyBox text="لا توجد شواهد مطابقة للفلاتر الحالية." />
+                <UiEmptyState title="لا توجد شواهد" description="لا توجد شواهد مطابقة للفلاتر الحالية." />
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   {filteredPortfolio.map((item) => (
-                    <article key={item.id} className="rounded-[24px] border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-md">
+                    <article key={item.id} className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-md)]">
                       {fileKind(item.file_type, item.file_name) === "image" && item.file_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.file_url} alt={item.file_name || "شاهد"} className="mb-3 h-40 w-full rounded-2xl object-cover" />
+                        <Image
+                          src={item.file_url}
+                          alt={item.file_name || "شاهد"}
+                          width={640}
+                          height={320}
+                          className="mb-3 h-40 w-full rounded-[var(--app-radius-lg)] object-cover"
+                          unoptimized
+                        />
                       ) : (
-                        <div className="mb-3 flex h-40 items-center justify-center rounded-2xl bg-white text-[#0DA9A6]">
+                        <div className="mb-3 flex h-40 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-card)] text-[var(--app-primary)]">
                           {fileIcon(item.file_type, item.file_name)}
                         </div>
                       )}
 
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
-                          <h3 className="font-black text-[#15445A]">{getEvidenceTitle(item, evidenceTypes)}</h3>
-                          <p className="mt-1 text-xs font-bold text-slate-500">{item.file_name || "بدون ملف"} — {formatFileSize(item.file_size)}</p>
+                          <h3 className="font-black text-[var(--app-text)]">{getEvidenceTitle(item, evidenceTypes)}</h3>
+                          <p className="mt-1 text-xs font-bold text-[var(--app-text-muted)]">{item.file_name || "بدون ملف"} — {formatFileSize(item.file_size)}</p>
                         </div>
                         <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-black ${statusTone(item.review_status || item.status)}`}>
                           {getStatusLabel(item.review_status || item.status)}
                         </span>
                       </div>
 
-                      {item.description && <p className="mb-3 line-clamp-2 text-sm leading-7 text-slate-500">{item.description}</p>}
+                      {item.description && <p className="mb-3 line-clamp-2 text-sm leading-7 text-[var(--app-text-muted)]">{item.description}</p>}
 
-                      <div className="mb-4 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
-                        <span className="rounded-xl bg-white px-3 py-2">التاريخ: {formatDate(item.achievement_date || item.created_at)}</span>
-                        <span className="rounded-xl bg-white px-3 py-2">النوع: {fileKind(item.file_type, item.file_name)}</span>
+                      <div className="mb-4 grid grid-cols-2 gap-2 text-xs font-bold text-[var(--app-text-muted)]">
+                        <span className="rounded-[var(--app-radius-md)] bg-[var(--app-card)] px-3 py-2">التاريخ: {formatDate(item.achievement_date || item.created_at)}</span>
+                        <span className="rounded-[var(--app-radius-md)] bg-[var(--app-card)] px-3 py-2">النوع: {fileKind(item.file_type, item.file_name)}</span>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
+                        <SecondaryButton
+                          size="sm"
+                          icon={<Eye size={15} aria-hidden="true" />}
                           onClick={() => setPreviewItem(item)}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#15445A] px-3 text-xs font-black text-white"
                         >
-                          <Eye size={15} />
                           معاينة
-                        </button>
+                        </SecondaryButton>
 
                         {item.file_url && (
                           <a
                             href={item.file_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-[#15445A]"
+                            className="inline-flex h-10 items-center gap-2 rounded-[var(--app-radius-md)] border border-[var(--app-border)] bg-[var(--app-card)] px-3 text-xs font-black text-[var(--app-text)]"
                           >
-                            <ExternalLink size={15} />
+                            <ExternalLink size={15} aria-hidden="true" />
                             فتح
                           </a>
                         )}
 
                         {canReview && (
                           <>
-                            <button
-                              type="button"
+                            <SecondaryButton
+                              size="sm"
+                              icon={<CheckCircle2 size={15} aria-hidden="true" />}
+                              onClick={() =>
+                                void updateReviewStatus(item, "معتمد")
+                              }
                               disabled={reviewingId === item.id}
-                              onClick={() => void updateReviewStatus(item, "معتمد")}
-                              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#07A869]/10 px-3 text-xs font-black text-[#07A869] disabled:opacity-60"
                             >
-                              <CheckCircle2 size={15} />
                               اعتماد
-                            </button>
+                            </SecondaryButton>
 
-                            <button
-                              type="button"
+                            <SecondaryButton
+                              size="sm"
+                              icon={<XCircle size={15} aria-hidden="true" />}
+                              onClick={() =>
+                                void updateReviewStatus(item, "مرفوض")
+                              }
                               disabled={reviewingId === item.id}
-                              onClick={() => void updateReviewStatus(item, "مرفوض")}
-                              className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-50 px-3 text-xs font-black text-red-700 disabled:opacity-60"
                             >
-                              <XCircle size={15} />
                               رفض
-                            </button>
+                            </SecondaryButton>
                           </>
                         )}
 
                         {canUpload && (
-                          <button
-                            type="button"
-                            disabled={reviewingId === item.id}
+                          <SecondaryButton
+                            size="sm"
+                            icon={<Trash2 size={15} aria-hidden="true" />}
                             onClick={() => void deletePortfolioItem(item)}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-50 px-3 text-xs font-black text-red-700 disabled:opacity-60"
+                            disabled={reviewingId === item.id}
                           >
-                            <Trash2 size={15} />
                             حذف
-                          </button>
+                          </SecondaryButton>
                         )}
                       </div>
                     </article>
@@ -1216,43 +1255,15 @@ export default function TeacherPortfolioPage() {
 
 function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] bg-[color-mix(in_srgb,var(--app-primary)_10%,transparent)] text-[var(--app-primary)]">
           {icon}
         </div>
-        <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
+        <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
       </div>
       {children}
     </section>
-  );
-}
-
-function EmptyBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
-      {text}
-    </div>
-  );
-}
-
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] bg-white p-6 text-center text-slate-500 shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#15445A]" />
-        {text}
-      </div>
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  return (
-    <div className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${toast.type === "success" ? "bg-[#07A869]" : "bg-red-600"}`}>
-      {toast.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      {toast.message}
-    </div>
   );
 }
 
@@ -1269,36 +1280,45 @@ function PreviewDialog({
   const title = getEvidenceTitle(item, evidenceTypes);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm print:hidden">
-      <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 p-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_srgb,var(--app-text)_44%,transparent)] p-4 backdrop-blur-sm print:hidden">
+      <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[var(--app-radius-xl)] bg-[var(--app-card)] shadow-[var(--app-shadow-xl)]">
+        <div className="flex items-center justify-between border-b border-[var(--app-border)] p-5">
           <div>
-            <h2 className="text-xl font-black text-[#15445A]">{title}</h2>
-            <p className="mt-1 text-sm font-bold text-slate-500">{item.file_name || "بدون ملف"}</p>
+            <h2 className="text-xl font-black text-[var(--app-text)]">{title}</h2>
+            <p className="mt-1 text-sm font-bold text-[var(--app-text-muted)]">{item.file_name || "بدون ملف"}</p>
           </div>
-          <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
-            <X size={18} />
-          </button>
+          <IconButton
+            label="إغلاق المعاينة"
+            title="إغلاق"
+            onClick={onClose}
+            icon={<X size={18} aria-hidden="true" />}
+          />
         </div>
 
         <div className="max-h-[72vh] overflow-auto p-5">
           {item.file_url ? (
             kind === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.file_url} alt={title} className="mx-auto max-h-[65vh] rounded-2xl object-contain" />
+              <Image
+                src={item.file_url}
+                alt={title}
+                width={1200}
+                height={900}
+                className="mx-auto max-h-[65vh] w-auto rounded-[var(--app-radius-lg)] object-contain"
+                unoptimized
+              />
             ) : kind === "pdf" ? (
-              <iframe src={item.file_url} className="h-[65vh] w-full rounded-2xl border border-slate-100" title={title} />
+              <iframe src={item.file_url} className="h-[65vh] w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)]" title={title} />
             ) : (
-              <div className="rounded-2xl bg-slate-50 p-10 text-center">
-                <FileText className="mx-auto mb-4 text-[#0DA9A6]" size={54} />
-                <p className="font-black text-[#15445A]">لا يمكن معاينة هذا النوع داخل الصفحة.</p>
-                <a href={item.file_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-2xl bg-[#15445A] px-5 py-3 text-sm font-black text-white">
+              <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-10 text-center">
+                <FileText className="mx-auto mb-4 text-[var(--app-primary)]" size={54} />
+                <p className="font-black text-[var(--app-text)]">لا يمكن معاينة هذا النوع داخل الصفحة.</p>
+                <a href={item.file_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-5 py-3 text-sm font-black text-white">
                   فتح الملف
                 </a>
               </div>
             )
           ) : (
-            <EmptyBox text="لا يوجد رابط ملف متاح للمعاينة." />
+            <UiEmptyState title="لا توجد معاينة" description="لا يوجد رابط ملف متاح للمعاينة." />
           )}
         </div>
       </div>

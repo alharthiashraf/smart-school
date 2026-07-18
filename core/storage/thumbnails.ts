@@ -20,3 +20,4 @@ export async function getImageThumbnailUrl(bucket: string, path: string, options
 }
 
 export const StorageThumbnails = { getUrl: getImageThumbnailUrl };
+

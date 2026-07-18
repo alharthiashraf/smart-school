@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
 import AppShell from "@/components/layout/AppShell";
+import PageHeader from "@/components/ui/page/PageHeader";
+import PageToolbar, { ToolbarSelect } from "@/components/ui/page/PageToolbar";
+import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
+import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import ExportButton from "@/components/ui/buttons/ExportButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
+import UiEmptyState from "@/components/ui/empty-state/EmptyState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { type SchoolRole } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -160,21 +172,15 @@ export default function TeachersPage() {
 
   const today = getTodayDate();
 
-  useEffect(() => {
-    if (currentSchool?.id) void fetchAllData();
-  }, [currentSchool?.id]);
+  const showToast = useCallback(
+    (type: Toast["type"], message: string) => {
+      setToast({ type, message });
+      window.setTimeout(() => setToast(null), 3500);
+    },
+    [],
+  );
 
-  useEffect(() => {
-    setPage(1);
-    setSelectedIds([]);
-  }, [search, departmentFilter, subjectFilter, statusFilter, quickFilter]);
-
-  function showToast(type: Toast["type"], message: string) {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 3500);
-  }
-
-  async function fetchAllData() {
+  const fetchAllData = useCallback(async () => {
     if (!currentSchool?.id) return;
 
     setLoading(true);
@@ -247,7 +253,30 @@ export default function TeachersPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [currentSchool?.id, showToast]);
+
+  useEffect(() => {
+    if (schoolLoading) return;
+
+    if (!currentSchool?.id) {
+      setTeachers([]);
+      setSchedules([]);
+      setWaitingPeriods([]);
+      setPortfolioItems([]);
+      setTeacherSubjects([]);
+      setTeacherClasses([]);
+      setSelectedIds([]);
+      setLoading(false);
+      return;
+    }
+
+    void fetchAllData();
+  }, [currentSchool?.id, fetchAllData, schoolLoading]);
+
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds([]);
+  }, [search, departmentFilter, subjectFilter, statusFilter, quickFilter]);
 
   function resetForm() {
     setEditingId(null);
@@ -528,6 +557,10 @@ export default function TeachersPage() {
     page * PAGE_SIZE,
   );
 
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
   const activeTeachers = teachers.filter(
     (teacher) =>
       !teacher.status ||
@@ -570,7 +603,7 @@ export default function TeachersPage() {
     );
   }
 
-  function getExportHeaders() {
+  function getExportHeaders(): string[] {
     return [
       "اسم المعلم",
       "الرقم الوظيفي",
@@ -590,7 +623,9 @@ export default function TeachersPage() {
     ];
   }
 
-  function getExportRows(source: TeacherWithStats[] = filteredTeachers) {
+  function getExportRows(
+    source: TeacherWithStats[] = filteredTeachers,
+  ): (string | number | null | undefined)[][] {
     return source.map((teacher) => [
       teacher.full_name || "-",
       teacher.employee_number || "-",
@@ -658,7 +693,7 @@ export default function TeachersPage() {
     return (
       <RoleGuard allowedRoles={TEACHERS_PAGE_ROLES}>
         <AppShell>
-          <LoadingBox text="جاري تحميل بيانات المدرسة..." />
+          <PageLoader text="جاري تحميل بيانات المدرسة..." />
         </AppShell>
       </RoleGuard>
     );
@@ -668,9 +703,7 @@ export default function TeachersPage() {
     return (
       <RoleGuard allowedRoles={TEACHERS_PAGE_ROLES}>
         <AppShell>
-          <div className="rounded-3xl border border-red-100 bg-red-50 p-6 text-center font-bold text-red-700">
-            لا توجد مدرسة مرتبطة بالمستخدم الحالي.
-          </div>
+          <ErrorState description="لا توجد مدرسة مرتبطة بالمستخدم الحالي." />
         </AppShell>
       </RoleGuard>
     );
@@ -680,139 +713,177 @@ export default function TeachersPage() {
     <RoleGuard allowedRoles={TEACHERS_PAGE_ROLES}>
       <AppShell>
         <div className="space-y-5" dir="rtl">
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
-          <section className="rounded-[28px] bg-gradient-to-l from-[#0f1f3d] via-[#18315f] to-[#24477f] p-5 text-white shadow-sm print:hidden">
-            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
-              <div>
-                <p className="mb-2 text-sm font-bold text-[#d4af37]">
-                  منصة المدرسة الذكية
-                </p>
-
-                <h1 className="text-3xl font-black md:text-4xl">
-                  إدارة المعلمين
-                </h1>
-
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
-                  {currentSchool.school_name} — بيانات المعلمين، الجدول
-                  الأسبوعي للعرض داخل ملف المعلم، حصص الانتظار المسندة من
-                  الوكيل، وملف الشواهد.
-                </p>
-              </div>
-
-              <div className="flex shrink-0 flex-row flex-nowrap items-center gap-2">
-                <button
+          <PageHeader
+            variant="hero"
+            title="إدارة المعلمين"
+            description={`${currentSchool.school_name} — إدارة بيانات المعلمين والإسنادات والجداول والانتظار والشواهد.`}
+            badge="الإدارة المدرسية"
+            icon={<GraduationCap size={18} aria-hidden="true" />}
+            breadcrumbs={[
+              { label: "لوحة التحكم", href: "/dashboard" },
+              { label: "المعلمون" },
+            ]}
+            meta={[
+              { label: "المدرسة", value: currentSchool.school_name },
+              { label: "إجمالي المعلمين", value: teachers.length },
+              { label: "على رأس العمل", value: activeTeachers },
+              { label: "النصاب الأسبوعي", value: totalWeeklyLoad },
+            ]}
+            stats={[
+              {
+                label: "المعلمون",
+                value: teachers.length,
+                icon: <GraduationCap size={20} aria-hidden="true" />,
+                tone: "primary",
+              },
+              {
+                label: "النشطون",
+                value: activeTeachers,
+                icon: <UserRoundCheck size={20} aria-hidden="true" />,
+                tone: "green",
+              },
+              {
+                label: "انتظار معلق",
+                value: pendingWaitingTotal,
+                icon: <CalendarCheck size={20} aria-hidden="true" />,
+                tone: pendingWaitingTotal > 0 ? "gold" : "green",
+              },
+              {
+                label: "شواهد للمراجعة",
+                value: pendingPortfolioTotal,
+                icon: <Award size={20} aria-hidden="true" />,
+                tone: pendingPortfolioTotal > 0 ? "gold" : "green",
+              },
+            ]}
+            actions={
+              <>
+                <PrimaryButton
+                  icon={<Plus size={17} aria-hidden="true" />}
                   onClick={openAddForm}
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-[#d4af37] px-4 text-sm font-black text-[#0f1f3d]"
                 >
-                  <Plus size={16} />
-                  إضافة
-                </button>
+                  إضافة معلم
+                </PrimaryButton>
 
-                <button
+                <ExportButton
+                  icon={<Download size={17} aria-hidden="true" />}
                   onClick={() => void exportTeachersExcel()}
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-black text-white hover:bg-white/20"
+                  disabled={!filteredTeachers.length}
                 >
                   Excel
-                  <Download size={16} />
-                </button>
+                </ExportButton>
 
-                <button
+                <ExportButton
+                  icon={<FileText size={17} aria-hidden="true" />}
                   onClick={() => exportTeachersPDF()}
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#0f1f3d]"
+                  disabled={!filteredTeachers.length}
                 >
                   PDF
-                  <FileText size={16} />
-                </button>
+                </ExportButton>
 
-                <button
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchAllData()}
-                  disabled={loading}
-                  className="flex h-12 items-center gap-2 rounded-2xl bg-white/10 px-4 text-sm font-black text-white disabled:opacity-60"
+                  loading={loading}
                 >
                   تحديث
-                  <RefreshCcw
-                    size={16}
-                    className={loading ? "animate-spin" : ""}
-                  />
-                </button>
-              </div>
-            </div>
+                </SecondaryButton>
+              </>
+            }
+          />
+
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <ExecutiveCard
+              title="المعلمون"
+              value={teachers.length}
+              subtitle={`${activeTeachers} على رأس العمل`}
+              icon={<GraduationCap size={22} aria-hidden="true" />}
+              tone="primary"
+              progress={teachers.length ? Math.round((activeTeachers / teachers.length) * 100) : 0}
+            />
+            <ExecutiveCard
+              title="المواد المسندة"
+              value={teacherSubjects.length}
+              subtitle={`${teacherClasses.length} فصول`}
+              icon={<Users size={22} aria-hidden="true" />}
+              tone="green"
+            />
+            <ExecutiveCard
+              title="الأقسام"
+              value={departments.length}
+              subtitle={`${subjects.length} مواد`}
+              icon={<BriefcaseBusiness size={22} aria-hidden="true" />}
+              tone="gold"
+            />
+            <ExecutiveCard
+              title="الحصص المجدولة"
+              value={schedules.length}
+              subtitle={`نصاب ${totalWeeklyLoad}`}
+              icon={<BookOpenCheck size={22} aria-hidden="true" />}
+              tone="primary"
+            />
+            <ExecutiveCard
+              title="حصص الانتظار"
+              value={waitingPeriods.length}
+              subtitle={`${pendingWaitingTotal} معلقة`}
+              icon={<CalendarCheck size={22} aria-hidden="true" />}
+              tone={pendingWaitingTotal > 0 ? "gold" : "green"}
+            />
+            <ExecutiveCard
+              title="ملف الشواهد"
+              value={portfolioItems.length}
+              subtitle={`${pendingPortfolioTotal} للمراجعة`}
+              icon={<Award size={22} aria-hidden="true" />}
+              tone={pendingPortfolioTotal > 0 ? "gold" : "green"}
+            />
           </section>
 
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-6">
-            <MergedCard title="المعلمون" icon={<GraduationCap size={22} />}>
-              <MiniRow label="الإجمالي" value={teachers.length} />
-              <MiniRow
-                label="على رأس العمل"
-                value={activeTeachers}
-                color="green"
-              />
-            </MergedCard>
-
-            <MergedCard title="الإسناد" icon={<Users size={22} />}>
-              <MiniRow label="مواد مسندة" value={teacherSubjects.length} />
-              <MiniRow
-                label="فصول مسندة"
-                value={teacherClasses.length}
-                color="blue"
-              />
-            </MergedCard>
-
-            <MergedCard title="الأقسام" icon={<BriefcaseBusiness size={22} />}>
-              <MiniRow label="عدد الأقسام" value={departments.length} />
-              <MiniRow label="عدد المواد" value={subjects.length} />
-            </MergedCard>
-
-            <MergedCard title="الجدول" icon={<BookOpenCheck size={22} />}>
-              <MiniRow label="حصص مجدولة" value={schedules.length} />
-              <MiniRow
-                label="نصاب أسبوعي"
-                value={totalWeeklyLoad}
-                color="blue"
-              />
-            </MergedCard>
-
-            <MergedCard title="حصص الانتظار" icon={<CalendarCheck size={22} />}>
-              <MiniRow label="الإجمالي" value={waitingPeriods.length} />
-              <MiniRow
-                label="بانتظار الموافقة"
-                value={pendingWaitingTotal}
-                color="amber"
-              />
-            </MergedCard>
-
-            <MergedCard title="ملف الشواهد" icon={<Award size={22} />}>
-              <MiniRow label="الشواهد" value={portfolioItems.length} />
-              <MiniRow
-                label="قيد المراجعة"
-                value={pendingPortfolioTotal}
-                color="amber"
-              />
-            </MergedCard>
-          </section>
+          <SummaryCard
+            title="الملخص التنفيذي للمعلمين"
+            description="قراءة سريعة لحالة الكادر التعليمي والإسنادات والجداول والانتظار والشواهد."
+            tone={
+              pendingWaitingTotal > 0 || pendingPortfolioTotal > 0
+                ? "gold"
+                : "green"
+            }
+            items={[
+              { label: "إجمالي المعلمين", value: teachers.length },
+              { label: "على رأس العمل", value: activeTeachers },
+              { label: "المواد المسندة", value: teacherSubjects.length },
+              { label: "الفصول المسندة", value: teacherClasses.length },
+              { label: "حصص الانتظار", value: waitingPeriods.length },
+              { label: "الشواهد", value: portfolioItems.length },
+            ]}
+            footer="تُحدّث المؤشرات من بيانات المدرسة الحالية دون تغيير منطق الإسناد أو الجدولة."
+          />
 
           {showForm && (
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden">
+            <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] print:hidden">
               <div className="mb-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {editingId ? (
-                    <Pencil className="text-[#d4af37]" />
+                    <Pencil className="text-[var(--app-accent)]" aria-hidden="true" />
                   ) : (
-                    <Plus className="text-[#d4af37]" />
+                    <Plus className="text-[var(--app-accent)]" aria-hidden="true" />
                   )}
 
-                  <h2 className="text-xl font-black text-[#0f1f3d]">
+                  <h2 className="text-xl font-black text-[var(--app-text)]">
                     {editingId ? "تعديل بيانات المعلم" : "إضافة معلم جديد"}
                   </h2>
                 </div>
 
-                <button
-                  onClick={closeForm}
-                  className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold"
-                >
+                <SecondaryButton onClick={closeForm}>
                   إغلاق
-                </button>
+                </SecondaryButton>
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -857,7 +928,7 @@ export default function TeachersPage() {
                 <select
                   value={status}
                   onChange={(event) => setStatus(event.target.value)}
-                  className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#d4af37]"
+                  className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
                 >
                   <option value="على رأس العمل">على رأس العمل</option>
                   <option value="مكلف">مكلف</option>
@@ -871,34 +942,36 @@ export default function TeachersPage() {
                 value={adminNotes}
                 onChange={(event) => setAdminNotes(event.target.value)}
                 placeholder="ملاحظات إدارية"
-                className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
+                className="mt-3 min-h-24 w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
               />
 
-              <button
+              <PrimaryButton
+                className="mt-5"
+                icon={
+                  editingId ? (
+                    <Save size={16} aria-hidden="true" />
+                  ) : (
+                    <Plus size={16} aria-hidden="true" />
+                  )
+                }
                 onClick={() => void saveTeacher()}
-                disabled={saving}
-                className="mt-5 flex items-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+                loading={saving}
               >
-                {editingId ? <Save size={16} /> : <Plus size={16} />}
-                {saving
-                  ? "جاري الحفظ..."
-                  : editingId
-                    ? "حفظ التعديل"
-                    : "إضافة المعلم"}
-              </button>
+                {editingId ? "حفظ التعديل" : "إضافة المعلم"}
+              </PrimaryButton>
             </section>
           )}
 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+            <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)] xl:col-span-2">
               <div className="mb-5 flex flex-col gap-4 print:hidden">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h2 className="text-2xl font-black text-[#0f1f3d]">
+                    <h2 className="text-2xl font-black text-[var(--app-text)]">
                       قائمة المعلمين
                     </h2>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                       عرض {pagedTeachers.length} من {filteredTeachers.length} معلم
                     </p>
                   </div>
@@ -937,104 +1010,99 @@ export default function TeachersPage() {
                   </div>
                 </div>
 
-                <div className="grid w-full gap-3 lg:grid-cols-4">
-                  <select
-                    value={departmentFilter}
-                    onChange={(event) => setDepartmentFilter(event.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
-                  >
-                    <option value="all">كل الأقسام</option>
-                    {departments.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                <PageToolbar
+                  search={{
+                    value: search,
+                    onChange: setSearch,
+                    placeholder: "ابحث عن معلم...",
+                  }}
+                  filters={
+                    <>
+                      <ToolbarSelect
+                        value={departmentFilter}
+                        onChange={setDepartmentFilter}
+                      >
+                        <option value="all">كل الأقسام</option>
+                        {departments.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </ToolbarSelect>
 
-                  <select
-                    value={subjectFilter}
-                    onChange={(event) => setSubjectFilter(event.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
-                  >
-                    <option value="all">كل المواد</option>
-                    {subjects.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                      <ToolbarSelect
+                        value={subjectFilter}
+                        onChange={setSubjectFilter}
+                      >
+                        <option value="all">كل المواد</option>
+                        {subjects.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </ToolbarSelect>
 
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d4af37]"
-                  >
-                    <option value="all">كل الحالات</option>
-                    {statuses.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-
-                  <div className="relative">
-                    <Search
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      size={18}
-                    />
-
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="ابحث عن معلم..."
-                      className="w-full rounded-2xl border border-slate-200 py-3 pr-10 pl-4 outline-none focus:border-[#d4af37]"
-                    />
-                  </div>
-                </div>
+                      <ToolbarSelect
+                        value={statusFilter}
+                        onChange={setStatusFilter}
+                      >
+                        <option value="all">كل الحالات</option>
+                        {statuses.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </ToolbarSelect>
+                    </>
+                  }
+                  onRefresh={() => void fetchAllData()}
+                  onExportExcel={() => void exportTeachersExcel()}
+                  onExportPDF={() => exportTeachersPDF()}
+                />
 
                 {selectedIds.length > 0 && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-sm font-black text-amber-800">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--app-radius-lg)] border border-[color-mix(in_srgb,var(--app-accent)_35%,var(--app-border))] bg-[color-mix(in_srgb,var(--app-accent)_14%,transparent)] p-3">
+                    <p className="text-sm font-black text-[var(--app-accent-foreground)]">
                       تم تحديد {selectedIds.length} معلم
                     </p>
 
                     <div className="flex flex-wrap gap-2">
-                      <button
+                      <ExportButton
+                        size="sm"
                         onClick={() => void exportSelectedExcel()}
-                        className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
                       >
                         Excel المحدد
-                      </button>
+                      </ExportButton>
 
-                      <button
+                      <ExportButton
+                        size="sm"
                         onClick={exportSelectedPDF}
-                        className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700"
                       >
                         PDF المحدد
-                      </button>
+                      </ExportButton>
 
-                      <button
+                      <SecondaryButton
+                        size="sm"
                         onClick={() =>
                           void updateSelectedStatus("على رأس العمل")
                         }
-                        className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white"
                       >
-                        جعلهم على رأس العمل
-                      </button>
+                        على رأس العمل
+                      </SecondaryButton>
 
-                      <button
+                      <SecondaryButton
+                        size="sm"
                         onClick={() => void updateSelectedStatus("إجازة")}
-                        className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-black text-white"
                       >
-                        جعلهم إجازة
-                      </button>
+                        إجازة
+                      </SecondaryButton>
 
-                      <button
+                      <SecondaryButton
+                        size="sm"
                         onClick={() => void deleteSelectedTeachers()}
-                        className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white"
                       >
                         حذف المحدد
-                      </button>
+                      </SecondaryButton>
                     </div>
                   </div>
                 )}
@@ -1043,7 +1111,7 @@ export default function TeachersPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1150px]">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-right text-sm text-slate-500">
+                    <tr className="border-b border-[var(--app-border)] bg-[var(--app-card-soft)] text-right text-sm text-[var(--app-text-muted)]">
                       <th className="rounded-r-2xl px-4 py-3 print:hidden">
                         <input
                           type="checkbox"
@@ -1070,7 +1138,7 @@ export default function TeachersPage() {
                       pagedTeachers.map((teacher) => (
                         <tr
                           key={teacher.id}
-                          className="border-b border-slate-50 text-sm transition hover:bg-slate-50"
+                          className="border-b border-slate-50 text-sm transition hover:bg-[var(--app-card-soft)]"
                         >
                           <td className="px-4 py-3 print:hidden">
                             <input
@@ -1080,13 +1148,13 @@ export default function TeachersPage() {
                             />
                           </td>
 
-                          <td className="px-4 py-3 font-bold text-[#0f1f3d]">
+                          <td className="px-4 py-3 font-bold text-[var(--app-text)]">
                             <div className="flex items-center gap-3">
                               <TeacherAvatar teacher={teacher} />
 
                               <div>
                                 <p>{teacher.full_name}</p>
-                                <p className="mt-1 text-xs text-slate-400">
+                                <p className="mt-1 text-xs text-[var(--app-text-subtle)]">
                                   {teacher.phone || "-"} — {teacher.email || "-"}
                                 </p>
                               </div>
@@ -1135,45 +1203,42 @@ export default function TeachersPage() {
 
                           <td className="px-4 py-3 print:hidden">
                             <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={() => setSelectedTeacher(teacher)}
-                                className="rounded-xl bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+                              <IconButton
+                                label="عرض مختصر"
                                 title="عرض مختصر"
-                              >
-                                <Eye size={16} />
-                              </button>
+                                onClick={() => setSelectedTeacher(teacher)}
+                                icon={<Eye size={16} aria-hidden="true" />}
+                              />
 
                               <Link
                                 href={`/teachers/${teacher.id}`}
-                                className="rounded-xl bg-blue-50 p-2 text-blue-600 hover:bg-blue-100"
+                                className="rounded-[var(--app-radius-md)] bg-blue-50 p-2 text-blue-600 hover:bg-blue-100"
                                 title="فتح ملف المعلم"
                               >
-                                <FileText size={16} />
+                                <FileText size={16} aria-hidden="true" />
                               </Link>
 
                               <Link
                                 href={`/teachers/${teacher.id}/portfolio`}
-                                className="rounded-xl bg-purple-50 p-2 text-purple-600 hover:bg-purple-100"
+                                className="rounded-[var(--app-radius-md)] bg-purple-50 p-2 text-purple-600 hover:bg-purple-100"
                                 title="ملف الشواهد"
                               >
-                                <Award size={16} />
+                                <Award size={16} aria-hidden="true" />
                               </Link>
 
-                              <button
-                                onClick={() => startEdit(teacher)}
-                                className="rounded-xl bg-sky-50 p-2 text-sky-600 hover:bg-sky-100"
+                              <IconButton
+                                label="تعديل المعلم"
                                 title="تعديل"
-                              >
-                                <Pencil size={16} />
-                              </button>
+                                onClick={() => startEdit(teacher)}
+                                icon={<Pencil size={16} aria-hidden="true" />}
+                              />
 
-                              <button
-                                onClick={() => void deleteTeacher(teacher.id)}
-                                className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                              <IconButton
+                                label="حذف المعلم"
                                 title="حذف"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                                onClick={() => void deleteTeacher(teacher.id)}
+                                icon={<Trash2 size={16} aria-hidden="true" />}
+                              />
                             </div>
                           </td>
                         </tr>
@@ -1182,46 +1247,50 @@ export default function TeachersPage() {
                 </table>
 
                 {loading && (
-                  <div className="py-10 text-center text-slate-500">
-                    جاري تحميل المعلمين...
-                  </div>
+                  <PageLoader text="جاري تحميل المعلمين..." />
                 )}
 
                 {!loading && filteredTeachers.length === 0 && (
-                  <div className="py-10 text-center text-slate-500">
-                    لا يوجد معلمون مطابقون للبحث
+                  <div className="p-6">
+                    <UiEmptyState
+                      icon={<GraduationCap className="h-8 w-8" aria-hidden="true" />}
+                      title="لا يوجد معلمون"
+                      description="غيّر البحث أو الفلاتر، أو أضف معلمًا جديدًا."
+                    />
                   </div>
                 )}
               </div>
 
               {!loading && filteredTeachers.length > 0 && (
                 <div className="mt-5 flex items-center justify-between">
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-[var(--app-text-muted)]">
                     عرض {pagedTeachers.length} من {filteredTeachers.length}
                   </p>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    <IconButton
+                      label="الصفحة السابقة"
+                      title="السابق"
+                      onClick={() =>
+                        setPage((value) => Math.max(1, value - 1))
+                      }
                       disabled={page === 1}
-                      className="rounded-xl border p-2 disabled:opacity-40"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
+                      icon={<ChevronRight size={18} aria-hidden="true" />}
+                    />
 
-                    <span className="text-sm font-bold text-slate-700">
+                    <span className="text-sm font-bold text-[var(--app-text)]">
                       {page} / {totalPages}
                     </span>
 
-                    <button
+                    <IconButton
+                      label="الصفحة التالية"
+                      title="التالي"
                       onClick={() =>
                         setPage((value) => Math.min(totalPages, value + 1))
                       }
                       disabled={page === totalPages}
-                      className="rounded-xl border p-2 disabled:opacity-40"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
+                      icon={<ChevronLeft size={18} aria-hidden="true" />}
+                    />
                   </div>
                 </div>
               )}
@@ -1246,25 +1315,25 @@ function TeacherSideCard({
   setSelectedTeacher: (teacher: TeacherWithStats | null) => void;
 }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       {selectedTeacher ? (
         <div>
           <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-2xl font-black text-[#0f1f3d]">
+            <h2 className="text-2xl font-black text-[var(--app-text)]">
               الملف المختصر
             </h2>
 
-            <button
+            <IconButton
+              label="إغلاق الملف المختصر"
+              title="إغلاق"
               onClick={() => setSelectedTeacher(null)}
-              className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200"
-            >
-              <X size={18} />
-            </button>
+              icon={<X size={18} aria-hidden="true" />}
+            />
           </div>
 
-          <div className="rounded-3xl bg-[#0f1f3d] p-5 text-white">
+          <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-primary)] p-5 text-white">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-[#d4af37] text-[#0f1f3d]">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] text-[var(--app-text)]">
                 {selectedTeacher.photo_url ? (
                   <Image
                     src={selectedTeacher.photo_url}
@@ -1272,18 +1341,19 @@ function TeacherSideCard({
                     width={56}
                     height={56}
                     className="h-full w-full object-cover"
+                    unoptimized
                   />
                 ) : (
-                  <UserRoundCheck size={28} />
+                  <UserRoundCheck size={28} aria-hidden="true" />
                 )}
               </div>
 
               <div>
-                <h3 className="text-2xl font-black text-[#d4af37]">
+                <h3 className="text-2xl font-black text-[var(--app-accent)]">
                   {selectedTeacher.full_name}
                 </h3>
 
-                <p className="text-sm text-slate-300">
+                <p className="text-sm text-[var(--app-primary-foreground)]/70">
                   {selectedTeacher.subject || "-"} —{" "}
                   {selectedTeacher.department || "-"}
                 </p>
@@ -1308,37 +1378,37 @@ function TeacherSideCard({
             <DetailStat
               title="مواد مسندة"
               value={selectedTeacher.assignedSubjectsCount}
-              icon={<BookOpenCheck size={18} />}
+              icon={<BookOpenCheck size={18} aria-hidden="true" />}
               color="blue"
             />
             <DetailStat
               title="فصول مسندة"
               value={selectedTeacher.assignedClassesCount}
-              icon={<Users size={18} />}
+              icon={<Users size={18} aria-hidden="true" />}
               color="blue"
             />
             <DetailStat
               title="الجدول"
               value={selectedTeacher.scheduleCount}
-              icon={<BookOpenCheck size={18} />}
+              icon={<BookOpenCheck size={18} aria-hidden="true" />}
               color="blue"
             />
             <DetailStat
               title="الانتظار"
               value={selectedTeacher.waitingCount}
-              icon={<CalendarCheck size={18} />}
+              icon={<CalendarCheck size={18} aria-hidden="true" />}
               color="amber"
             />
             <DetailStat
               title="انتظار معلق"
               value={selectedTeacher.pendingWaiting}
-              icon={<ClipboardCheck size={18} />}
+              icon={<ClipboardCheck size={18} aria-hidden="true" />}
               color="red"
             />
             <DetailStat
               title="الشواهد"
               value={selectedTeacher.portfolioCount}
-              icon={<Award size={18} />}
+              icon={<Award size={18} aria-hidden="true" />}
               color="green"
             />
           </div>
@@ -1346,33 +1416,27 @@ function TeacherSideCard({
           <div className="mt-5 grid gap-2">
             <Link
               href={`/teachers/${selectedTeacher.id}`}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#d4af37] px-5 py-3 text-sm font-black text-[#0f1f3d]"
+              className="flex items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-accent)] px-5 py-3 text-sm font-black text-[var(--app-text)]"
             >
-              <FileText size={17} />
+              <FileText size={17} aria-hidden="true" />
               فتح ملف المعلم
             </Link>
 
             <Link
               href={`/teachers/${selectedTeacher.id}/portfolio`}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#0f1f3d] px-5 py-3 text-sm font-black text-white"
+              className="flex items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-5 py-3 text-sm font-black text-white"
             >
-              <Award size={17} />
+              <Award size={17} aria-hidden="true" />
               ملف الشواهد
             </Link>
           </div>
         </div>
       ) : (
-        <div className="flex min-h-[350px] items-center justify-center rounded-3xl bg-slate-50 text-center">
-          <div>
-            <GraduationCap size={42} className="mx-auto text-[#d4af37]" />
-            <h3 className="mt-4 text-xl font-black text-[#0f1f3d]">
-              اختر معلماً
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              اضغط على أيقونة العين لعرض الملف المختصر
-            </p>
-          </div>
-        </div>
+        <UiEmptyState
+          icon={<GraduationCap className="h-9 w-9" aria-hidden="true" />}
+          title="اختر معلمًا"
+          description="اضغط على زر العرض بجانب المعلم لمشاهدة الملف المختصر."
+        />
       )}
     </div>
   );
@@ -1380,7 +1444,7 @@ function TeacherSideCard({
 
 function TeacherAvatar({ teacher }: { teacher: Teacher }) {
   return (
-    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[#0f1f3d]/10 text-[#0f1f3d]">
+    <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[var(--app-radius-lg)] bg-[var(--app-primary)]/10 text-[var(--app-text)]">
       {teacher.photo_url ? (
         <Image
           src={teacher.photo_url}
@@ -1388,9 +1452,10 @@ function TeacherAvatar({ teacher }: { teacher: Teacher }) {
           width={44}
           height={44}
           className="h-full w-full object-cover"
+          unoptimized
         />
       ) : (
-        <UserRoundCheck size={22} />
+        <UserRoundCheck size={22} aria-hidden="true" />
       )}
     </div>
   );
@@ -1412,60 +1477,12 @@ function QuickFilter({
   return (
     <button
       onClick={() => onClick(value)}
-      className={`rounded-2xl px-4 py-2 text-sm font-black ${
-        isActive ? "bg-[#0f1f3d] text-white" : "bg-slate-100 text-slate-600"
+      className={`rounded-[var(--app-radius-lg)] px-4 py-2 text-sm font-black ${
+        isActive ? "bg-[var(--app-primary)] text-[var(--app-primary-foreground)]" : "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]"
       }`}
     >
       {label}
     </button>
-  );
-}
-
-function MergedCard({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-black text-[#0f1f3d]">{title}</h2>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f1f3d]/10 text-[#0f1f3d]">
-          {icon}
-        </div>
-      </div>
-
-      <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
-
-function MiniRow({
-  label,
-  value,
-  color = "default",
-}: {
-  label: string;
-  value: string | number;
-  color?: "default" | "green" | "red" | "amber" | "blue";
-}) {
-  const colors = {
-    default: "text-[#0f1f3d]",
-    green: "text-emerald-700",
-    red: "text-red-700",
-    amber: "text-amber-700",
-    blue: "text-blue-700",
-  };
-
-  return (
-    <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-      <span className="text-sm font-bold text-slate-500">{label}</span>
-      <span className={`text-lg font-black ${colors[color]}`}>{value}</span>
-    </div>
   );
 }
 
@@ -1474,10 +1491,10 @@ function StatusBadge({ status }: { status?: string | null }) {
 
   const style =
     value === "على رأس العمل" || value === "active"
-      ? "bg-emerald-50 text-emerald-700"
+      ? "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]"
       : value === "غير نشط"
-        ? "bg-red-50 text-red-700"
-        : "bg-amber-50 text-amber-700";
+        ? "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]"
+        : "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]";
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-black ${style}`}>
@@ -1488,7 +1505,7 @@ function StatusBadge({ status }: { status?: string | null }) {
 
 function SmallBadge({ label }: { label: string }) {
   return (
-    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+    <span className="rounded-full bg-[var(--app-card-soft)] px-3 py-1 text-xs font-black text-[var(--app-text-muted)]">
       {label}
     </span>
   );
@@ -1507,13 +1524,13 @@ function DetailStat({
 }) {
   const colors = {
     blue: "bg-blue-50 text-blue-700",
-    red: "bg-red-50 text-red-700",
+    red: "bg-[color-mix(in_srgb,var(--app-danger)_10%,transparent)] text-[var(--app-danger)]",
     amber: "bg-amber-50 text-amber-700",
     green: "bg-emerald-50 text-emerald-700",
   };
 
   return (
-    <div className={`rounded-2xl p-4 ${colors[color]}`}>
+    <div className={`rounded-[var(--app-radius-lg)] p-4 ${colors[color]}`}>
       <div className="mb-2 flex items-center gap-2">
         {icon}
         <p className="text-xs font-bold">{title}</p>
@@ -1525,8 +1542,8 @@ function DetailStat({
 
 function InfoMini({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3">
-      <p className="text-xs text-slate-300">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card)]/10 p-3">
+      <p className="text-xs text-[var(--app-primary-foreground)]/70">{title}</p>
       <p className="mt-1 truncate font-black text-white">{value}</p>
     </div>
   );
@@ -1549,24 +1566,15 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-[#d4af37]"
+      className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-2.5 text-sm text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
     />
-  );
-}
-
-function LoadingBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-3xl bg-white p-6 text-center text-slate-500 shadow-sm">
-      <RefreshCcw className="mx-auto mb-3 h-6 w-6 animate-spin text-[#0f1f3d]" />
-      {text}
-    </div>
   );
 }
 
 function ToastBox({ toast }: { toast: Toast }) {
   return (
     <div
-      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
+      className={`fixed left-5 top-5 z-50 flex items-center gap-3 rounded-[var(--app-radius-lg)] px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
         toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
       }`}
     >

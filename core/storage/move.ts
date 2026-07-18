@@ -8,3 +8,4 @@ export async function moveStorageFile(input: StorageMoveInput) {
 }
 
 export const StorageMove = { move: moveStorageFile };
+

@@ -16,6 +16,12 @@ import PageContainer from "@/components/layout/PageContainer";
 import PageHeader from "@/components/ui/page/PageHeader";
 import ExecutiveCard from "@/components/ui/cards/ExecutiveCard";
 import SummaryCard from "@/components/ui/cards/SummaryCard";
+import PrimaryButton from "@/components/ui/buttons/PrimaryButton";
+import SecondaryButton from "@/components/ui/buttons/SecondaryButton";
+import IconButton from "@/components/ui/buttons/IconButton";
+import PageLoader from "@/components/ui/loading/PageLoader";
+import SuccessBanner from "@/components/ui/feedback/SuccessBanner";
+import ErrorState from "@/components/ui/feedback/ErrorState";
 import RoleGuard from "@/components/auth/RoleGuard";
 import { ADMIN_ROLES } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
@@ -34,7 +40,6 @@ import {
   FileSpreadsheet,
   Gauge,
   Image as ImageIcon,
-  Loader2,
   Palette,
   PlusCircle,
   RefreshCcw,
@@ -147,7 +152,7 @@ type QueryLike<T> = PromiseLike<QueryResult<T>>;
 
 type ImportPreview = Record<string, unknown>;
 
-type SettingsInsightTone = "green" | "gold" | "red" | "blue" | "teal";
+type SettingsInsightTone = "primary" | "green" | "gold" | "red" | "neutral";
 
 type SettingsInsight = {
   title: string;
@@ -218,16 +223,16 @@ const EMPTY_STATS: SettingsStats = {
 };
 
 const TABS: { id: Tab; title: string; icon: ReactNode }[] = [
-  { id: "school", title: "بيانات المدرسة", icon: <School size={20} /> },
-  { id: "identity", title: "الهوية", icon: <ImageIcon size={20} /> },
-  { id: "academic", title: "العام الدراسي", icon: <Building2 size={20} /> },
-  { id: "classes", title: "الفصول", icon: <Building2 size={20} /> },
-  { id: "subjects", title: "المواد", icon: <BookOpenCheck size={20} /> },
-  { id: "users", title: "المستخدمون", icon: <Users size={20} /> },
-  { id: "imports", title: "الاستيراد", icon: <FileSpreadsheet size={20} /> },
-  { id: "notifications", title: "الإشعارات", icon: <Bell size={20} /> },
-  { id: "permissions", title: "الصلاحيات", icon: <ShieldCheck size={20} /> },
-  { id: "readiness", title: "الجاهزية", icon: <CheckCircle2 size={20} /> },
+  { id: "school", title: "بيانات المدرسة", icon: <School size={20} aria-hidden="true" /> },
+  { id: "identity", title: "الهوية", icon: <ImageIcon size={20} aria-hidden="true" /> },
+  { id: "academic", title: "العام الدراسي", icon: <Building2 size={20} aria-hidden="true" /> },
+  { id: "classes", title: "الفصول", icon: <Building2 size={20} aria-hidden="true" /> },
+  { id: "subjects", title: "المواد", icon: <BookOpenCheck size={20} aria-hidden="true" /> },
+  { id: "users", title: "المستخدمون", icon: <Users size={20} aria-hidden="true" /> },
+  { id: "imports", title: "الاستيراد", icon: <FileSpreadsheet size={20} aria-hidden="true" /> },
+  { id: "notifications", title: "الإشعارات", icon: <Bell size={20} aria-hidden="true" /> },
+  { id: "permissions", title: "الصلاحيات", icon: <ShieldCheck size={20} aria-hidden="true" /> },
+  { id: "readiness", title: "الجاهزية", icon: <CheckCircle2 size={20} aria-hidden="true" /> },
 ];
 
 const IMPORT_LABELS: Record<ImportType, string> = {
@@ -256,19 +261,17 @@ function getErrorMessage(error: unknown, fallback: string) {
 async function safeQuery<T>(
   query: QueryLike<T>,
   fallback: T,
-  label: string,
+  _label: string,
 ): Promise<T> {
   try {
     const result = await query;
 
     if (result.error) {
-      console.warn(`settings query skipped: ${label}`, result.error);
       return fallback;
     }
 
     return result.data ?? fallback;
-  } catch (error) {
-    console.warn(`settings query failed: ${label}`, error);
+  } catch {
     return fallback;
   }
 }
@@ -310,11 +313,16 @@ function percentage(value: number, total: number) {
 
 function insightTone(tone: SettingsInsightTone) {
   const tones: Record<SettingsInsightTone, string> = {
-    green: "bg-[var(--app-green-soft)] text-[var(--app-green)]",
-    gold: "bg-[var(--app-accent-soft)] text-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue-soft)] text-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal-soft)] text-[var(--app-teal)]",
+    primary:
+      "bg-[color-mix(in_srgb,var(--app-primary)_12%,transparent)] text-[var(--app-primary)]",
+    green:
+      "bg-[color-mix(in_srgb,var(--app-success)_12%,transparent)] text-[var(--app-success)]",
+    gold:
+      "bg-[color-mix(in_srgb,var(--app-accent)_16%,transparent)] text-[var(--app-accent-foreground)]",
+    red:
+      "bg-[color-mix(in_srgb,var(--app-danger)_12%,transparent)] text-[var(--app-danger)]",
+    neutral:
+      "bg-[var(--app-card-soft)] text-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -322,11 +330,11 @@ function insightTone(tone: SettingsInsightTone) {
 
 function progressTone(tone: SettingsInsightTone) {
   const tones: Record<SettingsInsightTone, string> = {
-    green: "bg-[var(--app-green)]",
+    primary: "bg-[var(--app-primary)]",
+    green: "bg-[var(--app-success)]",
     gold: "bg-[var(--app-accent)]",
-    red: "bg-[var(--app-destructive)]",
-    blue: "bg-[var(--app-blue)]",
-    teal: "bg-[var(--app-teal)]",
+    red: "bg-[var(--app-danger)]",
+    neutral: "bg-[var(--app-text-muted)]",
   };
 
   return tones[tone];
@@ -1070,7 +1078,7 @@ export default function SettingsPage() {
         title: "جاهزية الإعدادات منخفضة",
         description: `المؤشر العام ${settingsHealth.overallScore}% ويحتاج استكمال الإعدادات الأساسية.`,
         tone: "red",
-        icon: <AlertCircle className="h-5 w-5" />,
+        icon: <AlertCircle className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -1079,7 +1087,7 @@ export default function SettingsPage() {
         title: "الهوية غير مكتملة",
         description: "ارفع شعار المدرسة لتحسين التقارير والواجهات.",
         tone: "gold",
-        icon: <ImageIcon className="h-5 w-5" />,
+        icon: <ImageIcon className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -1087,8 +1095,8 @@ export default function SettingsPage() {
       items.push({
         title: "تواريخ العام الدراسي ناقصة",
         description: "حدد تاريخ بداية ونهاية العام لرفع جودة التقارير.",
-        tone: "blue",
-        icon: <Building2 className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Building2 className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -1096,8 +1104,8 @@ export default function SettingsPage() {
       items.push({
         title: "لا يوجد مستخدمون",
         description: "أضف أعضاء المدرسة وحدد أدوارهم قبل الإطلاق.",
-        tone: "teal",
-        icon: <Users className="h-5 w-5" />,
+        tone: "primary",
+        icon: <Users className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -1106,7 +1114,7 @@ export default function SettingsPage() {
         title: "الإعدادات مستقرة",
         description: "لا توجد ملاحظات حرجة في إعدادات المدرسة الحالية.",
         tone: "green",
-        icon: <Sparkles className="h-5 w-5" />,
+        icon: <Sparkles className="h-5 w-5" aria-hidden="true" />,
       });
     }
 
@@ -1132,7 +1140,7 @@ export default function SettingsPage() {
       <RoleGuard allowedRoles={ADMIN_ROLES}>
         <AppShell>
           <PageContainer size="wide">
-            <LoadingBox />
+            <PageLoader text="جاري تحميل الإعدادات..." />
           </PageContainer>
         </AppShell>
       </RoleGuard>
@@ -1144,14 +1152,22 @@ export default function SettingsPage() {
       <AppShell>
         <PageContainer size="wide" className="space-y-6">
           <Breadcrumb />
-          {toast && <ToastBox toast={toast} />}
+          {toast && (
+            <div className="fixed left-5 top-5 z-50 w-[min(420px,calc(100%-2rem))] print:hidden">
+              {toast.type === "success" ? (
+                <SuccessBanner description={toast.message} />
+              ) : (
+                <ErrorState description={toast.message} />
+              )}
+            </div>
+          )}
 
           <PageHeader
             variant="hero"
             title="ضبط المدرسة والمنصة"
             description="مركز موحد لإدارة بيانات المدرسة، الهوية، العام الدراسي، الفصول، المواد، الصلاحيات، الإشعارات، والاستيراد من Excel."
             badge="إعدادات النظام"
-            icon={<Settings size={18} />}
+            icon={<Settings size={18} aria-hidden="true" />}
             breadcrumbs={[
               { label: "لوحة التحكم", href: "/dashboard" },
               { label: "الإعدادات" },
@@ -1163,48 +1179,41 @@ export default function SettingsPage() {
               { label: "نظام الفصول", value: settings.semester_system || "غير محدد" },
             ]}
             stats={[
-              { label: "الطلاب", value: stats.students, icon: <Users size={20} />, tone: "blue" },
-              { label: "المعلمون", value: stats.teachers, icon: <School size={20} />, tone: "teal" },
-              { label: "المستخدمون", value: stats.users, icon: <ShieldCheck size={20} />, tone: "green" },
-              { label: "جاهزية النظام", value: `${readinessPercent}%`, icon: <CheckCircle2 size={20} />, tone: readinessPercent >= 80 ? "green" : "gold" },
+              { label: "الطلاب", value: stats.students, icon: <Users size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "المعلمون", value: stats.teachers, icon: <School size={20} aria-hidden="true" />, tone: "primary" },
+              { label: "المستخدمون", value: stats.users, icon: <ShieldCheck size={20} aria-hidden="true" />, tone: "green" },
+              { label: "جاهزية النظام", value: `${readinessPercent}%`, icon: <CheckCircle2 size={20} aria-hidden="true" />, tone: readinessPercent >= 80 ? "green" : "gold" },
             ]}
             actions={
               <>
-                <button
-                  type="button"
+                <SecondaryButton
+                  icon={<RefreshCcw size={17} aria-hidden="true" />}
                   onClick={() => void fetchAll()}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <RefreshCcw size={17} />
                   تحديث
-                </button>
+                </SecondaryButton>
 
-                <button
-                  type="button"
+                <PrimaryButton
+                  icon={<Save size={17} aria-hidden="true" />}
                   onClick={() => void saveSettings()}
-                  disabled={saving || uploadingLogo}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#C1B489] px-4 text-sm font-black text-[#15445A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60"
+                  loading={saving}
+                  disabled={uploadingLogo}
                 >
-                  <Save size={17} />
-                  {saving ? "جاري الحفظ..." : "حفظ"}
-                </button>
+                  حفظ
+                </PrimaryButton>
               </>
             }
           />
 
-          {errorMsg && (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-5 text-sm font-bold text-red-700">
-              {errorMsg}
-            </div>
-          )}
+          {errorMsg && <ErrorState description={errorMsg} />}
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <ExecutiveCard
               title="الطلاب"
               value={stats.students}
               subtitle="إجمالي الطلاب في المدرسة"
-              icon={<Users size={22} />}
-              tone="blue"
+              icon={<Users size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.students > 0 ? 100 : 0}
             />
 
@@ -1212,8 +1221,8 @@ export default function SettingsPage() {
               title="المعلمون"
               value={stats.teachers}
               subtitle="إجمالي المعلمين"
-              icon={<School size={22} />}
-              tone="teal"
+              icon={<School size={22} aria-hidden="true" />}
+              tone="primary"
               progress={stats.teachers > 0 ? 100 : 0}
             />
 
@@ -1221,7 +1230,7 @@ export default function SettingsPage() {
               title="المستخدمون"
               value={stats.users}
               subtitle="أعضاء المدرسة والصلاحيات"
-              icon={<ShieldCheck size={22} />}
+              icon={<ShieldCheck size={22} aria-hidden="true" />}
               tone="green"
               progress={stats.users > 0 ? 100 : 0}
             />
@@ -1230,7 +1239,7 @@ export default function SettingsPage() {
               title="المواد"
               value={stats.subjects}
               subtitle="المواد الدراسية المسجلة"
-              icon={<BookOpenCheck size={22} />}
+              icon={<BookOpenCheck size={22} aria-hidden="true" />}
               tone="gold"
               progress={stats.subjects > 0 ? 100 : 0}
             />
@@ -1239,7 +1248,7 @@ export default function SettingsPage() {
               title="الفصول"
               value={stats.classes}
               subtitle="الفصول والشعب"
-              icon={<Building2 size={22} />}
+              icon={<Building2 size={22} aria-hidden="true" />}
               tone="primary"
               progress={stats.classes > 0 ? 100 : 0}
             />
@@ -1259,13 +1268,18 @@ export default function SettingsPage() {
             ]}
             footer={
               <div>
-                <div className="mb-2 flex justify-between text-xs font-black text-slate-500">
+                <div className="mb-2 flex justify-between text-xs font-black text-[var(--app-text-muted)]">
                   <span>اكتمال الإعدادات</span>
                   <span>{readinessPercent}%</span>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-3 overflow-hidden rounded-full bg-[var(--app-card-soft)]">
                   <div
-                    className="h-full rounded-full bg-[#0DA9A6]"
+                    role="progressbar"
+                    aria-label="اكتمال الإعدادات"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={readinessPercent}
+                    className="h-full rounded-full bg-[var(--app-primary)]"
                     style={{ width: `${readinessPercent}%` }}
                   />
                 </div>
@@ -1305,11 +1319,11 @@ export default function SettingsPage() {
             ))}
           </section>
 
-          <section className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
+          <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-6 shadow-[var(--app-shadow-sm)]">
             {activeTab === "school" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<School className="text-[#C1B489]" />}
+                  icon={<School className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="بيانات المدرسة"
                   desc="البيانات الرسمية الأساسية للمدرسة."
                 />
@@ -1332,13 +1346,13 @@ export default function SettingsPage() {
             {activeTab === "identity" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<Palette className="text-[#C1B489]" />}
+                  icon={<Palette className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="الشعار والهوية"
                   desc="ضبط شعار المدرسة واسم المنصة وألوان الهوية."
                 />
 
-                <div className="flex flex-col gap-5 rounded-[28px] bg-slate-50 p-5 md:flex-row md:items-center">
-                  <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl bg-white shadow-sm">
+                <div className="flex flex-col gap-5 rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-5 md:flex-row md:items-center">
+                  <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-[var(--app-radius-xl)] bg-[var(--app-card)] shadow-[var(--app-shadow-sm)]">
                     {settings.logo_url ? (
                       <NextImage
                         src={settings.logo_url}
@@ -1349,20 +1363,20 @@ export default function SettingsPage() {
                         unoptimized
                       />
                     ) : (
-                      <ImageIcon className="text-[#15445A]" size={40} />
+                      <ImageIcon className="text-[var(--app-text)]" size={40} />
                     )}
                   </div>
 
                   <div className="flex-1">
-                    <h3 className="text-xl font-black text-[#15445A]">
+                    <h3 className="text-xl font-black text-[var(--app-text)]">
                       شعار المدرسة
                     </h3>
-                    <p className="mt-2 text-sm leading-7 text-slate-500">
+                    <p className="mt-2 text-sm leading-7 text-[var(--app-text-muted)]">
                       يظهر الشعار في الواجهة والتقارير وبطاقات المدرسة.
                     </p>
 
-                    <label className="mt-4 inline-flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-3 font-bold text-[#15445A] transition hover:border-[#0DA9A6] hover:bg-[#0DA9A6]/10">
-                      <UploadCloud size={20} />
+                    <label className="mt-4 inline-flex cursor-pointer items-center justify-center gap-3 rounded-[var(--app-radius-lg)] border border-dashed border-[var(--app-border-strong)] bg-[var(--app-card)] px-5 py-3 font-bold text-[var(--app-text)] transition hover:border-[var(--app-primary)] hover:bg-[var(--app-primary)]/10">
+                      <UploadCloud size={20} aria-hidden="true" />
                       {uploadingLogo ? "جاري رفع الشعار..." : "رفع الشعار"}
                       <input
                         type="file"
@@ -1389,7 +1403,7 @@ export default function SettingsPage() {
             {activeTab === "academic" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<Building2 className="text-[#C1B489]" />}
+                  icon={<Building2 className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="العام الدراسي والفصول"
                   desc="ضبط العام الدراسي والفصل الحالي ونظام الفصلين أو الثلاثة فصول."
                 />
@@ -1407,7 +1421,7 @@ export default function SettingsPage() {
             {activeTab === "classes" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<Building2 className="text-[#C1B489]" />}
+                  icon={<Building2 className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="الفصول"
                   desc="إضافة الفصول وربطها بالصف والشعبة."
                 />
@@ -1416,10 +1430,13 @@ export default function SettingsPage() {
                   <Input label="اسم الفصل" value={newClass.class_name} onChange={(v) => setNewClass({ ...newClass, class_name: v })} placeholder="مثال: 1 / أ" />
                   <Input label="الصف" value={newClass.grade_level} onChange={(v) => setNewClass({ ...newClass, grade_level: v })} placeholder="مثال: أول ثانوي" />
                   <Input label="الشعبة" value={newClass.section} onChange={(v) => setNewClass({ ...newClass, section: v })} placeholder="مثال: أ" />
-                  <button type="button" onClick={() => void addClass()} className="mt-7 flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 font-black text-white">
-                    <PlusCircle size={18} />
+                  <PrimaryButton
+                    className="mt-7"
+                    icon={<PlusCircle size={18} aria-hidden="true" />}
+                    onClick={() => void addClass()}
+                  >
                     إضافة فصل
-                  </button>
+                  </PrimaryButton>
                 </div>
 
                 <SimpleTable
@@ -1428,9 +1445,13 @@ export default function SettingsPage() {
                     classTitle(item),
                     item.grade_name || item.grade_level || "-",
                     item.section || "-",
-                    <button key={item.id} type="button" onClick={() => void deleteClass(item.id)} className="text-red-600">
-                      <Trash2 size={18} />
-                    </button>,
+                    <IconButton
+                      key={item.id}
+                      label="حذف الفصل"
+                      title="حذف"
+                      onClick={() => void deleteClass(item.id)}
+                      icon={<Trash2 size={18} aria-hidden="true" />}
+                    />,
                   ])}
                 />
               </div>
@@ -1439,7 +1460,7 @@ export default function SettingsPage() {
             {activeTab === "subjects" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<BookOpenCheck className="text-[#C1B489]" />}
+                  icon={<BookOpenCheck className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="المواد الدراسية"
                   desc="إضافة المواد وربطها بالصفوف."
                 />
@@ -1448,10 +1469,13 @@ export default function SettingsPage() {
                   <Input label="اسم المادة" value={newSubject.subject_name} onChange={(v) => setNewSubject({ ...newSubject, subject_name: v })} placeholder="مثال: الرياضيات" />
                   <Input label="رمز المادة" value={newSubject.subject_code} onChange={(v) => setNewSubject({ ...newSubject, subject_code: v })} placeholder="اختياري" />
                   <Input label="الصف / المرحلة" value={newSubject.grade_level} onChange={(v) => setNewSubject({ ...newSubject, grade_level: v })} placeholder="مثال: أول ثانوي" />
-                  <button type="button" onClick={() => void addSubject()} className="mt-7 flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 font-black text-white">
-                    <PlusCircle size={18} />
+                  <PrimaryButton
+                    className="mt-7"
+                    icon={<PlusCircle size={18} aria-hidden="true" />}
+                    onClick={() => void addSubject()}
+                  >
                     إضافة مادة
-                  </button>
+                  </PrimaryButton>
                 </div>
 
                 <SimpleTable
@@ -1460,9 +1484,13 @@ export default function SettingsPage() {
                     item.subject_name || "-",
                     item.subject_code || "-",
                     item.grade_level || "-",
-                    <button key={item.id} type="button" onClick={() => void deleteSubject(item.id)} className="text-red-600">
-                      <Trash2 size={18} />
-                    </button>,
+                    <IconButton
+                      key={item.id}
+                      label="حذف المادة"
+                      title="حذف"
+                      onClick={() => void deleteSubject(item.id)}
+                      icon={<Trash2 size={18} aria-hidden="true" />}
+                    />,
                   ])}
                 />
               </div>
@@ -1471,7 +1499,7 @@ export default function SettingsPage() {
             {activeTab === "users" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<Users className="text-[#C1B489]" />}
+                  icon={<Users className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="المستخدمون والصلاحيات"
                   desc="ملخص المستخدمين داخل المدرسة حسب الدور."
                 />
@@ -1489,7 +1517,7 @@ export default function SettingsPage() {
                   ]}
                 />
 
-                <Link href="/users" className="inline-flex items-center rounded-2xl bg-[#15445A] px-5 py-3 font-black text-white">
+                <Link href="/users" className="inline-flex items-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-5 py-3 font-black text-[var(--app-primary-foreground)] transition hover:opacity-90">
                   إدارة المستخدمين
                 </Link>
               </div>
@@ -1498,7 +1526,7 @@ export default function SettingsPage() {
             {activeTab === "imports" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<FileSpreadsheet className="text-[#C1B489]" />}
+                  icon={<FileSpreadsheet className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="استيراد البيانات"
                   desc="استيراد ملفات Excel أو CSV للطلاب والمعلمين والمواد والفصول والجداول."
                 />
@@ -1516,12 +1544,12 @@ export default function SettingsPage() {
                   />
 
                   <label className="block md:col-span-2">
-                    <span className="mb-2 block text-sm font-black text-[#15445A]">
+                    <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
                       ملف Excel / CSV
                     </span>
-                    <div className="flex items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
-                      <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-white px-5 py-3 font-black text-[#15445A] shadow-sm">
-                        <UploadCloud size={20} />
+                    <div className="flex items-center justify-center rounded-[var(--app-radius-lg)] border border-dashed border-[var(--app-border-strong)] bg-[var(--app-card-soft)] p-5">
+                      <label className="flex cursor-pointer items-center gap-3 rounded-[var(--app-radius-lg)] bg-[var(--app-card)] px-5 py-3 font-black text-[var(--app-text)] shadow-[var(--app-shadow-sm)]">
+                        <UploadCloud size={20} aria-hidden="true" />
                         رفع الملف
                         <input
                           type="file"
@@ -1549,13 +1577,13 @@ export default function SettingsPage() {
                   ]}
                 />
 
-                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                <div className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5">
                   <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <h3 className="text-xl font-black text-[#15445A]">
+                      <h3 className="text-xl font-black text-[var(--app-text)]">
                         معاينة البيانات
                       </h3>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-1 text-sm text-[var(--app-text-muted)]">
                         عدد الصفوف المقروءة: {importRows.length}
                       </p>
                     </div>
@@ -1564,21 +1592,21 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => void executeImport()}
                       disabled={importing || importRows.length === 0}
-                      className="flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-5 py-3 font-black text-white disabled:opacity-50"
+                      className="flex items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-5 py-3 font-black text-white disabled:opacity-50"
                     >
-                      <Save size={18} />
+                      <Save size={18} aria-hidden="true" />
                       {importing ? "جاري الاستيراد..." : "اعتماد الاستيراد"}
                     </button>
                   </div>
 
                   {importRows.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
+                    <div className="rounded-[var(--app-radius-lg)] border border-dashed border-[var(--app-border-strong)] bg-[var(--app-card)] p-8 text-center text-[var(--app-text-muted)]">
                       لم يتم رفع ملف بعد.
                     </div>
                   ) : (
-                    <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200 bg-white">
+                    <div className="max-h-[420px] overflow-auto rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card)]">
                       <table className="w-full min-w-[900px] text-right text-sm">
-                        <thead className="bg-[#15445A] text-white">
+                        <thead className="bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
                           <tr>
                             {Object.keys(importRows[0] || {}).map((key) => (
                               <th key={key} className="whitespace-nowrap px-4 py-3 font-black">
@@ -1589,9 +1617,9 @@ export default function SettingsPage() {
                         </thead>
                         <tbody>
                           {importRows.slice(0, 20).map((row, index) => (
-                            <tr key={index} className="border-b border-slate-100">
+                            <tr key={index} className="border-b border-[var(--app-border)]">
                               {Object.keys(importRows[0] || {}).map((key) => (
-                                <td key={key} className="whitespace-nowrap px-4 py-3 text-slate-600">
+                                <td key={key} className="whitespace-nowrap px-4 py-3 text-[var(--app-text-muted)]">
                                   {String(row[key] ?? "")}
                                 </td>
                               ))}
@@ -1608,7 +1636,7 @@ export default function SettingsPage() {
             {activeTab === "notifications" && (
               <div className="space-y-4">
                 <SectionTitle
-                  icon={<Bell className="text-[#C1B489]" />}
+                  icon={<Bell className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="الإشعارات"
                   desc="ضبط أنواع التنبيهات التي تظهر داخل النظام."
                 />
@@ -1623,7 +1651,7 @@ export default function SettingsPage() {
             {activeTab === "permissions" && (
               <div className="space-y-4">
                 <SectionTitle
-                  icon={<ShieldCheck className="text-[#C1B489]" />}
+                  icon={<ShieldCheck className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="الصلاحيات العامة"
                   desc="إعدادات عامة للتحكم في صلاحيات العمليات داخل المنصة."
                 />
@@ -1637,19 +1665,19 @@ export default function SettingsPage() {
             {activeTab === "readiness" && (
               <div className="space-y-6">
                 <SectionTitle
-                  icon={<CheckCircle2 className="text-[#C1B489]" />}
+                  icon={<CheckCircle2 className="text-[var(--app-accent)]" aria-hidden="true" />}
                   title="جاهزية النظام"
                   desc="فحص سريع لاكتمال البيانات الأساسية."
                 />
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {readinessItems.map((item) => (
-                    <div key={item.title} className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
-                      <span className="font-bold text-[#15445A]">{item.title}</span>
+                    <div key={item.title} className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
+                      <span className="font-bold text-[var(--app-text)]">{item.title}</span>
                       {item.done ? (
-                        <CheckCircle2 className="text-[#07A869]" />
+                        <CheckCircle2 className="text-[var(--app-success)]" aria-hidden="true" />
                       ) : (
-                        <XCircle className="text-red-500" />
+                        <XCircle className="text-[var(--app-danger)]" aria-hidden="true" />
                       )}
                     </div>
                   ))}
@@ -1657,9 +1685,9 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-2 text-sm font-bold text-[#07A869]">
-                <CheckCircle2 size={18} />
+            <div className="mt-8 flex flex-col gap-3 border-t border-[var(--app-border)] pt-6 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-2 text-sm font-bold text-[var(--app-success)]">
+                <CheckCircle2 size={18} aria-hidden="true" />
                 جميع إعدادات المدرسة والاستيراد تدار من هذه الصفحة.
               </div>
 
@@ -1667,9 +1695,9 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => void saveSettings()}
                 disabled={saving || uploadingLogo}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-[#15445A] px-6 py-3 font-bold text-white transition hover:bg-[#162b52] disabled:opacity-60"
+                className="flex items-center justify-center gap-2 rounded-[var(--app-radius-lg)] bg-[var(--app-primary)] px-6 py-3 font-bold text-white transition hover:opacity-90 disabled:opacity-60"
               >
-                <Save size={18} />
+                <Save size={18} aria-hidden="true" />
                 {saving ? "جاري الحفظ..." : "حفظ الإعدادات"}
               </button>
             </div>
@@ -1703,15 +1731,15 @@ function TabCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[24px] border p-4 text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+      className={`rounded-[var(--app-radius-lg)] border p-4 text-right shadow-[var(--app-shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--app-shadow-md)] ${
         active
-          ? "border-[#0DA9A6]/30 bg-[#15445A] text-white"
-          : "border-slate-100 bg-white text-[#15445A] hover:border-[#0DA9A6]/30"
+          ? "border-[var(--app-primary)] bg-[var(--app-primary)] text-[var(--app-primary-foreground)]"
+          : "border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text)] hover:border-[var(--app-primary)]"
       }`}
     >
       <div
-        className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl ${
-          active ? "bg-[#C1B489] text-[#15445A]" : "bg-[#0DA9A6]/10 text-[#0DA9A6]"
+        className={`mb-3 flex h-12 w-12 items-center justify-center rounded-[var(--app-radius-lg)] ${
+          active ? "bg-[var(--app-accent)] text-[var(--app-text)]" : "bg-[var(--app-primary)]/10 text-[var(--app-primary)]"
         }`}
       >
         {icon}
@@ -1732,12 +1760,12 @@ function SectionTitle({
 }) {
   return (
     <div className="mb-6 flex items-start gap-3">
-      <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
+      <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]">
         {icon}
       </div>
       <div>
-        <h2 className="text-2xl font-black text-[#15445A]">{title}</h2>
-        <p className="mt-1 text-sm leading-7 text-slate-500">{desc}</p>
+        <h2 className="text-2xl font-black text-[var(--app-text)]">{title}</h2>
+        <p className="mt-1 text-sm leading-7 text-[var(--app-text-muted)]">{desc}</p>
       </div>
     </div>
   );
@@ -1753,13 +1781,13 @@ function Toggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-5 transition hover:bg-white hover:shadow-sm">
-      <span className="font-black text-[#15445A]">{title}</span>
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-5 transition hover:bg-[var(--app-card)] hover:shadow-[var(--app-shadow-sm)]">
+      <span className="font-black text-[var(--app-text)]">{title}</span>
       <input
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-5 w-5 accent-[#0DA9A6]"
+        className="h-5 w-5 accent-[var(--app-primary)]"
       />
     </label>
   );
@@ -1780,7 +1808,7 @@ function Input({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-black text-[#15445A]">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
         {label}
       </span>
       <input
@@ -1788,7 +1816,7 @@ function Input({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+        className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
       />
     </label>
   );
@@ -1805,10 +1833,10 @@ function ColorInput({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-black text-[#15445A]">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
         {label}
       </span>
-      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+      <div className="flex items-center gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] px-4 py-3">
         <input
           type="color"
           value={value}
@@ -1840,13 +1868,13 @@ function Select({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-black text-[#15445A]">
+      <span className="mb-2 block text-sm font-black text-[var(--app-text)]">
         {label}
       </span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#0DA9A6] focus:bg-white"
+        className="w-full rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3 text-[var(--app-text)] outline-none transition placeholder:text-[var(--app-text-subtle)] focus:border-[var(--app-primary)] focus:bg-[var(--app-card)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--app-primary)_18%,transparent)]"
       >
         {options.map((option) => (
           <option key={option} value={option}>
@@ -1868,19 +1896,19 @@ function InfoPanel({
   rows: [string, string][];
 }) {
   return (
-    <div className="rounded-[28px] bg-slate-50 p-5">
+    <div className="rounded-[var(--app-radius-xl)] bg-[var(--app-card-soft)] p-5">
       <div className="mb-4 flex items-center gap-3">
-        <CircleAlert className="text-[#C1B489]" size={24} />
+        <CircleAlert className="text-[var(--app-accent)]" size={24} />
         <div>
-          <h3 className="text-xl font-black text-[#15445A]">{title}</h3>
-          <p className="mt-1 text-sm leading-7 text-slate-500">{desc}</p>
+          <h3 className="text-xl font-black text-[var(--app-text)]">{title}</h3>
+          <p className="mt-1 text-sm leading-7 text-[var(--app-text-muted)]">{desc}</p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {rows.map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between rounded-2xl bg-white p-4">
-            <span className="text-sm font-bold text-slate-500">{label}</span>
-            <span className="font-black text-[#15445A]">{value}</span>
+          <div key={label} className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card)] p-4">
+            <span className="text-sm font-bold text-[var(--app-text-muted)]">{label}</span>
+            <span className="font-black text-[var(--app-text)]">{value}</span>
           </div>
         ))}
       </div>
@@ -1896,9 +1924,9 @@ function SimpleTable({
   rows: ReactNode[][];
 }) {
   return (
-    <div className="overflow-hidden rounded-[24px] border border-slate-100">
+    <div className="overflow-hidden rounded-[var(--app-radius-lg)] border border-[var(--app-border)]">
       <table className="w-full text-right text-sm">
-        <thead className="bg-[#15445A] text-white">
+        <thead className="bg-[var(--app-primary)] text-[var(--app-primary-foreground)]">
           <tr>
             {headers.map((header) => (
               <th key={header} className="px-4 py-3 font-black">
@@ -1910,15 +1938,15 @@ function SimpleTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={headers.length} className="p-6 text-center text-slate-500">
+              <td colSpan={headers.length} className="p-6 text-center text-[var(--app-text-muted)]">
                 لا توجد بيانات.
               </td>
             </tr>
           ) : (
             rows.map((row, index) => (
-              <tr key={index} className="border-b border-slate-100 last:border-b-0">
+              <tr key={index} className="border-b border-[var(--app-border)] last:border-b-0">
                 {row.map((cell, cellIndex) => (
-                  <td key={cellIndex} className="px-4 py-3 text-slate-700">
+                  <td key={cellIndex} className="px-4 py-3 text-[var(--app-text)]">
                     {cell}
                   </td>
                 ))}
@@ -1931,35 +1959,6 @@ function SimpleTable({
   );
 }
 
-function LoadingBox() {
-  return (
-    <div className="flex min-h-[55vh] items-center justify-center">
-      <div className="rounded-[28px] border border-slate-100 bg-white p-8 text-center text-slate-500 shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0DA9A6]/10 text-[#0DA9A6]">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </div>
-        <p className="font-bold">جاري تحميل الإعدادات...</p>
-      </div>
-    </div>
-  );
-}
-
-function ToastBox({ toast }: { toast: Toast }) {
-  const isSuccess = toast.type === "success";
-
-  return (
-    <div
-      className={`fixed left-5 top-5 z-50 flex max-w-md items-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white shadow-xl print:hidden ${
-        isSuccess ? "bg-[#07A869]" : "bg-red-600"
-      }`}
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15">
-        {isSuccess ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-      </span>
-      <span>{toast.message}</span>
-    </div>
-  );
-}
 
 
 function SettingsExecutiveAnalytics({
@@ -1972,7 +1971,7 @@ function SettingsExecutiveAnalytics({
   stats: SettingsStats;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="text-xl font-black text-[var(--app-text)]">
           Settings Executive Analytics
@@ -1983,10 +1982,10 @@ function SettingsExecutiveAnalytics({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SettingsMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} />} tone={health.level === "جاهز" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
-        <SettingsMetric label="جاهزية النظام" value={`${readinessPercent}%`} icon={<CheckCircle2 size={18} />} tone="green" />
-        <SettingsMetric label="جودة البيانات" value={`${health.dataScore}%`} icon={<DatabaseBackup size={18} />} tone="blue" />
-        <SettingsMetric label="الصلاحيات" value={`${health.permissionsScore}%`} icon={<ShieldCheck size={18} />} tone="teal" />
+        <SettingsMetric label="المؤشر العام" value={`${health.overallScore}%`} icon={<Gauge size={18} aria-hidden="true" />} tone={health.level === "جاهز" ? "green" : health.level === "متابعة" ? "gold" : "red"} />
+        <SettingsMetric label="جاهزية النظام" value={`${readinessPercent}%`} icon={<CheckCircle2 size={18} aria-hidden="true" />} tone="green" />
+        <SettingsMetric label="جودة البيانات" value={`${health.dataScore}%`} icon={<DatabaseBackup size={18} aria-hidden="true" />} tone="primary" />
+        <SettingsMetric label="الصلاحيات" value={`${health.permissionsScore}%`} icon={<ShieldCheck size={18} aria-hidden="true" />} tone="primary" />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -2007,10 +2006,10 @@ function SettingsSmartInsights({
   onSelect: (item: SettingsInsight) => void;
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-          <BrainCircuit size={20} />
+          <BrainCircuit size={20} aria-hidden="true" />
           AI Settings Insights
         </h2>
         <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -2024,9 +2023,9 @@ function SettingsSmartInsights({
             key={item.title}
             type="button"
             onClick={() => onSelect(item)}
-            className="flex w-full gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
+            className="flex w-full gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-3 text-right transition hover:-translate-y-0.5"
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${insightTone(item.tone)}`}>
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(item.tone)}`}>
               {item.icon}
             </div>
             <div>
@@ -2042,18 +2041,18 @@ function SettingsSmartInsights({
 
 function SettingsHealthPanel({ health }: { health: SettingsHealth }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="text-xl font-black text-[var(--app-text)]">Settings Health</h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
         مؤشرات اكتمال وضبط إعدادات المنصة.
       </p>
 
       <div className="mt-5 space-y-4">
-        <SettingsProgress label="بيانات المدرسة" value={health.profileScore} tone="blue" />
+        <SettingsProgress label="بيانات المدرسة" value={health.profileScore} tone="primary" />
         <SettingsProgress label="العام الدراسي" value={health.academicScore} tone="green" />
         <SettingsProgress label="الهوية" value={health.identityScore} tone="gold" />
-        <SettingsProgress label="الصلاحيات" value={health.permissionsScore} tone="teal" />
-        <SettingsProgress label="الإشعارات" value={health.notificationsScore} tone="blue" />
+        <SettingsProgress label="الصلاحيات" value={health.permissionsScore} tone="primary" />
+        <SettingsProgress label="الإشعارات" value={health.notificationsScore} tone="primary" />
       </div>
     </section>
   );
@@ -2061,9 +2060,9 @@ function SettingsHealthPanel({ health }: { health: SettingsHealth }) {
 
 function SettingsAuditPanel({ items }: { items: SettingsAuditItem[] }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <Activity size={20} />
+        <Activity size={20} aria-hidden="true" />
         Configuration Audit
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -2072,7 +2071,7 @@ function SettingsAuditPanel({ items }: { items: SettingsAuditItem[] }) {
 
       <div className="mt-5 space-y-3">
         {items.map((item) => (
-          <div key={item.label} className="rounded-2xl bg-[var(--app-card-soft)] p-4">
+          <div key={item.label} className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="font-black text-[var(--app-text)]">{item.label}</p>
               {item.status === "ok" ? (
@@ -2097,9 +2096,9 @@ function SettingsBackupPanel({
   summary: { coreTables: number; availableData: number; readiness: number };
 }) {
   return (
-    <section className="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-sm">
+    <section className="rounded-[var(--app-radius-xl)] border border-[var(--app-border)] bg-[var(--app-card)] p-5 shadow-[var(--app-shadow-sm)]">
       <h2 className="flex items-center gap-2 text-xl font-black text-[var(--app-text)]">
-        <DatabaseBackup size={20} />
+        <DatabaseBackup size={20} aria-hidden="true" />
         Backup & Data Readiness
       </h2>
       <p className="mt-1 text-sm text-[var(--app-text-muted)]">
@@ -2112,7 +2111,7 @@ function SettingsBackupPanel({
         <SettingsInfoLine label="جاهزية البيانات" value={`${summary.readiness}%`} />
       </div>
 
-      <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-xs leading-6 text-amber-800">
+      <div className="mt-4 rounded-[var(--app-radius-lg)] bg-amber-50 p-4 text-xs leading-6 text-amber-800">
         النسخ الاحتياطي الحقيقي يحتاج وظيفة Supabase أو Edge Function مخصصة. هذه اللوحة تعرض الجاهزية فقط ولا تنفذ نسخة احتياطية تلقائيًا.
       </div>
     </section>
@@ -2131,19 +2130,22 @@ function SettingsInsightDrawer({
   return (
     <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/40 backdrop-blur-sm print:hidden">
       <button type="button" className="flex-1" onClick={onClose} aria-label="إغلاق" />
-      <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl">
+      <aside className="h-full w-full max-w-xl overflow-y-auto bg-[var(--app-card)] p-5 shadow-2xl">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-black text-[#C1B489]">Settings Insight</p>
-            <h2 className="mt-1 text-2xl font-black text-[#15445A]">{insight.title}</h2>
+            <p className="text-xs font-black text-[var(--app-accent)]">Settings Insight</p>
+            <h2 className="mt-1 text-2xl font-black text-[var(--app-text)]">{insight.title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl bg-slate-100 p-2 text-slate-600">
-            <XCircle size={20} />
-          </button>
+          <IconButton
+            label="إغلاق لوحة الملاحظة"
+            title="إغلاق"
+            onClick={onClose}
+            icon={<XCircle size={20} aria-hidden="true" />}
+          />
         </div>
 
         <div className="mt-6 space-y-3">
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
+          <div className="rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] p-4 text-sm leading-7 text-[var(--app-text-muted)]">
             {insight.description}
           </div>
 
@@ -2186,8 +2188,8 @@ function SettingsMetric({
   tone: SettingsInsightTone;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
-      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${insightTone(tone)}`}>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[var(--app-radius-lg)] ${insightTone(tone)}`}>
         {icon}
       </div>
       <p className="text-xs font-bold text-[var(--app-text-muted)]">{label}</p>
@@ -2204,7 +2206,7 @@ function SettingsInfoLine({
   value: string | number;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-[var(--app-card-soft)] px-3 py-2">
+    <div className="flex items-center justify-between rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)] px-3 py-2">
       <span className="text-xs font-bold text-[var(--app-text-muted)]">{label}</span>
       <span className="text-sm font-black text-[var(--app-text)]">{value}</span>
     </div>
@@ -2241,13 +2243,14 @@ function SettingsDrawerSection({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-      <p className="mb-2 text-sm font-black text-[#15445A]">{title}</p>
+    <div className="rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] p-4">
+      <p className="mb-2 text-sm font-black text-[var(--app-text)]">{title}</p>
       <div className="space-y-1">
         {items.map((item) => (
-          <p key={item} className="text-xs leading-6 text-slate-500">{item}</p>
+          <p key={item} className="text-xs leading-6 text-[var(--app-text-muted)]">{item}</p>
         ))}
       </div>
     </div>
   );
 }
+
