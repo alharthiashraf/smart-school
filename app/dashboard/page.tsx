@@ -1046,7 +1046,7 @@ export default function DashboardPage() {
 
   return (
     <AuthGuard>
-      <main className="space-y-6" dir="rtl">
+      <div className="space-y-6" dir="rtl">
         <PageHeader
           variant="compact"
           title="لوحة التحكم"
@@ -1266,7 +1266,7 @@ export default function DashboardPage() {
         </section>
 
         <PortalGrid portals={visiblePortals} />
-      </main>
+      </div>
     </AuthGuard>
   );
 }

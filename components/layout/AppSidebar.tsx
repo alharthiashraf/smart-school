@@ -779,7 +779,7 @@ export default function AppSidebar() {
           lg:hidden
         "
       >
-        <Menu size={20} />
+        <Menu size={20} aria-hidden="true" />
       </button>
 
       {mobileOpen && (
@@ -802,19 +802,17 @@ export default function AppSidebar() {
       <aside
         aria-label="القائمة الرئيسية"
         className={[
-          "fixed right-0 top-0 z-[60] h-screen",
-          "border-l border-[var(--app-sidebar-border)]",
+          "fixed right-0 top-0 z-[60] h-dvh w-[288px]",
+          "shrink-0 border-l border-[var(--app-sidebar-border)]",
           sidebarBackground,
           "text-[var(--app-sidebar-text)]",
           "shadow-[0_24px_80px_rgba(2,6,23,0.38)]",
           "transition-[width,transform] duration-300 ease-out",
-          "lg:sticky lg:top-0 lg:translate-x-0",
-          expanded
-            ? "lg:w-[288px]"
-            : "lg:w-[72px]",
+          "lg:relative lg:right-auto lg:top-auto lg:z-auto lg:h-screen",
+          expanded ? "lg:w-[288px]" : "lg:w-[72px]",
           mobileOpen
-            ? "w-[288px] translate-x-0"
-            : "w-[288px] translate-x-full lg:translate-x-0",
+            ? "translate-x-0"
+            : "translate-x-full lg:translate-x-0",
         ].join(" ")}
       >
         <div className="relative flex h-full flex-col overflow-hidden">
@@ -930,6 +928,7 @@ export default function AppSidebar() {
                         <Star
                           size={13}
                           className="text-[var(--app-accent)]"
+                          aria-hidden="true"
                         />
                         المفضلة
                       </p>
@@ -1055,6 +1054,7 @@ export default function AppSidebar() {
                         mx-auto
                         text-[var(--app-accent)]
                       "
+                      aria-hidden="true"
                     />
 
                     {expanded && (
