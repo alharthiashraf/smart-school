@@ -33,10 +33,10 @@ export type BaseCardProps<
   ref?: ComponentPropsWithRef<TElement>["ref"];
 } & Omit<
     ComponentPropsWithoutRef<TElement>,
-    keyof BaseCardOwnProps | "as"
+    keyof BaseCardOwnProps | "as" | "ref"
   >;
 
-const variants: Record<BaseCardVariant, string> = {
+const VARIANT_CLASSES: Record<BaseCardVariant, string> = {
   default:
     "border-[var(--app-border)] bg-[var(--app-card)] shadow-sm",
 
@@ -53,6 +53,8 @@ const variants: Record<BaseCardVariant, string> = {
     "hover:-translate-y-1",
     "hover:border-[var(--app-accent)]",
     "hover:shadow-[var(--app-shadow)]",
+    "focus-within:border-[var(--app-accent)]",
+    "focus-within:shadow-[var(--app-shadow-soft)]",
   ].join(" "),
 
   hero: [
@@ -66,12 +68,16 @@ const variants: Record<BaseCardVariant, string> = {
   ].join(" "),
 };
 
-const paddings: Record<BaseCardPadding, string> = {
+const PADDING_CLASSES: Record<BaseCardPadding, string> = {
   none: "p-0",
   sm: "p-4",
   md: "p-5",
   lg: "p-6",
 };
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function BaseCard<
   TElement extends ElementType = "div",
@@ -95,14 +101,12 @@ export default function BaseCard<
   return (
     <Component
       ref={ref}
-      className={[
-        "group rounded-[var(--app-radius-xl)] border text-[var(--app-text)] transition-all duration-200",
-        variants[resolvedVariant],
-        paddings[padding],
+      className={cx(
+        "group rounded-[var(--app-radius-xl)] border text-[var(--app-text)] transition-[transform,border-color,box-shadow,background-color] duration-200 ease-out",
+        VARIANT_CLASSES[resolvedVariant],
+        PADDING_CLASSES[padding],
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      )}
       {...props}
     >
       {children}

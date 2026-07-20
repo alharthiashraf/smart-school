@@ -34,16 +34,13 @@ type ToneClasses = {
   bar: string;
 };
 
-const tones: Record<Tone, ToneClasses> = {
+const TONE_CLASSES: Record<Tone, ToneClasses> = {
   primary: {
     icon: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
     bar: "bg-[var(--app-primary)]",
   },
 
-  /*
-   * أبقيناه للتوافق مع الصفحات القديمة فقط.
-   * يعرض الآن اللون الأساسي الكحلي بدل teal.
-   */
+  // توافق مؤقت مع الاستخدامات القديمة حتى اكتمال إزالة tone="teal".
   teal: {
     icon: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
     bar: "bg-[var(--app-primary)]",
@@ -80,15 +77,32 @@ const tones: Record<Tone, ToneClasses> = {
     bar: "bg-[var(--app-text-muted)]",
   },
 
-  /*
-   * أبقيناه للتوافق مع الاستخدامات الحالية.
-   * يستخدم الآن درجة الهوية الأساسية بدل purple الثابت.
-   */
+  // توافق مؤقت مع الاستخدامات القديمة دون إدخال لون ثابت خارج الهوية.
   purple: {
     icon: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
     bar: "bg-[var(--app-primary)]",
   },
 };
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function normalizePercentage(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(Math.max(0, Math.min(100, value)));
+}
+
+function normalizeTrend(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(value * 10) / 10;
+}
 
 export default function ExecutiveCard({
   title,
@@ -104,12 +118,15 @@ export default function ExecutiveCard({
   tone = "primary",
   className,
 }: ExecutiveCardProps) {
-  const isInteractive = Boolean(onClick);
-  const normalizedProgress =
-    progress == null ? null : Math.max(0, Math.min(progress, 100));
+  const isInteractive = typeof onClick === "function";
+  const normalizedProgress = normalizePercentage(progress);
+  const normalizedTrend = normalizeTrend(trend);
+  const toneClasses = TONE_CLASSES[tone];
 
   const TrendIcon =
-    trend != null && trend < 0 ? ArrowDownRight : ArrowUpRight;
+    normalizedTrend !== null && normalizedTrend < 0
+      ? ArrowDownRight
+      : ArrowUpRight;
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (!onClick) return;
@@ -129,64 +146,68 @@ export default function ExecutiveCard({
       onKeyDown={handleKeyDown}
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      className={[
-        isInteractive
-          ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]"
-          : "",
+      aria-busy={loading || undefined}
+      aria-label={isInteractive ? title : undefined}
+      className={cx(
+        "overflow-hidden",
+        isInteractive &&
+          "cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div
-          className={[
+          className={cx(
             "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-            tones[tone].icon,
-          ].join(" ")}
+            toneClasses.icon,
+          )}
           aria-hidden="true"
         >
           {icon}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {badge && (
-            <span className="rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 text-[11px] font-black text-[var(--app-text-muted)]">
+            <span className="max-w-full truncate rounded-full border border-[var(--app-border)] bg-[var(--app-card-soft)] px-3 py-1 text-[11px] font-black text-[var(--app-text-muted)]">
               {badge}
             </span>
           )}
 
-          {trend != null && (
+          {normalizedTrend !== null && (
             <span
-              className={[
-                "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black",
-                trend >= 0
+              className={cx(
+                "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black",
+                normalizedTrend >= 0
                   ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
                   : "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-              ].join(" ")}
+              )}
+              aria-label={`نسبة التغير ${Math.abs(normalizedTrend)} بالمئة ${
+                normalizedTrend >= 0 ? "ارتفاعًا" : "انخفاضًا"
+              }`}
             >
               <TrendIcon aria-hidden="true" className="h-3.5 w-3.5" />
 
-              <span dir="ltr">{Math.abs(trend)}%</span>
+              <span dir="ltr">{Math.abs(normalizedTrend)}%</span>
             </span>
           )}
         </div>
       </div>
 
-      <div className="mt-5">
-        <p className="text-sm font-bold text-[var(--app-text-muted)]">
+      <div className="mt-5 min-w-0">
+        <p className="truncate text-sm font-bold text-[var(--app-text-muted)]">
           {title}
         </p>
 
         {loading ? (
           <div
-            className="mt-3 h-9 w-28 animate-pulse rounded-xl bg-[var(--app-card-soft)]"
+            className="mt-3 h-10 w-28 animate-pulse rounded-xl bg-[var(--app-card-soft)]"
+            role="status"
             aria-label="جاري تحميل القيمة"
           />
         ) : (
-          <h3 className="mt-2 text-4xl font-black tracking-tight text-[var(--app-text)]">
+          <p className="mt-2 break-words text-4xl font-black tracking-tight text-[var(--app-text)]">
             {value}
-          </h3>
+          </p>
         )}
 
         {subtitle && (
@@ -196,11 +217,13 @@ export default function ExecutiveCard({
         )}
       </div>
 
-      {normalizedProgress != null && (
+      {normalizedProgress !== null && (
         <div className="mt-5">
-          <div className="mb-2 flex items-center justify-between text-xs font-bold text-[var(--app-text-muted)]">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-[var(--app-text-muted)]">
             <span>التقدم</span>
-            <span dir="ltr">{normalizedProgress}%</span>
+            <span className="shrink-0" dir="ltr">
+              {normalizedProgress}%
+            </span>
           </div>
 
           <div
@@ -210,15 +233,14 @@ export default function ExecutiveCard({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={normalizedProgress}
+            aria-valuetext={`${normalizedProgress}%`}
           >
             <div
-              className={[
-                "h-full rounded-full transition-[width] duration-300",
-                tones[tone].bar,
-              ].join(" ")}
-              style={{
-                width: `${normalizedProgress}%`,
-              }}
+              className={cx(
+                "h-full rounded-full transition-[width] duration-300 ease-out",
+                toneClasses.bar,
+              )}
+              style={{ width: `${normalizedProgress}%` }}
             />
           </div>
         </div>

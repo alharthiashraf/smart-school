@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import {
   useCallback,
   useEffect,
@@ -23,14 +22,11 @@ import {
   LayoutDashboard,
   Menu,
   MessageSquareWarning,
-  Moon,
   School,
   Search,
   Settings,
   Shield,
   Sparkles,
-  Star,
-  Sun,
   UserCog,
   UsersRound,
 } from "lucide-react";
@@ -71,7 +67,6 @@ type SidebarSectionType = {
 
 const COLLAPSED_KEY = "smart-school-v1-sidebar-collapsed";
 const OPEN_SECTIONS_KEY = "smart-school-v1-sidebar-open-sections";
-const FAVORITES_KEY = "smart-school-v1-sidebar-favorites";
 
 const ALL_ROLES: SchoolRole[] = [
   "super_admin",
@@ -508,11 +503,6 @@ export default function AppSidebar() {
   const router = useRouter();
 
   const {
-    resolvedTheme,
-    setTheme,
-  } = useTheme();
-
-  const {
     currentSchool,
     currentRole,
     schools,
@@ -528,16 +518,11 @@ export default function AppSidebar() {
   const [openSections, setOpenSections] = useState<
     Record<string, boolean>
   >({});
-  const [favorites, setFavorites] = useState<string[]>([]);
-
   const expanded = !collapsed || mobileOpen;
 
   const roleName = currentRole
     ? ROLE_NAME_MAP[currentRole]
     : "مستخدم";
-
-  const isDarkTheme = resolvedTheme === "dark";
-  const ActiveThemeIcon = isDarkTheme ? Sun : Moon;
 
   const canSeeItem = useCallback(
     (item: SidebarItemType) => {
@@ -596,19 +581,6 @@ export default function AppSidebar() {
     ],
   );
 
-  const favoriteItems = useMemo(() => {
-    return favorites
-      .map((href) =>
-        allAllowedItems.find(
-          (item) => item.href === href,
-        ),
-      )
-      .filter(
-        (item): item is SidebarItemType =>
-          Boolean(item),
-      );
-  }, [favorites, allAllowedItems]);
-
   const hasSearchResults =
     allowedSections.length > 0;
 
@@ -626,13 +598,6 @@ export default function AppSidebar() {
         {},
       ),
     );
-
-    setFavorites(
-      readJSON<string[]>(
-        FAVORITES_KEY,
-        [],
-      ),
-    );
   }, []);
 
   useEffect(() => {
@@ -648,13 +613,6 @@ export default function AppSidebar() {
       openSections,
     );
   }, [openSections]);
-
-  useEffect(() => {
-    writeJSON(
-      FAVORITES_KEY,
-      favorites,
-    );
-  }, [favorites]);
 
   useEffect(() => {
     if (!activeHref) {
@@ -719,35 +677,6 @@ export default function AppSidebar() {
     },
     [],
   );
-
-  const toggleFavorite = useCallback(
-    (href: string) => {
-      setFavorites((current) => {
-        if (current.includes(href)) {
-          return current.filter(
-            (item) => item !== href,
-          );
-        }
-
-        return [
-          href,
-          ...current,
-        ].slice(0, 8);
-      });
-    },
-    [],
-  );
-
-  const cycleTheme = useCallback(() => {
-    setTheme(
-      isDarkTheme
-        ? "light"
-        : "dark",
-    );
-  }, [
-    isDarkTheme,
-    setTheme,
-  ]);
 
   const sidebarBackground =
     "bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.16),transparent_30%),linear-gradient(180deg,var(--app-sidebar),var(--app-navy-950))]";
@@ -837,15 +766,11 @@ export default function AppSidebar() {
             }
             roleName={roleName}
             semester={semester}
-            ActiveThemeIcon={
-              ActiveThemeIcon
-            }
             onToggleCollapse={() =>
               setCollapsed(
                 (value) => !value,
               )
             }
-            onToggleTheme={cycleTheme}
             onCloseMobile={() =>
               setMobileOpen(false)
             }
@@ -896,77 +821,9 @@ export default function AppSidebar() {
               {!loading && expanded && (
                 <SidebarSearch
                   value={sectionSearch}
-                  onChange={
-                    setSectionSearch
-                  }
-                  hasResults={
-                    hasSearchResults
-                  }
-                >
-                  {favoriteItems.length >
-                    0 && (
-                    <div
-                      className="
-                        rounded-2xl
-                        border
-                        border-[var(--app-sidebar-border)]
-                        bg-[var(--app-sidebar-hover)]
-                        p-2
-                      "
-                    >
-                      <p
-                        className="
-                          mb-1.5
-                          flex items-center
-                          gap-2
-                          px-2
-                          text-[11px]
-                          font-black
-                          text-[var(--app-sidebar-muted)]
-                        "
-                      >
-                        <Star
-                          size={13}
-                          className="text-[var(--app-accent)]"
-                          aria-hidden="true"
-                        />
-                        المفضلة
-                      </p>
-
-                      <div className="space-y-1">
-                        {favoriteItems.map(
-                          (item) => (
-                            <SidebarItem
-                              key={
-                                item.href
-                              }
-                              item={item}
-                              active={
-                                activeHref ===
-                                item.href
-                              }
-                              expanded={
-                                expanded
-                              }
-                              favorite={favorites.includes(
-                                item.href,
-                              )}
-                              compact
-                              onNavigate={() =>
-                                setMobileOpen(
-                                  false,
-                                )
-                              }
-                              onToggleFavorite={
-                                toggleFavorite
-                              }
-                            />
-                          ),
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </SidebarSearch>
+                  onChange={setSectionSearch}
+                  hasResults={hasSearchResults}
+                />
               )}
 
               {!loading &&
@@ -1016,16 +873,10 @@ export default function AppSidebar() {
                               expanded={
                                 expanded
                               }
-                              favorite={favorites.includes(
-                                item.href,
-                              )}
                               onNavigate={() =>
                                 setMobileOpen(
                                   false,
                                 )
-                              }
-                              onToggleFavorite={
-                                toggleFavorite
                               }
                             />
                           ),

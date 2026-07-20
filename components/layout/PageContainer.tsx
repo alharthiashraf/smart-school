@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type ContainerSize = "default" | "wide" | "full";
+export type ContainerSize = "default" | "wide" | "full";
 
 type PageContainerProps = {
   children: ReactNode;
@@ -15,26 +15,28 @@ const SIZE_CLASSES: Record<ContainerSize, string> = {
   full: "max-w-none",
 };
 
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 export default function PageContainer({
   children,
-  className = "",
+  className,
   size = "wide",
   centered = true,
 }: PageContainerProps) {
   return (
-    <div
-      className={[
+    <main
+      className={cx(
         "relative w-full",
         "text-[var(--app-text)]",
         "transition-colors duration-300",
         SIZE_CLASSES[size],
         centered && "mx-auto",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      )}
     >
       {children}
-    </div>
+    </main>
   );
 }

@@ -3,7 +3,13 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import BaseCard from "./BaseCard";
 
-type Tone = "primary" | "teal" | "green" | "blue" | "gold" | "red";
+export type KpiCardTone =
+  | "primary"
+  | "teal"
+  | "green"
+  | "blue"
+  | "gold"
+  | "red";
 
 export type KpiCardProps = {
   title: string;
@@ -11,20 +17,17 @@ export type KpiCardProps = {
   icon?: ReactNode;
   trend?: number;
   caption?: string;
-  tone?: Tone;
+  tone?: KpiCardTone;
   loading?: boolean;
   onClick?: () => void;
   className?: string;
 };
 
-const tones: Record<Tone, string> = {
+const TONE_CLASSES: Record<KpiCardTone, string> = {
   primary:
     "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
 
-  /*
-   * اسم توافق قديم فقط.
-   * يعرض الآن اللون الأساسي الكحلي بدل teal.
-   */
+  // توافق مؤقت مع الاستخدامات القديمة حتى اكتمال إزالة tone="teal".
   teal:
     "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
 
@@ -41,6 +44,18 @@ const tones: Record<Tone, string> = {
     "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
 };
 
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function normalizeTrend(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(value * 10) / 10;
+}
+
 export default function KpiCard({
   title,
   value,
@@ -52,9 +67,13 @@ export default function KpiCard({
   onClick,
   className,
 }: KpiCardProps) {
-  const isInteractive = Boolean(onClick);
+  const isInteractive = typeof onClick === "function";
+  const normalizedTrend = normalizeTrend(trend);
+
   const TrendIcon =
-    trend != null && trend < 0 ? ArrowDownRight : ArrowUpRight;
+    normalizedTrend !== null && normalizedTrend < 0
+      ? ArrowDownRight
+      : ArrowUpRight;
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (!onClick) return;
@@ -74,58 +93,62 @@ export default function KpiCard({
       onKeyDown={handleKeyDown}
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      className={[
-        isInteractive
-          ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]"
-          : "",
+      aria-busy={loading || undefined}
+      aria-label={isInteractive ? title : undefined}
+      className={cx(
+        "overflow-hidden",
+        isInteractive &&
+          "cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]",
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      )}
     >
       <div className="flex items-center justify-between gap-3">
         <div
-          className={[
+          className={cx(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
-            tones[tone],
-          ].join(" ")}
+            TONE_CLASSES[tone],
+          )}
           aria-hidden="true"
         >
           {icon}
         </div>
 
-        {trend != null && (
+        {normalizedTrend !== null && (
           <span
-            className={[
-              "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black",
-              trend >= 0
+            className={cx(
+              "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black",
+              normalizedTrend >= 0
                 ? "bg-[var(--app-green-soft)] text-[var(--app-green)]"
                 : "bg-[var(--app-destructive-soft)] text-[var(--app-destructive)]",
-            ].join(" ")}
+            )}
+            aria-label={`نسبة التغير ${Math.abs(normalizedTrend)} بالمئة ${
+              normalizedTrend >= 0 ? "ارتفاعًا" : "انخفاضًا"
+            }`}
           >
             <TrendIcon
               aria-hidden="true"
               className="h-3.5 w-3.5"
             />
 
-            <span dir="ltr">{Math.abs(trend)}%</span>
+            <span dir="ltr">{Math.abs(normalizedTrend)}%</span>
           </span>
         )}
       </div>
 
-      <p className="mt-4 text-sm font-bold text-[var(--app-text-muted)]">
+      <p className="mt-4 truncate text-sm font-bold text-[var(--app-text-muted)]">
         {title}
       </p>
 
       {loading ? (
         <div
-          className="mt-2 h-8 w-20 animate-pulse rounded-lg bg-[var(--app-card-soft)]"
+          className="mt-2 h-9 w-20 animate-pulse rounded-lg bg-[var(--app-card-soft)]"
+          role="status"
           aria-label="جاري تحميل القيمة"
         />
       ) : (
-        <h3 className="mt-2 text-3xl font-black text-[var(--app-text)]">
+        <p className="mt-2 break-words text-3xl font-black tracking-tight text-[var(--app-text)]">
           {value}
-        </h3>
+        </p>
       )}
 
       {caption && (

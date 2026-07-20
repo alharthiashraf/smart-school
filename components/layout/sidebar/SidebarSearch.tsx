@@ -1,63 +1,88 @@
 "use client";
 
-import type { ReactNode } from "react";
-
-import { EmptyState } from "@/components/ui/empty-state";
-import { SearchInput } from "@/components/ui/inputs";
+import { Search, X } from "lucide-react";
 
 type SidebarSearchProps = {
   value: string;
   onChange: (value: string) => void;
   hasResults: boolean;
-  children?: ReactNode;
 };
 
 export default function SidebarSearch({
   value,
   onChange,
   hasResults,
-  children,
 }: SidebarSearchProps) {
-  const searching = value.trim().length > 0;
+  const hasValue = value.trim().length > 0;
 
   return (
-    <div className="space-y-3">
-      <SearchInput
-        value={value}
-        onChange={onChange}
-        placeholder="بحث في القائمة..."
+    <div className="space-y-2">
+      <div
         className="
-          [&_input]:h-11
-          [&_input]:rounded-2xl
-          [&_input]:border
-          [&_input]:border-[var(--app-sidebar-border)]
-          [&_input]:bg-[var(--app-sidebar-hover)]
-          [&_input]:text-[var(--app-sidebar-text)]
-          [&_input]:placeholder:text-[var(--app-sidebar-muted)]
-          [&_input]:shadow-sm
-          [&_input]:transition-all
-          [&_input]:duration-200
-          [&_input]:focus:border-[var(--app-accent)]
-          [&_input]:focus:bg-[var(--app-card)]
-          [&_input]:focus:ring-4
-          [&_input]:focus:ring-[var(--app-accent-soft)]
+          group flex items-center gap-2 rounded-2xl
+          border border-[var(--app-sidebar-border)]
+          bg-[var(--app-sidebar-hover)]
+          px-3 py-2.5
+          transition-all duration-200
+          focus-within:border-[var(--app-accent-border)]
+          focus-within:bg-[var(--app-sidebar-active)]
+          focus-within:ring-2
+          focus-within:ring-[var(--app-accent-soft)]
         "
-      />
-
-      {searching && !hasResults ? (
-        <EmptyState
-          title="لا توجد نتائج"
-          description="جرّب كلمة بحث مختلفة."
+      >
+        <Search
+          size={17}
           className="
-            rounded-2xl
-            border
-            border-[var(--app-sidebar-border)]
-            bg-[var(--app-sidebar-hover)]
-            text-[var(--app-sidebar-text)]
+            shrink-0 text-[var(--app-sidebar-muted)]
+            transition-colors duration-200
+            group-focus-within:text-[var(--app-accent)]
+          "
+          aria-hidden="true"
+        />
+
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="ابحث في القائمة..."
+          aria-label="البحث في القائمة الجانبية"
+          className="
+            min-w-0 flex-1 bg-transparent
+            text-xs font-bold text-[var(--app-sidebar-text)]
+            outline-none
+            placeholder:text-[var(--app-sidebar-muted)]
           "
         />
-      ) : (
-        children
+
+        {hasValue && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            aria-label="مسح البحث"
+            title="مسح البحث"
+            className="
+              flex h-7 w-7 shrink-0 items-center justify-center rounded-lg
+              text-[var(--app-sidebar-muted)]
+              transition-all duration-200
+              hover:bg-[var(--app-accent-soft)]
+              hover:text-[var(--app-accent)]
+            "
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {hasValue && !hasResults && (
+        <p
+          className="
+            rounded-xl border border-[var(--app-sidebar-border)]
+            bg-[var(--app-sidebar-hover)]
+            px-3 py-2 text-center
+            text-[11px] font-bold text-[var(--app-sidebar-muted)]
+          "
+        >
+          لا توجد نتائج مطابقة
+        </p>
       )}
     </div>
   );

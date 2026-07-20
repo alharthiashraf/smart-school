@@ -18,9 +18,23 @@ export default function ThemeToggle() {
         type="button"
         aria-label="تبديل المظهر"
         disabled
-        className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-muted)] shadow-sm"
+        className="
+          flex h-10 w-[76px] items-center rounded-full
+          border border-[var(--app-border)]
+          bg-[var(--app-card)]
+          p-1
+          shadow-[var(--app-shadow-sm)]
+        "
       >
-        <Sun size={18} />
+        <span
+          className="
+            flex h-8 w-8 items-center justify-center rounded-full
+            bg-[var(--app-accent)]
+            text-[var(--app-accent-foreground)]
+          "
+        >
+          <Sun size={16} />
+        </span>
       </button>
     );
   }
@@ -38,12 +52,13 @@ export default function ThemeToggle() {
       aria-label={isDark ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الغامق"}
       title={isDark ? "الوضع الفاتح" : "الوضع الغامق"}
       className="
-        group relative inline-flex h-10 w-[76px] items-center rounded-full
+        relative inline-flex h-10 w-[76px] items-center rounded-full
         border border-[var(--app-border)]
         bg-[var(--app-card)]
-        p-1 shadow-sm
+        p-1
+        shadow-[var(--app-shadow-sm)]
         transition-all duration-300
-        hover:border-[var(--app-accent-border)]
+        hover:border-[var(--app-accent)]
         hover:shadow-[var(--app-shadow-gold)]
         focus-visible:outline-none
         focus-visible:ring-4
@@ -53,10 +68,10 @@ export default function ThemeToggle() {
       <span
         className={[
           "absolute flex h-8 w-8 items-center justify-center rounded-full",
-          "transition-all duration-300",
+          "transition-all duration-300 ease-out",
           isDark
-            ? "translate-x-0 bg-[var(--app-accent)] text-[var(--app-accent-foreground)]"
-            : "translate-x-9 bg-[var(--app-primary)] text-white",
+            ? "right-1 bg-[var(--app-accent)] text-[var(--app-accent-foreground)]"
+            : "left-1 bg-[var(--app-primary)] text-white",
         ].join(" ")}
       >
         {isDark ? <Moon size={16} /> : <Sun size={16} />}

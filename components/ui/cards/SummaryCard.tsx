@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useId } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,7 +11,7 @@ import {
 
 import BaseCard from "./BaseCard";
 
-type SummaryTone =
+export type SummaryTone =
   | "primary"
   | "teal"
   | "green"
@@ -19,7 +20,7 @@ type SummaryTone =
   | "red"
   | "slate";
 
-type SummaryItem = {
+export type SummaryItem = {
   label: string;
   value?: string | number;
   icon?: ReactNode;
@@ -45,7 +46,7 @@ type SummaryToneClasses = {
   itemIcon: string;
 };
 
-const toneClasses: Record<SummaryTone, SummaryToneClasses> = {
+const TONE_CLASSES: Record<SummaryTone, SummaryToneClasses> = {
   primary: {
     icon: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
     badge: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
@@ -53,10 +54,7 @@ const toneClasses: Record<SummaryTone, SummaryToneClasses> = {
     itemIcon: "text-[var(--app-primary)]",
   },
 
-  /*
-   * اسم توافق قديم فقط.
-   * يعرض الآن اللون الأساسي الكحلي بدل teal.
-   */
+  // توافق مؤقت مع الاستخدامات القديمة حتى اكتمال إزالة tone="teal".
   teal: {
     icon: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
     badge: "bg-[var(--app-primary-soft)] text-[var(--app-primary)]",
@@ -102,7 +100,7 @@ const toneClasses: Record<SummaryTone, SummaryToneClasses> = {
   },
 };
 
-const defaultIcons: Record<SummaryTone, ReactNode> = {
+const DEFAULT_ICONS: Record<SummaryTone, ReactNode> = {
   primary: <Sparkles aria-hidden="true" className="h-5 w-5" />,
   teal: <Info aria-hidden="true" className="h-5 w-5" />,
   green: <CheckCircle2 aria-hidden="true" className="h-5 w-5" />,
@@ -111,6 +109,10 @@ const defaultIcons: Record<SummaryTone, ReactNode> = {
   red: <AlertCircle aria-hidden="true" className="h-5 w-5" />,
   slate: <Info aria-hidden="true" className="h-5 w-5" />,
 };
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function SummaryCard({
   title,
@@ -124,38 +126,44 @@ export default function SummaryCard({
   loading = false,
   className,
 }: SummaryCardProps) {
+  const titleId = useId();
   const hasItems = Boolean(items?.length);
+  const toneClasses = TONE_CLASSES[tone];
 
   return (
     <BaseCard
       as="section"
       padding="md"
-      className={className}
-      aria-busy={loading}
+      className={cx("overflow-hidden", className)}
+      aria-labelledby={titleId}
+      aria-busy={loading || undefined}
     >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div
-            className={[
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-              toneClasses[tone].icon,
-            ].join(" ")}
+            className={cx(
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm",
+              toneClasses.icon,
+            )}
             aria-hidden="true"
           >
-            {icon ?? defaultIcons[tone]}
+            {icon ?? DEFAULT_ICONS[tone]}
           </div>
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-black text-[var(--app-text)]">
+              <h2
+                id={titleId}
+                className="break-words text-xl font-black tracking-tight text-[var(--app-text)]"
+              >
                 {title}
               </h2>
 
               <span
-                className={[
+                className={cx(
                   "rounded-full border border-current/10 px-3 py-1 text-[11px] font-black",
-                  toneClasses[tone].badge,
-                ].join(" ")}
+                  toneClasses.badge,
+                )}
               >
                 ملخص
               </span>
@@ -170,7 +178,7 @@ export default function SummaryCard({
         </div>
 
         {actions && (
-          <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {actions}
           </div>
         )}
@@ -178,10 +186,11 @@ export default function SummaryCard({
 
       <div className="mt-5">
         {loading ? (
-          <div className="flex min-h-[120px] items-center justify-center rounded-3xl bg-[var(--app-card-soft)]">
+          <div className="flex min-h-[120px] items-center justify-center rounded-[var(--app-radius-lg)] bg-[var(--app-card-soft)]">
             <div
               className="flex items-center gap-3 text-sm font-bold text-[var(--app-text-muted)]"
               role="status"
+              aria-live="polite"
             >
               <Loader2
                 aria-hidden="true"
@@ -203,30 +212,30 @@ export default function SummaryCard({
                   return (
                     <div
                       key={`${label}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3"
+                      className="flex items-center justify-between gap-3 rounded-[var(--app-radius-lg)] border border-[var(--app-border)] bg-[var(--app-card-soft)] px-4 py-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         {itemIcon ? (
                           <span
-                            className={[
+                            className={cx(
                               "shrink-0",
-                              toneClasses[tone].itemIcon,
-                            ].join(" ")}
+                              toneClasses.itemIcon,
+                            )}
                             aria-hidden="true"
                           >
                             {itemIcon}
                           </span>
                         ) : (
                           <span
-                            className={[
+                            className={cx(
                               "h-2.5 w-2.5 shrink-0 rounded-full",
-                              toneClasses[tone].dot,
-                            ].join(" ")}
+                              toneClasses.dot,
+                            )}
                             aria-hidden="true"
                           />
                         )}
 
-                        <p className="truncate text-sm font-bold text-[var(--app-text-muted)]">
+                        <p className="min-w-0 break-words text-sm font-bold text-[var(--app-text-muted)]">
                           {label}
                         </p>
                       </div>
@@ -243,7 +252,7 @@ export default function SummaryCard({
             )}
 
             {children && (
-              <div className={hasItems ? "mt-5" : ""}>
+              <div className={hasItems ? "mt-5" : undefined}>
                 {children}
               </div>
             )}

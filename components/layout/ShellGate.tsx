@@ -20,16 +20,16 @@ type ShellGateProps = {
 export default function ShellGate({
   children,
 }: ShellGateProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
 
   const isPublicRoute = useMemo(() => {
-    return (
-      PUBLIC_ROUTES.has(pathname) ||
-      [...PUBLIC_ROUTES].some(
-        (route) =>
-          route !== "/" &&
-          pathname.startsWith(`${route}/`),
-      )
+    if (PUBLIC_ROUTES.has(pathname)) {
+      return true
+    }
+    return [...PUBLIC_ROUTES].some(
+      (route) =>
+        route !== "/" &&
+        pathname.startsWith(`${route}/`),
     );
   }, [pathname]);
 
@@ -37,9 +37,5 @@ export default function ShellGate({
     return <>{children}</>;
   }
 
-  return (
-    <AppShell>
-      {children}
-    </AppShell>
-  );
+  return <AppShell>{children}</AppShell>;
 }

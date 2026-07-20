@@ -23,12 +23,21 @@ export default function SidebarFooter({
   onLogout,
 }: SidebarFooterProps) {
   return (
-    <div className="border-t border-[var(--app-sidebar-border)] bg-black/5 p-3 backdrop-blur-sm">
+    <footer
+      className="
+        shrink-0 border-t border-[var(--app-sidebar-border)]
+        bg-black/10 p-3 backdrop-blur-md
+      "
+    >
       {expanded && schools.length > 1 && (
         <div className="mb-3">
           <label
             htmlFor="sidebar-school-switcher"
-            className="mb-1.5 block px-1 text-[10px] font-black text-[var(--app-sidebar-muted)]"
+            className="
+              mb-1.5 block px-1
+              text-[10px] font-black
+              text-[var(--app-sidebar-muted)]
+            "
           >
             المدرسة الحالية
           </label>
@@ -46,8 +55,10 @@ export default function SidebarFooter({
               text-[var(--app-sidebar-text)]
               outline-none
               transition-all duration-200
-              focus:border-[var(--app-accent)]
-              focus:ring-4
+              hover:border-[var(--app-accent-border)]
+              hover:bg-[var(--app-sidebar-active)]
+              focus:border-[var(--app-accent-border)]
+              focus:ring-2
               focus:ring-[var(--app-accent-soft)]
             "
           >
@@ -55,7 +66,7 @@ export default function SidebarFooter({
               <option
                 key={school.id}
                 value={school.id}
-                className="bg-[var(--app-card)] text-[var(--app-text)]"
+                className="bg-[var(--app-sidebar)] text-[var(--app-sidebar-text)]"
               >
                 {school.school_name}
               </option>
@@ -72,9 +83,10 @@ export default function SidebarFooter({
         className={[
           "group flex w-full items-center gap-3 rounded-2xl",
           "border border-transparent px-3 py-2.5",
-          "text-red-200",
+          "text-[var(--app-destructive)]",
           "transition-all duration-200",
-          "hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-100",
+          "hover:border-[var(--app-destructive)]",
+          "hover:bg-[var(--app-destructive-soft)]",
           !expanded ? "justify-center" : "",
         ].join(" ")}
       >
@@ -82,14 +94,13 @@ export default function SidebarFooter({
           className="
             flex h-8 w-8 shrink-0 items-center justify-center
             rounded-xl
-            bg-red-500/10
-            text-red-200
-            transition-colors duration-200
-            group-hover:bg-red-500/15
-            group-hover:text-red-100
+            bg-[var(--app-destructive-soft)]
+            text-[var(--app-destructive)]
+            transition-all duration-200
+            group-hover:scale-105
           "
         >
-          <LogOut size={17} />
+          <LogOut size={17} aria-hidden="true" />
         </span>
 
         {expanded && (
@@ -98,6 +109,6 @@ export default function SidebarFooter({
           </span>
         )}
       </button>
-    </div>
+    </footer>
   );
 }

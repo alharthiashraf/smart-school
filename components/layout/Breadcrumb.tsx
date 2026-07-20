@@ -27,20 +27,28 @@ const PAGE_NAMES: Record<string, string> = {
   settings: "الإعدادات",
   alerts: "التنبيهات",
   notifications: "الإشعارات",
+
   "teacher-portal": "بوابة المعلم",
   "student-portal": "بوابة الطالب",
   "parent-portal": "بوابة ولي الأمر",
-  quality: "الجودة",
-  "evidence-auditor": "مدقق الشواهد",
-  search: "البحث",
-  administration: "الإدارة",
   "school-admin": "إدارة المدرسة",
-  "student-interventions": "التدخلات الطلابية",
-  "noor-import": "استيراد نور",
+  "quality-center": "مركز الجودة",
+  "portfolio-monitor": "مراقبة المحافظ",
+
+  daily: "اليومي",
+  waiting: "حصص الانتظار",
+  preparations: "التحاضير",
+  schedule: "الجدول",
 };
 
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 function getPageName(segment: string) {
-  return PAGE_NAMES[segment] ?? decodeURIComponent(segment);
+  const decodedSegment = decodeURIComponent(segment);
+
+  return PAGE_NAMES[decodedSegment] ?? decodedSegment;
 }
 
 export default function Breadcrumb() {
@@ -53,66 +61,71 @@ export default function Breadcrumb() {
 
   return (
     <nav
-      className="mb-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)]"
       aria-label="مسار الصفحة"
+      className="mb-5 overflow-x-auto pb-1"
     >
-      <Link
-        href="/dashboard"
-        className="
-          inline-flex items-center gap-2
-          rounded-xl
-          border border-[var(--app-border)]
-          bg-[var(--app-card)]
-          px-4 py-2
-          shadow-sm
-          transition-all duration-200
-          hover:border-[var(--app-gold)]
-          hover:text-[var(--app-gold)]
-        "
-      >
-        <Home className="h-4 w-4" />
-        الرئيسية
-      </Link>
-
-      {segments.map((segment, index) => {
-        const href = `/${segments.slice(0, index + 1).join("/")}`;
-        const isLast = index === segments.length - 1;
-
-        return (
-          <span key={href} className="inline-flex items-center gap-2">
-            <ChevronLeft className="h-4 w-4 text-[var(--app-text-muted)]" />
-
-            {isLast ? (
-              <span
-                className="
-                  rounded-xl
-                  bg-[var(--app-gold-soft)]
-                  px-4 py-2
-                  font-bold
-                  text-[var(--app-gold)]
-                "
-              >
-                {getPageName(segment)}
-              </span>
-            ) : (
-              <Link
-                href={href}
-                className="
-                  rounded-xl
-                  border border-[var(--app-border)]
-                  bg-[var(--app-card)]
-                  px-4 py-2
-                  transition-all duration-200
-                  hover:border-[var(--app-gold)]
-                  hover:text-[var(--app-gold)]
-                "
-              >
-                {getPageName(segment)}
-              </Link>
+      <ol className="flex min-w-max items-center gap-1.5 text-xs font-semibold text-[var(--app-text-muted)]">
+        <li>
+          <Link
+            href="/dashboard"
+            className={cx(
+              "inline-flex h-9 items-center gap-2 rounded-[var(--app-radius-md)] px-3",
+              "transition-colors duration-200",
+              "hover:bg-[var(--app-card-soft)] hover:text-[var(--app-primary)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]",
+              "focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]",
             )}
-          </span>
-        );
-      })}
+          >
+            <Home aria-hidden="true" className="h-4 w-4" />
+            <span>الرئيسية</span>
+          </Link>
+        </li>
+
+        {segments.map((segment, index) => {
+          const href = `/${segments.slice(0, index + 1).join("/")}`;
+          const isLast = index === segments.length - 1;
+          const pageName = getPageName(segment);
+
+          return (
+            <li
+              key={href}
+              className="inline-flex items-center gap-1.5"
+              aria-current={isLast ? "page" : undefined}
+            >
+              <ChevronLeft
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 text-[var(--app-text-subtle)]"
+              />
+
+              {isLast ? (
+                <span
+                  className={cx(
+                    "inline-flex h-9 items-center rounded-[var(--app-radius-md)] px-3",
+                    "bg-[var(--app-primary-soft)] font-black text-[var(--app-primary)]",
+                  )}
+                  title={pageName}
+                >
+                  {pageName}
+                </span>
+              ) : (
+                <Link
+                  href={href}
+                  className={cx(
+                    "inline-flex h-9 items-center rounded-[var(--app-radius-md)] px-3",
+                    "transition-colors duration-200",
+                    "hover:bg-[var(--app-card-soft)] hover:text-[var(--app-primary)]",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-primary)]",
+                    "focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-background)]",
+                  )}
+                  title={pageName}
+                >
+                  {pageName}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }

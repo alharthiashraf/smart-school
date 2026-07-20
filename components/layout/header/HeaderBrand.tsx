@@ -19,7 +19,11 @@ export default function HeaderBrand({
         <span
           aria-hidden="true"
           className="
-            hidden h-9 w-1 shrink-0 rounded-full
+            hidden
+            h-10
+            w-1
+            shrink-0
+            rounded-full
             bg-gradient-to-b
             from-[var(--app-accent)]
             to-[var(--app-gold-700)]
@@ -29,12 +33,32 @@ export default function HeaderBrand({
         />
 
         <div className="min-w-0">
-          <h1 className="truncate text-base font-black text-[var(--app-text-strong)] sm:text-lg">
+          <h1
+            className="
+              truncate
+              text-lg
+              font-black
+              tracking-tight
+              text-[var(--app-text)]
+            "
+          >
             {title}
           </h1>
 
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-bold text-[var(--app-text-muted)]">
-            <span className="max-w-[220px] truncate">
+          <div
+            className="
+              mt-1.5
+              flex
+              min-w-0
+              flex-wrap
+              items-center
+              gap-2
+              text-xs
+              font-semibold
+              text-[var(--app-text-muted)]
+            "
+          >
+            <span className="max-w-[240px] truncate">
               {schoolLabel}
             </span>
 

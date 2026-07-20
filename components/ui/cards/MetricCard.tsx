@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 
 import BaseCard from "./BaseCard";
 
-type MetricTone = "success" | "warning" | "danger" | "info" | "neutral";
+export type MetricTone =
+  | "success"
+  | "warning"
+  | "danger"
+  | "info"
+  | "neutral";
 
 export type MetricCardProps = {
   label: string;
@@ -20,7 +25,7 @@ type MetricToneClasses = {
   progress: string;
 };
 
-const tones: Record<MetricTone, MetricToneClasses> = {
+const TONE_CLASSES: Record<MetricTone, MetricToneClasses> = {
   success: {
     text: "text-[var(--app-green)]",
     background: "bg-[var(--app-green-soft)]",
@@ -48,6 +53,18 @@ const tones: Record<MetricTone, MetricToneClasses> = {
   },
 };
 
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function normalizeProgress(value?: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.round(Math.max(0, Math.min(100, value)));
+}
+
 export default function MetricCard({
   label,
   value,
@@ -57,30 +74,30 @@ export default function MetricCard({
   progress,
   className,
 }: MetricCardProps) {
-  const progressValue =
-    typeof progress === "number"
-      ? Math.min(Math.max(progress, 0), 100)
-      : null;
+  const progressValue = normalizeProgress(progress);
+  const toneClasses = TONE_CLASSES[tone];
 
   return (
     <BaseCard
       as="article"
       padding="sm"
-      className={[tones[tone].background, className]
-        .filter(Boolean)
-        .join(" ")}
+      className={cx(
+        "overflow-hidden",
+        toneClasses.background,
+        className,
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-bold text-[var(--app-text-muted)]">
+          <p className="truncate text-xs font-bold text-[var(--app-text-muted)]">
             {label}
           </p>
 
           <p
-            className={[
-              "mt-1 break-words text-2xl font-black",
-              tones[tone].text,
-            ].join(" ")}
+            className={cx(
+              "mt-1 break-words text-2xl font-black tracking-tight",
+              toneClasses.text,
+            )}
           >
             {value}
           </p>
@@ -94,10 +111,10 @@ export default function MetricCard({
 
         {icon && (
           <div
-            className={[
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-card)]",
-              tones[tone].text,
-            ].join(" ")}
+            className={cx(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-card)] shadow-sm",
+              toneClasses.text,
+            )}
             aria-hidden="true"
           >
             {icon}
@@ -107,9 +124,12 @@ export default function MetricCard({
 
       {progressValue !== null && (
         <div className="mt-4">
-          <div className="mb-1 flex items-center justify-between text-xs font-bold text-[var(--app-text-muted)]">
+          <div className="mb-1 flex items-center justify-between gap-3 text-xs font-bold text-[var(--app-text-muted)]">
             <span>التقدم</span>
-            <span dir="ltr">{progressValue}%</span>
+
+            <span className="shrink-0" dir="ltr">
+              {progressValue}%
+            </span>
           </div>
 
           <div
@@ -119,12 +139,13 @@ export default function MetricCard({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progressValue}
+            aria-valuetext={`${progressValue}%`}
           >
             <div
-              className={[
-                "h-full rounded-full transition-[width] duration-300",
-                tones[tone].progress,
-              ].join(" ")}
+              className={cx(
+                "h-full rounded-full transition-[width] duration-300 ease-out",
+                toneClasses.progress,
+              )}
               style={{ width: `${progressValue}%` }}
             />
           </div>
